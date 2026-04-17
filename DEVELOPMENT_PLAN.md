@@ -71,9 +71,9 @@ Build a stable, production-ready Android app for creating calendar events via lo
 
 ### Acceptance Criteria
 
-- `./gradlew build` succeeds on clean slate
-- CI builds pass on PR to main branch
-- App builds on Android 6.0+ (minSdk 26)
+- ✅ `./gradlew build` succeeds on clean slate
+- ✅ CI builds pass on PR to main branch
+- ✅ App builds on Android 6.0+ (minSdk 26)
 
 ---
 
@@ -413,16 +413,9 @@ develop       → Integration branch for new features
 
 ### Pre-commit Hooks
 
-```bash
-# Check code style
-pre-commit:ktlint
-
-# Run tests on commit
-pre-commit:gradle test
-
-# Check commit message format
-pre-commit:conventional-commits
-```
+- Commit message validation (conventional commits)
+- ktlint formatting check
+- Test execution on commit
 
 ### Commit Convention
 
@@ -433,6 +426,8 @@ docs: Update privacy policy
 perf: Optimize model loading
 chore: Update dependencies
 refactor: Clean up use case layer
+test: Add instrumentation tests
+ci: Update GitHub Actions
 ```
 
 ---
@@ -498,10 +493,11 @@ refactor: Clean up use case layer
 ### ✅ Completed
 
 - Project foundation (Phase 1)
-- CI/CD pipeline setup
+- CI/CD pipeline setup (GitHub Actions)
 - Documentation framework
-- Branch structure
-- Code style configuration
+- Branch structure (main/develop)
+- Code style configuration (.editorconfig)
+- All documentation files created
 
 ### 🟡 In Progress
 
