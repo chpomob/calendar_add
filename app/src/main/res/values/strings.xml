@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Calendar Add AI</string>
+    <string name="text_input">Text</string>
+    <string name="audio_input">Audio</string>
+    <string name="image_input">Image</string>
+    <string name="create_event">Create Event</string>
+    <string name="error">Error creating event</string>
+</resources>

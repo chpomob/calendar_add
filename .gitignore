@@ -1,0 +1,60 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+release/
+
+# Gradle files
+.gradle/
+build/
+!app/build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Proguard folder
+proguard/
+
+# Log Files
+*.log
+
+# Android Studio navigation history
+.navigation/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Keystore files
+jks
+keystore
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pem
+
+# External native build folder
+.cxx/
+.externalNativeBuild/
+
+# Android Profiling
+*.hprof
+
+# Gradle cache
+.gradle-version
+
+# Local avd
+.avd/

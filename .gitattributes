@@ -1,0 +1,18 @@
+# EOL handling
+*.kt text eol=lf
+*.java text eol=lf
+*.sh text eol=lf
+*.yaml text eol=lf
+
+# Binary files
+*.ttf binary
+*.png binary
+*.mp3 binary
+*.wav binary
+
+# Generated files
+build/ export/ release/ *.class binary
+
+# Android Studio
+.idea/ binary
+*.iml binary
