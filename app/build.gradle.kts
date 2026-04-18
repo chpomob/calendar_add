@@ -55,9 +55,12 @@ android {
 }
 
 dependencies {
+    // Core Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+
+    // Compose BOM
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
@@ -66,8 +69,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     // TensorFlow Lite for local AI inference
-    implementation(libs.tensorflow.lite)
-    implementation(libs.tensorflow.lite.support)
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
     // Room for database
     implementation("androidx.room:room-runtime:2.6.1")

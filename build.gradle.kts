@@ -4,3 +4,11 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.ktlint) apply false
 }
+
+// Add kotlin plugin for all projects
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
