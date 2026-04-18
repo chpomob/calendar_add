@@ -8,7 +8,6 @@ import java.util.*
 
 /**
  * Use case for creating calendar events from various inputs.
- * This orchestrates the AI analysis and event creation flow.
  */
 class CalendarUseCase(
     private val textAnalysisService: TextAnalysisService,
@@ -20,7 +19,7 @@ class CalendarUseCase(
         context: InputContext = InputContext()
     ): EventResult {
         return try {
-            val analysis = textAnalysisService.analyzeInput(input, context)
+            val analysis = textAnalysisService.analyzeText(input, context)
             saveExtraction(analysis, "text")
         } catch (e: Exception) {
             EventResult.Failure(e.message ?: "Unknown error")
@@ -34,6 +33,18 @@ class CalendarUseCase(
         return try {
             val analysis = textAnalysisService.analyzeImage(bitmap, context)
             saveExtraction(analysis, "image")
+        } catch (e: Exception) {
+            EventResult.Failure(e.message ?: "Unknown error")
+        }
+    }
+
+    suspend fun createEventFromAudio(
+        audioData: ByteArray,
+        context: InputContext = InputContext()
+    ): EventResult {
+        return try {
+            val analysis = textAnalysisService.analyzeAudio(audioData, context)
+            saveExtraction(analysis, "audio")
         } catch (e: Exception) {
             EventResult.Failure(e.message ?: "Unknown error")
         }

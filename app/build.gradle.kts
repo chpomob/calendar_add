@@ -70,9 +70,10 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
 
-    // ML Kit GenAI (2026)
-    implementation(libs.mlkit.genai.prompt)
-    implementation(libs.mlkit.genai.speech)
+    // LiteRT-LM (2026 - Multimodal Gemma 4)
+    implementation(libs.litertlm.android)
+
+    // ML Kit (OCR)
     implementation(libs.mlkit.text.recognition)
 
     // Room

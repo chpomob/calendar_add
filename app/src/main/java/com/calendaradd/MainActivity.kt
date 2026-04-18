@@ -21,8 +21,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var eventDatabase: EventDatabase
     private lateinit var calendarUseCase: CalendarUseCase
     private lateinit var gemmaLlmService: GemmaLlmService
-    private lateinit var speechToTextService: SpeechToTextService
-    private lateinit var ocrService: OcrService
     private lateinit var systemCalendarService: SystemCalendarService
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,12 +29,10 @@ class MainActivity : ComponentActivity() {
 
         // Initialize Services
         eventDatabase = EventDatabase.getDatabase(this)
-        gemmaLlmService = GemmaLlmService()
-        speechToTextService = SpeechToTextService()
-        ocrService = OcrService()
+        gemmaLlmService = GemmaLlmService(this)
         systemCalendarService = SystemCalendarService(this)
 
-        val textAnalysisService = TextAnalysisService(gemmaLlmService, ocrService)
+        val textAnalysisService = TextAnalysisService(gemmaLlmService)
         calendarUseCase = CalendarUseCase(textAnalysisService, eventDatabase)
 
         setContent {
@@ -49,7 +45,7 @@ class MainActivity : ComponentActivity() {
                 AppNavGraph(
                     navController = navController,
                     onImportEvent = { input, sourceType ->
-                        // Handled by ViewModels (to be implemented)
+                        // Handled by ViewModels
                     },
                     linkPreviewService = LinkPreviewService(this),
                     fileImportHandler = FileImportHandler
@@ -60,6 +56,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        speechToTextService.close()
+        gemmaLlmService.close()
     }
 }

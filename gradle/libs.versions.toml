@@ -7,11 +7,9 @@ lifecycleRuntimeKtx = "2.8.3"
 activityCompose = "1.8.2"
 composeBom = "2024.04.00"
 coroutines = "1.7.3"
-mlkitGenaiPrompt = "1.0.0-beta2"
-mlkitGenaiSpeech = "1.0.0-alpha1"
 mlkitTextRecognition = "19.0.1"
+litertlm = "0.10.1"
 room = "2.6.1"
-mockk = "1.13.9"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -27,9 +25,10 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version = "2.8.0" }
 
-# ML Kit GenAI (2026)
-mlkit-genai-prompt = { group = "com.google.mlkit", name = "genai-prompt", version.ref = "mlkitGenaiPrompt" }
-mlkit-genai-speech = { group = "com.google.mlkit", name = "genai-speech-recognition", version.ref = "mlkitGenaiSpeech" }
+# LiteRT-LM (2026)
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
+
+# ML Kit (Still useful for OCR)
 mlkit-text-recognition = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition", version.ref = "mlkitTextRecognition" }
 
 # Room

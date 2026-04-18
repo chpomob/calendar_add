@@ -1,45 +1,52 @@
 package com.calendaradd.service
 
-import com.google.mlkit.genai.Generation
-import com.google.mlkit.genai.GenerativeModel
-import com.google.mlkit.genai.FeatureStatus
-import com.google.mlkit.genai.DownloadStatus
+import android.content.Context
+import android.graphics.Bitmap
+import com.google.ai.edge.litertlm.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
- * Service for interacting with Gemma 4 via ML Kit GenAI Prompt API.
+ * Service for interacting with Gemma 4 via LiteRT-LM API.
+ * Supports native multimodal (Text, Image, Audio) inference.
  */
-class GemmaLlmService {
+class GemmaLlmService(private val context: Context) {
 
-    private val generativeModel: GenerativeModel = Generation.getClient()
-
-    /**
-     * Checks if the Gemma 4 model is available and returns its status.
-     */
-    suspend fun checkModelStatus(): FeatureStatus {
-        return generativeModel.checkStatus()
-    }
+    private var engine: Engine? = null
+    private var conversation: Conversation? = null
 
     /**
-     * Initiates the download of the Gemma 4 model.
+     * Initializes the LiteRT-LM engine with a Gemma 4 model.
+     * Uses NPU acceleration for 2026-era hardware.
      */
-    fun downloadModel(): Flow<Int> {
-        return generativeModel.download().map { status ->
-            when (status) {
-                is DownloadStatus.Progress -> status.progress
-                is DownloadStatus.DownloadCompleted -> 100
-                is DownloadStatus.DownloadFailed -> -1
-                else -> 0
-            }
+    suspend fun initialize(modelPath: String) = withContext(Dispatchers.IO) {
+        if (engine != null) return@withContext
+
+        val config = EngineConfig(
+            modelPath = modelPath,
+            backend = Backend.NPU() // Hardware acceleration for 2026 devices
+        )
+        
+        engine = Engine(config).apply {
+            initialize()
         }
+        conversation = engine?.createConversation()
     }
 
     /**
-     * Extracts event information from the given input text using Gemma 4.
-     * Returns a JSON string containing the extracted fields.
+     * Processes multimodal content and returns the extracted event JSON string.
      */
-    suspend fun extractEventJson(input: String): String? {
+    suspend fun extractEventJson(
+        text: String,
+        image: Bitmap? = null,
+        audio: ByteArray? = null
+    ): String? = withContext(Dispatchers.IO) {
+        val conv = conversation ?: return@withContext null
+
         val systemPrompt = """
             You are a calendar assistant. Extract event details from the user input.
             Respond ONLY with a JSON object containing:
@@ -51,15 +58,32 @@ class GemmaLlmService {
             - attendees (list of strings)
             
             If a field is missing, use an empty string or empty list.
-            Input: "$input"
+            Input text: "$text"
         """.trimIndent()
 
-        return try {
-            val response = generativeModel.generateContent(systemPrompt)
+        val contentBuilder = Content.builder()
+            .addText(systemPrompt)
+            
+        image?.let { contentBuilder.addImage(it) }
+        audio?.let { contentBuilder.addAudio(it) }
+
+        val content = contentBuilder.build()
+
+        return@withContext try {
+            val response = conv.sendMessage(content)
             response.text
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
+    }
+
+    /**
+     * Closes the engine and releases resources.
+     */
+    fun close() {
+        engine?.close()
+        engine = null
+        conversation = null
     }
 }

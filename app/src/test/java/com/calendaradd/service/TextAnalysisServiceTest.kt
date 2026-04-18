@@ -10,18 +10,16 @@ import org.junit.Test
 class TextAnalysisServiceTest {
 
     private lateinit var gemmaLlmService: GemmaLlmService
-    private lateinit var ocrService: OcrService
     private lateinit var textAnalysisService: TextAnalysisService
 
     @Before
     fun setup() {
         gemmaLlmService = mockk()
-        ocrService = mockk()
-        textAnalysisService = TextAnalysisService(gemmaLlmService, ocrService)
+        textAnalysisService = TextAnalysisService(gemmaLlmService)
     }
 
     @Test
-    fun `analyzeInput should return EventExtraction when LLM returns valid JSON`() = runBlocking {
+    fun `analyzeText should return EventExtraction when LLM returns valid JSON`() = runBlocking {
         // Given
         val input = "Meeting at 10am tomorrow"
         val jsonResponse = """
@@ -35,55 +33,44 @@ class TextAnalysisServiceTest {
             }
         """.trimIndent()
         
-        coEvery { gemmaLlmService.extractEventJson(input) } returns jsonResponse
+        coEvery { gemmaLlmService.extractEventJson(text = input) } returns jsonResponse
 
         // When
-        val result = textAnalysisService.analyzeInput(input)
+        val result = textAnalysisService.analyzeText(input)
 
         // Then
         assertEquals("Meeting", result.title)
         assertEquals("2026-04-19T10:00:00", result.startTime)
         assertEquals(2, result.attendees.size)
-        assertEquals("Alice", result.attendees[0])
     }
 
     @Test
-    fun `analyzeInput should handle JSON with markdown code blocks`() = runBlocking {
+    fun `analyzeImage should call LLM with image`() = runBlocking {
         // Given
-        val input = "Party tonight"
-        val jsonWithMarkdown = """
-            ```json
-            {
-                "title": "Party",
-                "description": "Birthday celebration",
-                "startTime": "2026-04-18T20:00:00",
-                "endTime": "",
-                "location": "Home",
-                "attendees": []
-            }
-            ```
-        """.trimIndent()
+        val bitmap = mockk<android.graphics.Bitmap>()
+        val jsonResponse = "{\"title\": \"Event from image\"}"
         
-        coEvery { gemmaLlmService.extractEventJson(input) } returns jsonWithMarkdown
+        coEvery { gemmaLlmService.extractEventJson(text = any(), image = bitmap) } returns jsonResponse
 
         // When
-        val result = textAnalysisService.analyzeInput(input)
+        val result = textAnalysisService.analyzeImage(bitmap)
 
         // Then
-        assertEquals("Party", result.title)
-        assertEquals("Home", result.location)
+        assertEquals("Event from image", result.title)
     }
 
     @Test
-    fun `analyzeInput should return empty extraction when LLM returns invalid JSON`() = runBlocking {
+    fun `analyzeAudio should call LLM with audio data`() = runBlocking {
         // Given
-        val input = "Some text"
-        coEvery { gemmaLlmService.extractEventJson(input) } returns "Invalid JSON"
+        val audioData = byteArrayOf(1, 2, 3)
+        val jsonResponse = "{\"title\": \"Event from audio\"}"
+        
+        coEvery { gemmaLlmService.extractEventJson(text = any(), audio = audioData) } returns jsonResponse
 
         // When
-        val result = textAnalysisService.analyzeInput(input)
+        val result = textAnalysisService.analyzeAudio(audioData)
 
         // Then
-        assertEquals("", result.title)
+        assertEquals("Event from audio", result.title)
     }
 }

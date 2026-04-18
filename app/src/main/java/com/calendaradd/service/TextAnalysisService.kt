@@ -12,18 +12,17 @@ import java.util.*
  * Service for orchestrating the AI analysis pipeline.
  */
 class TextAnalysisService(
-    private val gemmaLlmService: GemmaLlmService,
-    private val ocrService: OcrService
+    private val gemmaLlmService: GemmaLlmService
 ) {
 
     /**
      * Analyzes text input and extracts event information.
      */
-    suspend fun analyzeInput(
+    suspend fun analyzeText(
         input: String,
         context: InputContext = InputContext()
     ): EventExtraction = withContext(Dispatchers.IO) {
-        val jsonString = gemmaLlmService.extractEventJson(input)
+        val jsonString = gemmaLlmService.extractEventJson(text = input)
         parseJsonToExtraction(jsonString)
     }
 
@@ -34,15 +33,25 @@ class TextAnalysisService(
         bitmap: Bitmap,
         context: InputContext = InputContext()
     ): EventExtraction = withContext(Dispatchers.IO) {
-        val extractedText = ocrService.extractText(bitmap) ?: return@withContext emptyExtraction()
-        analyzeInput(extractedText, context)
+        val jsonString = gemmaLlmService.extractEventJson(text = "Extract event from this image.", image = bitmap)
+        parseJsonToExtraction(jsonString)
+    }
+
+    /**
+     * Analyzes audio for event information.
+     */
+    suspend fun analyzeAudio(
+        audioData: ByteArray,
+        context: InputContext = InputContext()
+    ): EventExtraction = withContext(Dispatchers.IO) {
+        val jsonString = gemmaLlmService.extractEventJson(text = "Extract event from this audio recording.", audio = audioData)
+        parseJsonToExtraction(jsonString)
     }
 
     private fun parseJsonToExtraction(jsonString: String?): EventExtraction {
         if (jsonString == null) return emptyExtraction()
         
         return try {
-            // Clean up JSON string (LLMs sometimes add markdown code blocks)
             val cleaned = jsonString.trim()
                 .removePrefix("```json")
                 .removePrefix("```")
@@ -50,7 +59,6 @@ class TextAnalysisService(
                 .trim()
                 
             val json = JSONObject(cleaned)
-            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
             
             EventExtraction(
                 title = json.optString("title"),
