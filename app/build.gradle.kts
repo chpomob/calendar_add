@@ -22,10 +22,19 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
+            )
+            // Add custom ProGuard rules for our app
+            setProguardFiles(
+                listOf(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro",
+                    "proguard-android-release.txt"
+                )
             )
         }
     }
@@ -69,10 +78,6 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
-
-    // MLC-LLM for running Gemma on Android (better than TensorFlow Lite for LLMs)
-    // Download via Gradle or include manually
-    implementation("com.metalink.mllm:android-mlc-llm:0.1.0")
 
     // Room for database
     implementation("androidx.room:room-runtime:2.6.1")
