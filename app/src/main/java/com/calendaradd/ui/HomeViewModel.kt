@@ -68,6 +68,10 @@ class HomeViewModel(
             }
         }
     }
+
+    fun resetState() {
+        _uiState.value = HomeUiState.Idle
+    }
 }
 
 sealed class HomeUiState {

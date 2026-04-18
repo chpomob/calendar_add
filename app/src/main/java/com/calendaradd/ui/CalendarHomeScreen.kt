@@ -1,70 +1,69 @@
 package com.calendaradd.ui
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.calendaradd.navigation.Screen
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreview
-import com.calendaradd.util.UriResolver
-import com.calendaradd.navigation.Screen
-import com.calendaradd.usecase.Event
+import com.calendaradd.util.LinkPreviewService
 
 /**
- * Main home screen for the calendar app with floating action button for event creation.
+ * Main home screen for the calendar app.
+ * Automatically processes shared content if provided.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarHomeScreen(
     navController: androidx.navigation.NavController,
-    onImportEvent: suspend (String, String) -> Unit,
-    linkPreviewService: com.calendaradd.util.LinkPreviewService,
+    viewModel: HomeViewModel,
+    linkPreviewService: LinkPreviewService,
+    onResetSharedContent: () -> Unit,
     fileImportHandler: FileImportHandler = FileImportHandler,
+    sharedText: String? = null,
+    sharedImage: Bitmap? = null,
+    sharedAudio: ByteArray? = null,
     modifier: Modifier = Modifier
 ) {
-    var selectedInput by remember { mutableStateOf("text") }
+    val uiState by viewModel.uiState.collectAsState()
+    val isModelReady by viewModel.isModelReady.collectAsState()
+    
     var inputValue by remember { mutableStateOf("") }
-    var isProcessing by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var eventCreated by remember { mutableStateOf<Event?>(null) }
-    var isLinkPreview by remember { mutableStateOf(false) }
-    var linkPreviewTitle by remember { mutableStateOf<String?>(null) }
-    var linkPreviewDescription by remember { mutableStateOf<String?>(null) }
-    var linkPreviewUrl by remember { mutableStateOf<String?>(null) }
 
-    // Handle file import result
-    fun handleFileImport(uri: androidx.content.Uri, type: String) {
-        fileImportHandler.handleFileResult(resultCode = 0, data = null, uriResolver = UriResolver)
-            ?.let { result ->
-                if (result is FileImportHandler.FileImportResult.Success) {
-                    // For now, just use text content
-                    val text = "Imported from file: ${result.uri}"
-                    onImportEvent.invoke(text, type)
-                }
-            }
+    // Automatically process shared content
+    LaunchedEffect(sharedText) {
+        sharedText?.let { 
+            viewModel.processText(it)
+            onResetSharedContent()
+        }
+    }
+    LaunchedEffect(sharedImage) {
+        sharedImage?.let { 
+            viewModel.processImage(it)
+            onResetSharedContent()
+        }
+    }
+    LaunchedEffect(sharedAudio) {
+        sharedAudio?.let { 
+            viewModel.processAudio(it)
+            onResetSharedContent()
+        }
     }
 
-    // Process text input
-    fun onTextSubmit() {
-        isProcessing = true
-        errorMessage = null
-        inputValue = ""
-
-        // Extract event from text
-        val extractedEvent = onImportEvent.invoke(inputValue, "text")
-        if (extractedEvent != null) {
-            eventCreated = extractedEvent
-        } else {
-            errorMessage = "Failed to create event. Please try again."
+    // Initialize model if not ready (using a placeholder path for now)
+    LaunchedEffect(isModelReady) {
+        if (!isModelReady) {
+            viewModel.initializeModel("/data/local/tmp/gemma-4-e2b-it.litertlm")
         }
     }
 
@@ -83,263 +82,166 @@ fun CalendarHomeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { /* TODO: Open event creation dialog */ },
-                containerColors = FloatingActionButtonDefaults.containerColors(
-                    default = MaterialTheme.colorScheme.primaryContainer,
-                    pressed = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.88f)
-                )
+                onClick = { navController.navigate(Screen.EventList.route) },
+                containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Icon(Icons.Default.Event, contentDescription = "Create event")
+                Icon(Icons.Default.List, contentDescription = "View Events")
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Input type selector
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                val inputTypes = listOf(
-                    "text" to Icons.Default.Event to 120,
-                    "audio" to Icons.Default.Mic to 0,
-                    "image" to Icons.Default.Image to 0,
-                    "link" to Icons.Default.Link to 0
+                Text(
+                    text = "Smart Event Creator",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
                 )
 
-                inputTypes.forEach { (type, icon, available) ->
-                    if (available == 0) return@forEach
-                    val isSelected = selectedInput == type
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(60.dp),
-                        elevation = CardDefaults.cardElevation(
-                            defaultElevation = if (isSelected) 4.dp else 0.dp
-                        )
-                    ) {
-                        Surface(
-                            tonalElevation = if (isSelected) 2.dp else 0.dp
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = type,
-                                    modifier = Modifier.padding(8.dp),
-                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = type.capitalize(),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(8.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Input field
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    when (selectedInput) {
-                        "text" -> {
-                            TextField(
-                                value = inputValue,
-                                onValueChange = { inputValue = it },
-                                label = { Text("Enter event description or paste text...") },
-                                placeholder = { Text("Describe your event, or paste notes about a meeting...") },
-                                singleLine = true
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            TextButton(onClick = {
-                                onTextSubmit()
-                            }) {
-                                Text("Create Event")
-                            }
-                        }
-                        "link" -> {
-                            // Link preview input
-                            TextField(
-                                value = inputValue,
-                                onValueChange = { inputValue = it },
-                                label = { Text("Paste URL for link preview") },
-                                singleLine = true
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            if (isLinkPreview) {
-                                LinkPreviewCard(
-                                    preview = LinkPreview(
-                                        url = linkPreviewUrl ?: "",
-                                        title = linkPreviewTitle ?: "",
-                                        description = linkPreviewDescription ?: "",
-                                        imageUrl = null,
-                                        faviconUrl = null
-                                    ),
-                                    onClick = {
-                                        // Create event from link
-                                    }
-                                )
-                            }
-                        }
-                        else -> {}
-                    }
-
-                    if (errorMessage != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = errorMessage ?: "",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-
-                    if (eventCreated != null) {
-                        EventCard(event = eventCreated!!)
-                    }
-                }
-            }
-
-            // Event list header
-            Text(
-                text = "Your Events",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            if (eventCreated != null) {
-                EventCard(event = eventCreated!!)
-            } else if (eventCreated != null) {
                 Text(
-                    text = "No events yet. Create your first event above!",
+                    text = "Paste text, share an image, or record audio to create events instantly with local AI.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                // Text Input Card
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        OutlinedTextField(
+                            value = inputValue,
+                            onValueChange = { inputValue = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Event details...") },
+                            placeholder = { Text("e.g., Lunch with Maria at 1pm tomorrow at Bistro") }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { viewModel.processText(inputValue) },
+                            modifier = Modifier.align(Alignment.End),
+                            enabled = isModelReady && inputValue.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Analyze")
+                        }
+                    }
+                }
+
+                // Quick Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ActionCard(
+                        icon = Icons.Default.Mic,
+                        label = "Voice",
+                        onClick = { /* TODO: Implement live recording */ },
+                        modifier = Modifier.weight(1f)
+                    )
+                    ActionCard(
+                        icon = Icons.Default.Image,
+                        label = "Image",
+                        onClick = { /* TODO: Implement gallery picker */ },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Status Message
+                if (!isModelReady) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Initializing Gemma 4 Engine...", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
+            // Processing Overlay
+            if (uiState is HomeUiState.Loading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(16.dp))
+                            Text((uiState as HomeUiState.Loading).message)
+                        }
+                    }
+                }
+            }
+
+            // Success/Error Dialogs
+            if (uiState is HomeUiState.Success) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.resetState() },
+                    title = { Text("Event Created!") },
+                    text = { Text("Successfully created event: ${(uiState as HomeUiState.Success).eventTitle}") },
+                    confirmButton = {
+                        Button(onClick = { 
+                            viewModel.resetState()
+                            navController.navigate(Screen.EventList.route) 
+                        }) {
+                            Text("View List")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.resetState() }) {
+                            Text("Dismiss")
+                        }
+                    }
+                )
+            }
+
+            if (uiState is HomeUiState.Error) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.resetState() },
+                    title = { Text("Extraction Error") },
+                    text = { Text((uiState as HomeUiState.Error).message) },
+                    confirmButton = {
+                        Button(onClick = { viewModel.resetState() }) {
+                            Text("OK")
+                        }
+                    }
+                )
             }
         }
     }
 }
 
-/**
- * Card displaying a single event.
- */
 @Composable
-fun EventCard(
-    event: Event
+fun ActionCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    OutlinedCard(
+        onClick = onClick,
+        modifier = modifier.height(80.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = "Event icon",
-                modifier = Modifier.size(40.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = event.title.ifEmpty { "Untitled Event" },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-                if (event.description.isNotEmpty()) {
-                    Text(
-                        text = event.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = event.startTime.ifEmpty { "No time" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = "More options",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-/**
- * Card displaying link preview.
- */
-@Composable
-fun LinkPreviewCard(
-    preview: LinkPreview,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Favicon or image
-            preview.imageUrl?.let { image ->
-                AsyncImage(
-                    model = image,
-                    contentDescription = null,
-                    modifier = Modifier.size(50.dp)
-                )
-            } ?: Icon(
-                imageVector = Icons.Default.Http,
-                contentDescription = "Link icon",
-                modifier = Modifier.size(50.dp)
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = preview.title.ifEmpty { preview.url },
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
-                )
-                preview.description?.let { desc ->
-                    Text(
-                        text = desc,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            TextButton(onClick = onClick) {
-                Text("Import")
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(icon, contentDescription = null)
+                Text(label, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
