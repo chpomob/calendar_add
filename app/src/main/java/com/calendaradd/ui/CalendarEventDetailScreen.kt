@@ -9,8 +9,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.calendaradd.navigation.Screen
-import com.calendaradd.usecase.Event
+import com.calendaradd.service.GemmaLlmService
+import com.calendaradd.usecase.CalendarUseCase
+import com.calendaradd.usecase.PreferencesManager
 
 /**
  * Screen displaying details of a single calendar event.
@@ -19,33 +22,25 @@ import com.calendaradd.usecase.Event
 @Composable
 fun CalendarEventDetailScreen(
     eventId: Long,
-    navController: com.calendaradd.navigation.NavHostController,
-    event: Event? = null,
+    navController: androidx.navigation.NavController,
+    calendarUseCase: CalendarUseCase,
+    preferencesManager: PreferencesManager,
     modifier: Modifier = Modifier
 ) {
-    var editMode by remember { mutableStateOf(false) }
-    var newTitle by remember { mutableStateOf("") }
-    var newDescription by remember { mutableStateOf("") }
-    var newStartTime by remember { mutableStateOf("") }
-    var newEndTime by remember { mutableStateOf("") }
-    var newLocation by remember { mutableStateOf("") }
-    var newAttendees by remember { mutableStateOf("") }
+    val viewModel: DetailViewModel = viewModel(
+        factory = AppViewModelFactory(calendarUseCase = calendarUseCase, eventId = eventId)
+    )
+    
+    val event by viewModel.event.collectAsState()
+    val syncStatus by viewModel.syncStatus.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (editMode) "Edit Event" else "Event Details") },
-                actions = {
-                    if (editMode) {
-                        IconButton(onClick = {
-                            navController.popBackStack()
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel")
-                        }
-                    } else {
-                        IconButton(onClick = { editMode = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit")
-                        }
+                title = { Text("Event Details") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -59,114 +54,33 @@ fun CalendarEventDetailScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Event title
-                OutlinedTextField(
-                    value = if (editMode) newTitle else e.title,
-                    onValueChange = { if (editMode) newTitle = it },
-                    label = { Text("Title") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Text(e.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Description: ${e.description}", style = MaterialTheme.typography.bodyMedium)
+                Text("Start: ${e.startTime}", style = MaterialTheme.typography.bodyMedium)
+                Text("End: ${e.endTime}", style = MaterialTheme.typography.bodyMedium)
+                Text("Location: ${e.location}", style = MaterialTheme.typography.bodyMedium)
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Description
-                OutlinedTextField(
-                    value = if (editMode) newDescription else e.description,
-                    onValueChange = { if (editMode) newDescription = it },
-                    label = { Text("Description") },
-                    minLines = 3,
-                    maxLines = 5,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Start time
-                OutlinedTextField(
-                    value = if (editMode) newStartTime else e.startTime,
-                    onValueChange = { if (editMode) newStartTime = it },
-                    label = { Text("Start Time") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // End time
-                OutlinedTextField(
-                    value = if (editMode) newEndTime else e.endTime,
-                    onValueChange = { if (editMode) newEndTime = it },
-                    label = { Text("End Time") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Location
-                OutlinedTextField(
-                    value = if (editMode) newLocation else e.location,
-                    onValueChange = { if (editMode) newLocation = it },
-                    label = { Text("Location") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Attendees
-                OutlinedTextField(
-                    value = if (editMode) newAttendees else e.attendees,
-                    onValueChange = { if (editMode) newAttendees = it },
-                    label = { Text("Attendees (comma separated)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Action buttons
-                Row(
+                Button(
+                    onClick = { viewModel.syncToSystemCalendar() },
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    enabled = syncStatus !is SyncStatus.Syncing
                 ) {
-                    OutlinedButton(
-                        onClick = { editMode = false }
-                    ) {
-                        Text("Cancel")
-                    }
-
-                    if (!editMode) {
-                        OutlinedButton(
-                            onClick = { editMode = true }
-                        ) {
-                            Text("Edit")
-                        }
-                    } else {
-                        Button(
-                            onClick = { /* TODO: Save event */ },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Save Changes")
-                        }
-                    }
-                }
-            }
-        } ?: run {
-            // Show loading or error state
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Event not found", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("The event you're looking for doesn't exist.")
+                    Text(when (syncStatus) {
+                        is SyncStatus.Syncing -> "Syncing..."
+                        is SyncStatus.Success -> "Synced to Calendar"
+                        else -> "Sync to System Calendar"
+                    })
                 }
             }
         }
+    }
+
+    if (syncStatus is SyncStatus.Error) {
+        AlertDialog(
+            onDismissRequest = { viewModel.resetSyncStatus() },
+            title = { Text("Sync Error") },
+            text = { Text((syncStatus as SyncStatus.Error).message) },
+            confirmButton = { TextButton(onClick = { viewModel.resetSyncStatus() }) { Text("OK") } }
+        )
     }
 }

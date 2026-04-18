@@ -1,8 +1,7 @@
 package com.calendaradd.usecase
 
 import android.graphics.Bitmap
-import com.calendaradd.service.EventExtraction
-import com.calendaradd.service.TextAnalysisService
+import com.calendaradd.service.*
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -11,7 +10,9 @@ import java.util.*
  */
 class CalendarUseCase(
     private val textAnalysisService: TextAnalysisService,
-    private val eventDatabase: EventDatabase
+    private val eventDatabase: EventDatabase,
+    private val systemCalendarService: SystemCalendarService,
+    private val preferencesManager: PreferencesManager
 ) {
 
     suspend fun createEventFromText(
@@ -20,7 +21,7 @@ class CalendarUseCase(
     ): EventResult {
         return try {
             val analysis = textAnalysisService.analyzeText(input, context)
-            saveExtraction(analysis, "text")
+            saveAndSyncExtraction(analysis, "text")
         } catch (e: Exception) {
             EventResult.Failure(e.message ?: "Unknown error")
         }
@@ -32,7 +33,7 @@ class CalendarUseCase(
     ): EventResult {
         return try {
             val analysis = textAnalysisService.analyzeImage(bitmap, context)
-            saveExtraction(analysis, "image")
+            saveAndSyncExtraction(analysis, "image")
         } catch (e: Exception) {
             EventResult.Failure(e.message ?: "Unknown error")
         }
@@ -44,13 +45,13 @@ class CalendarUseCase(
     ): EventResult {
         return try {
             val analysis = textAnalysisService.analyzeAudio(audioData, context)
-            saveExtraction(analysis, "audio")
+            saveAndSyncExtraction(analysis, "audio")
         } catch (e: Exception) {
             EventResult.Failure(e.message ?: "Unknown error")
         }
     }
 
-    private suspend fun saveExtraction(analysis: EventExtraction, sourceType: String): EventResult {
+    private suspend fun saveAndSyncExtraction(analysis: EventExtraction, sourceType: String): EventResult {
         val startTime = parseIso8601(analysis.startTime) ?: System.currentTimeMillis()
         val endTime = parseIso8601(analysis.endTime) ?: (startTime + 3600000L) // Default 1 hour
 
@@ -65,8 +66,42 @@ class CalendarUseCase(
             aiConfidence = analysis.confidence ?: 1.0f
         )
 
-        val id = eventDatabase.eventDao().insert(event)
-        return EventResult.Success(event.copy(id = id))
+        // Step 1: Save to internal database
+        val internalId = eventDatabase.eventDao().insert(event)
+        val savedEvent = event.copy(id = internalId)
+
+        // Step 2: Auto-add to system calendar if enabled
+        if (preferencesManager.isAutoAddEnabled) {
+            val calendarId = if (preferencesManager.targetCalendarId != -1L) {
+                preferencesManager.targetCalendarId
+            } else {
+                systemCalendarService.getPrimaryCalendarId()
+            }
+
+            if (calendarId != null) {
+                systemCalendarService.insertEvent(
+                    calendarId = calendarId,
+                    title = savedEvent.title,
+                    description = savedEvent.description,
+                    startTimeMillis = savedEvent.startTime,
+                    endTimeMillis = savedEvent.endTime,
+                    location = savedEvent.location
+                )
+            }
+        }
+
+        return EventResult.Success(savedEvent)
+    }
+
+    fun syncEventToSystem(event: Event, calendarId: Long): Long? {
+        return systemCalendarService.insertEvent(
+            calendarId = calendarId,
+            title = event.title,
+            description = event.description,
+            startTimeMillis = event.startTime,
+            endTimeMillis = event.endTime,
+            location = event.location
+        )
     }
 
     private fun parseIso8601(dateString: String?): Long? {
@@ -82,6 +117,8 @@ class CalendarUseCase(
     fun getAllEvents() = eventDatabase.eventDao().getAllEvents()
     
     suspend fun deleteEvent(id: Long) = eventDatabase.eventDao().deleteEvent(id)
+    
+    fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
 }
 
 /**

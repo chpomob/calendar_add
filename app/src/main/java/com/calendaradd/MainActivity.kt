@@ -18,6 +18,7 @@ import com.calendaradd.navigation.AppNavGraph
 import com.calendaradd.service.*
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.EventDatabase
+import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import java.io.InputStream
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var gemmaLlmService: GemmaLlmService
     private lateinit var modelDownloadManager: ModelDownloadManager
     private lateinit var systemCalendarService: SystemCalendarService
+    private lateinit var preferencesManager: PreferencesManager
 
     // State to hold shared content for navigation
     private val sharedText = mutableStateOf<String?>(null)
@@ -50,9 +52,15 @@ class MainActivity : ComponentActivity() {
         gemmaLlmService = GemmaLlmService(this)
         modelDownloadManager = ModelDownloadManager(this)
         systemCalendarService = SystemCalendarService(this)
+        preferencesManager = PreferencesManager(this)
 
         val textAnalysisService = TextAnalysisService(gemmaLlmService)
-        calendarUseCase = CalendarUseCase(textAnalysisService, eventDatabase)
+        calendarUseCase = CalendarUseCase(
+            textAnalysisService = textAnalysisService,
+            eventDatabase = eventDatabase,
+            systemCalendarService = systemCalendarService,
+            preferencesManager = preferencesManager
+        )
 
         handleIntent(intent)
 
@@ -72,6 +80,7 @@ class MainActivity : ComponentActivity() {
                     calendarUseCase = calendarUseCase,
                     gemmaLlmService = gemmaLlmService,
                     modelDownloadManager = modelDownloadManager,
+                    preferencesManager = preferencesManager,
                     onResetSharedContent = ::resetSharedContent,
                     fileImportHandler = FileImportHandler,
                     // Pass shared content to UI if needed

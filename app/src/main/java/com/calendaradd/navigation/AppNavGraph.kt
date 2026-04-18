@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import com.calendaradd.service.*
 import com.calendaradd.ui.*
 import com.calendaradd.usecase.CalendarUseCase
+import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 
@@ -23,6 +24,7 @@ fun AppNavGraph(
     calendarUseCase: CalendarUseCase,
     gemmaLlmService: GemmaLlmService,
     modelDownloadManager: ModelDownloadManager,
+    preferencesManager: PreferencesManager,
     onResetSharedContent: () -> Unit,
     fileImportHandler: FileImportHandler = FileImportHandler,
     startDestination: String = Screen.Home.route,
@@ -36,7 +38,11 @@ fun AppNavGraph(
     ) {
         composable(Screen.Home.route) {
             val homeViewModel: HomeViewModel = viewModel(
-                factory = HomeViewModelFactory(calendarUseCase, gemmaLlmService, modelDownloadManager)
+                factory = AppViewModelFactory(
+                    calendarUseCase = calendarUseCase,
+                    gemmaLlmService = gemmaLlmService,
+                    modelDownloadManager = modelDownloadManager
+                )
             )
             
             CalendarHomeScreen(
@@ -64,13 +70,23 @@ fun AppNavGraph(
             val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
             CalendarEventDetailScreen(
                 eventId = eventId.toLong(),
-                navController = navController
+                navController = navController,
+                calendarUseCase = calendarUseCase,
+                preferencesManager = preferencesManager
             )
         }
 
         composable(Screen.Settings.route) {
+            val settingsViewModel: SettingsViewModel = viewModel(
+                factory = AppViewModelFactory(
+                    calendarUseCase = calendarUseCase,
+                    preferencesManager = preferencesManager
+                )
+            )
+            
             CalendarSettingsScreen(
-                navController = navController
+                navController = navController,
+                viewModel = settingsViewModel
             )
         }
     }

@@ -10,18 +10,59 @@ import java.util.TimeZone
  */
 class SystemCalendarService(private val context: Context) {
 
+    data class CalendarInfo(val id: Long, val name: String, val accountName: String, val isPrimary: Boolean)
+
     /**
-     * Inserts an event into the primary calendar.
+     * Fetches all available calendars on the device.
+     */
+    fun getAvailableCalendars(): List<CalendarInfo> {
+        val calendars = mutableListOf<CalendarInfo>()
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.IS_PRIMARY
+        )
+        
+        return try {
+            val cursor = context.contentResolver.query(
+                CalendarContract.Calendars.CONTENT_URI,
+                projection,
+                null,
+                null,
+                null
+            )
+
+            cursor?.use {
+                while (it.moveToNext()) {
+                    calendars.add(
+                        CalendarInfo(
+                            id = it.getLong(0),
+                            name = it.getString(1),
+                            accountName = it.getString(2),
+                            isPrimary = it.getInt(3) != 0
+                        )
+                    )
+                }
+            }
+            calendars
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    /**
+     * Inserts an event into a specific calendar.
      */
     fun insertEvent(
+        calendarId: Long,
         title: String,
         description: String,
         startTimeMillis: Long,
         endTimeMillis: Long,
         location: String = ""
     ): Long? {
-        val calendarId = getPrimaryCalendarId() ?: return null
-        
         val values = ContentValues().apply {
             put(CalendarContract.Events.DTSTART, startTimeMillis)
             put(CalendarContract.Events.DTEND, endTimeMillis)
@@ -41,33 +82,8 @@ class SystemCalendarService(private val context: Context) {
         }
     }
 
-    private fun getPrimaryCalendarId(): Long? {
-        val projection = arrayOf(
-            CalendarContract.Calendars._ID,
-            CalendarContract.Calendars.IS_PRIMARY
-        )
-        
-        val cursor = context.contentResolver.query(
-            CalendarContract.Calendars.CONTENT_URI,
-            projection,
-            null,
-            null,
-            null
-        )
-
-        cursor?.use {
-            while (it.moveToNext()) {
-                val id = it.getLong(0)
-                val isPrimary = it.getInt(1) != 0
-                if (isPrimary) return id
-            }
-        }
-        
-        // Fallback to the first available calendar if no primary found
-        cursor?.use {
-            if (it.moveToFirst()) return it.getLong(0)
-        }
-        
-        return null
+    fun getPrimaryCalendarId(): Long? {
+        return getAvailableCalendars().find { it.isPrimary }?.id 
+            ?: getAvailableCalendars().firstOrNull()?.id
     }
 }
