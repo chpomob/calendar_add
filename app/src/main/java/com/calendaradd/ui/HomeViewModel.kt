@@ -3,7 +3,7 @@ package com.calendaradd.ui
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.calendaradd.service.GemmaLlmService
+import com.calendaradd.service.*
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.EventResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +17,8 @@ import kotlinx.coroutines.launch
  */
 class HomeViewModel(
     private val calendarUseCase: CalendarUseCase,
-    private val gemmaLlmService: GemmaLlmService
+    private val gemmaLlmService: GemmaLlmService,
+    private val modelDownloadManager: ModelDownloadManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
@@ -26,19 +27,59 @@ class HomeViewModel(
     private val _isModelReady = MutableStateFlow(false)
     val isModelReady: StateFlow<Boolean> = _isModelReady.asStateFlow()
 
-    fun initializeModel(modelPath: String) {
+    private val _downloadProgress = MutableStateFlow<Int?>(null)
+    val downloadProgress: StateFlow<Int?> = _downloadProgress.asStateFlow()
+
+    init {
+        checkModelAvailability()
+    }
+
+    private fun checkModelAvailability() {
+        if (modelDownloadManager.isModelDownloaded()) {
+            initializeModel()
+        } else {
+            // Model not present, needs download
+            _uiState.value = HomeUiState.ModelMissing
+        }
+    }
+
+    private fun initializeModel() {
         viewModelScope.launch {
             try {
-                gemmaLlmService.initialize(modelPath)
+                _uiState.value = HomeUiState.Loading("Initializing Gemma 4 Engine...")
+                gemmaLlmService.initialize(modelDownloadManager.getModelFile().absolutePath)
                 _isModelReady.value = true
+                _uiState.value = HomeUiState.Idle
             } catch (e: Exception) {
                 _uiState.value = HomeUiState.Error("Failed to initialize Gemma 4: ${e.message}")
             }
         }
     }
 
+    fun downloadModel() {
+        viewModelScope.launch {
+            _uiState.value = HomeUiState.Loading("Starting download of Gemma 4 (~1.5GB)...")
+            val downloadId = modelDownloadManager.startDownload()
+            modelDownloadManager.trackProgress(downloadId).collect { status ->
+                when (status) {
+                    is DownloadStatus.Progress -> {
+                        _downloadProgress.value = status.percentage
+                        _uiState.value = HomeUiState.Loading("Downloading model: ${status.percentage}%")
+                    }
+                    is DownloadStatus.Success -> {
+                        _downloadProgress.value = 100
+                        initializeModel()
+                    }
+                    is DownloadStatus.Failed -> {
+                        _uiState.value = HomeUiState.Error(status.error)
+                    }
+                }
+            }
+        }
+    }
+
     fun processText(input: String) {
-        if (input.isBlank()) return
+        if (input.isBlank() || !_isModelReady.value) return
         
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading("Analyzing text with Gemma 4...")
@@ -50,6 +91,7 @@ class HomeViewModel(
     }
 
     fun processImage(bitmap: Bitmap) {
+        if (!_isModelReady.value) return
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading("Analyzing image with Gemma 4...")
             when (val result = calendarUseCase.createEventFromImage(bitmap)) {
@@ -60,6 +102,7 @@ class HomeViewModel(
     }
 
     fun processAudio(audioData: ByteArray) {
+        if (!_isModelReady.value) return
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading("Analyzing audio with Gemma 4...")
             when (val result = calendarUseCase.createEventFromAudio(audioData)) {
@@ -76,6 +119,7 @@ class HomeViewModel(
 
 sealed class HomeUiState {
     object Idle : HomeUiState()
+    object ModelMissing : HomeUiState()
     data class Loading(val message: String) : HomeUiState()
     data class Success(val eventTitle: String) : HomeUiState()
     data class Error(val message: String) : HomeUiState()

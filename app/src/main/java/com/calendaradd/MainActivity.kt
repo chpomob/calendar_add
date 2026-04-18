@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var eventDatabase: EventDatabase
     private lateinit var calendarUseCase: CalendarUseCase
     private lateinit var gemmaLlmService: GemmaLlmService
+    private lateinit var modelDownloadManager: ModelDownloadManager
     private lateinit var systemCalendarService: SystemCalendarService
 
     // State to hold shared content for navigation
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
         // Initialize Services
         eventDatabase = EventDatabase.getDatabase(this)
         gemmaLlmService = GemmaLlmService(this)
+        modelDownloadManager = ModelDownloadManager(this)
         systemCalendarService = SystemCalendarService(this)
 
         val textAnalysisService = TextAnalysisService(gemmaLlmService)
@@ -69,6 +71,7 @@ class MainActivity : ComponentActivity() {
                     linkPreviewService = LinkPreviewService(this),
                     calendarUseCase = calendarUseCase,
                     gemmaLlmService = gemmaLlmService,
+                    modelDownloadManager = modelDownloadManager,
                     onResetSharedContent = ::resetSharedContent,
                     fileImportHandler = FileImportHandler,
                     // Pass shared content to UI if needed

@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.calendaradd.navigation.Screen
@@ -20,7 +21,7 @@ import com.calendaradd.util.LinkPreviewService
 
 /**
  * Main home screen for the calendar app.
- * Automatically processes shared content if provided.
+ * Handles model download and AI extraction.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,33 +38,33 @@ fun CalendarHomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isModelReady by viewModel.isModelReady.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
     
     var inputValue by remember { mutableStateOf("") }
 
     // Automatically process shared content
     LaunchedEffect(sharedText) {
         sharedText?.let { 
-            viewModel.processText(it)
-            onResetSharedContent()
+            if (isModelReady) {
+                viewModel.processText(it)
+                onResetSharedContent()
+            }
         }
     }
     LaunchedEffect(sharedImage) {
         sharedImage?.let { 
-            viewModel.processImage(it)
-            onResetSharedContent()
+            if (isModelReady) {
+                viewModel.processImage(it)
+                onResetSharedContent()
+            }
         }
     }
     LaunchedEffect(sharedAudio) {
         sharedAudio?.let { 
-            viewModel.processAudio(it)
-            onResetSharedContent()
-        }
-    }
-
-    // Initialize model if not ready (using a placeholder path for now)
-    LaunchedEffect(isModelReady) {
-        if (!isModelReady) {
-            viewModel.initializeModel("/data/local/tmp/gemma-4-e2b-it.litertlm")
+            if (isModelReady) {
+                viewModel.processAudio(it)
+                onResetSharedContent()
+            }
         }
     }
 
@@ -90,85 +91,115 @@ fun CalendarHomeScreen(
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = "Smart Event Creator",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = "Paste text, share an image, or record audio to create events instantly with local AI.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                // Text Input Card
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        OutlinedTextField(
-                            value = inputValue,
-                            onValueChange = { inputValue = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Event details...") },
-                            placeholder = { Text("e.g., Lunch with Maria at 1pm tomorrow at Bistro") }
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = { viewModel.processText(inputValue) },
-                            modifier = Modifier.align(Alignment.End),
-                            enabled = isModelReady && inputValue.isNotBlank()
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Analyze")
-                        }
+            if (uiState is HomeUiState.ModelMissing) {
+                // Download Model Screen
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(80.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        "AI Model Required",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "To extract events locally and protect your privacy, a one-time download of the Gemma 4 model (~1.5GB) is required.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(32.dp))
+                    Button(
+                        onClick = { viewModel.downloadModel() },
+                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                    ) {
+                        Text("Download Model")
                     }
                 }
-
-                // Quick Actions
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            } else {
+                // Main Content
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    ActionCard(
-                        icon = Icons.Default.Mic,
-                        label = "Voice",
-                        onClick = { /* TODO: Implement live recording */ },
-                        modifier = Modifier.weight(1f)
+                    Text(
+                        text = "Smart Event Creator",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
                     )
-                    ActionCard(
-                        icon = Icons.Default.Image,
-                        label = "Image",
-                        onClick = { /* TODO: Implement gallery picker */ },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
 
-                // Status Message
-                if (!isModelReady) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        shape = MaterialTheme.shapes.medium
+                    // Text Input Card
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            OutlinedTextField(
+                                value = inputValue,
+                                onValueChange = { inputValue = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Event details...") },
+                                placeholder = { Text("e.g., Lunch with Maria at 1pm tomorrow") }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { viewModel.processText(inputValue) },
+                                modifier = Modifier.align(Alignment.End),
+                                enabled = isModelReady && inputValue.isNotBlank()
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Analyze")
+                            }
+                        }
+                    }
+
+                    // Quick Actions
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        ActionCard(
+                            icon = Icons.Default.Mic,
+                            label = "Voice",
+                            onClick = { /* TODO: Implement live recording */ },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ActionCard(
+                            icon = Icons.Default.Image,
+                            label = "Image",
+                            onClick = { /* TODO: Implement gallery picker */ },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Shared Content Notification
+                    if (!isModelReady && (sharedText != null || sharedImage != null || sharedAudio != null)) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.medium
                         ) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Text("Initializing Gemma 4 Engine...", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                "Waiting for AI model to process shared content...",
+                                modifier = Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.labelSmall
+                            )
                         }
                     }
                 }
             }
 
-            // Processing Overlay
+            // Processing/Download Overlay
             if (uiState is HomeUiState.Loading) {
                 Box(
                     modifier = Modifier
@@ -182,8 +213,16 @@ fun CalendarHomeScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             CircularProgressIndicator()
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             Text((uiState as HomeUiState.Loading).message)
+                            
+                            downloadProgress?.let {
+                                Spacer(Modifier.height(8.dp))
+                                LinearProgressIndicator(
+                                    progress = it / 100f,
+                                    modifier = Modifier.fillMaxWidth().height(8.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -214,7 +253,7 @@ fun CalendarHomeScreen(
             if (uiState is HomeUiState.Error) {
                 AlertDialog(
                     onDismissRequest = { viewModel.resetState() },
-                    title = { Text("Extraction Error") },
+                    title = { Text("Error") },
                     text = { Text((uiState as HomeUiState.Error).message) },
                     confirmButton = {
                         Button(onClick = { viewModel.resetState() }) {

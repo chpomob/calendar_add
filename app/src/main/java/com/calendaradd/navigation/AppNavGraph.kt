@@ -6,7 +6,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.calendaradd.service.GemmaLlmService
+import com.calendaradd.service.*
 import com.calendaradd.ui.*
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.util.FileImportHandler
@@ -22,6 +22,7 @@ fun AppNavGraph(
     linkPreviewService: LinkPreviewService,
     calendarUseCase: CalendarUseCase,
     gemmaLlmService: GemmaLlmService,
+    modelDownloadManager: ModelDownloadManager,
     onResetSharedContent: () -> Unit,
     fileImportHandler: FileImportHandler = FileImportHandler,
     startDestination: String = Screen.Home.route,
@@ -35,7 +36,7 @@ fun AppNavGraph(
     ) {
         composable(Screen.Home.route) {
             val homeViewModel: HomeViewModel = viewModel(
-                factory = HomeViewModelFactory(calendarUseCase, gemmaLlmService)
+                factory = HomeViewModelFactory(calendarUseCase, gemmaLlmService, modelDownloadManager)
             )
             
             CalendarHomeScreen(
