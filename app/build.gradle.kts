@@ -82,6 +82,9 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+    // Link preview (JSoup)
+    implementation("org.jsoup:jsoup:1.18.1")
+
     // Testing
     testImplementation(libs.androidx.junit)
     testImplementation("junit:junit:4.13.2")
