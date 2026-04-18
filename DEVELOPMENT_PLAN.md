@@ -163,13 +163,13 @@ Build a stable, production-ready Android app for creating calendar events via lo
 
 ---
 
-## Phase 4: Local LLM Integration (Week 4-6)
+## Phase 4: Local LLM Integration (Week 4-6) - IN PROGRESS
 
 ### Tasks
 
 - [x] Create LlmEngine class for model loading
-- [ ] Download and convert Gemma4 model to TF Lite format
-- [ ] Implement model loading in `app/src/main/assets/`
+- [x] Implement model loading in `app/src/main/assets/`
+- [ ] Download and convert Gemma4/Gemma2 model to TF Lite format
 - [ ] Create model inference wrapper
 - [ ] Handle model initialization asynchronously
 - [ ] Implement fallback when model fails to load
@@ -177,51 +177,10 @@ Build a stable, production-ready Android app for creating calendar events via lo
 
 ### Deliverables
 
-- LlmEngine class for model management
-- Model loading and inference pipeline
+- LlmEngine class for model management ✅
+- Model loading in assets directory ✅
+- Model inference pipeline (in progress)
 - Fallback handling for offline scenarios
-
-### Acceptance Criteria
-
-- Model loads within 10s on modern devices
-- Inference completes in < 5s
-- Graceful degradation without model
-
-### Next Steps
-
-1. Download Gemma4 TF Lite model
-2. Implement model inference
-3. Add model version tracking
-
----
-
-## Phase 4: Local LLM Integration (Week 4-6)
-
-### Tasks
-
-- [ ] Research and select Gemma4 compatible TF Lite model
-- [ ] Download and convert Gemma4 model to TF Lite format
-- [ ] Implement model loading in `app/src/main/assets/`
-- [ ] Create model inference wrapper
-- [ ] Handle model initialization asynchronously
-- [ ] Implement fallback when model fails to load
-- [ ] Add model version checking
-
-### Model Selection
-
-| Model | Size | Latency | Notes |
-|-------|------|---------|-------|
-| Gemma4-2B | ~1.5GB | ~500ms | Good balance |
-| Gemma4-7B | ~4GB | ~1-2s | Better accuracy |
-| Gemma4-9B | ~5GB | ~2s | Best accuracy |
-
-**Recommendation**: Start with Gemma4-2B, allow upgrade to larger models if space permits.
-
-### Deliverables
-
-- Model loading working on device
-- Inference wrapper for event extraction
-- Model management utilities
 
 ### Acceptance Criteria
 
@@ -229,9 +188,12 @@ Build a stable, production-ready Android app for creating calendar events via lo
 - Inference completes in < 5s on mid-range devices
 - Graceful degradation if model unavailable
 
----
+### Next Steps
 
-## Phase 5: Event Extraction Logic (Week 5-7)
+1. Download Gemma4 TF Lite model (~1.5GB for 2B variant)
+2. Implement model inference
+3. Add model version tracking
+4. Phase 5: Event Extraction Logic
 
 ### Tasks
 
