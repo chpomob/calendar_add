@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.Event
+import com.calendaradd.usecase.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,7 +12,8 @@ import kotlinx.coroutines.launch
 
 class DetailViewModel(
     private val eventId: Long,
-    private val calendarUseCase: CalendarUseCase
+    private val calendarUseCase: CalendarUseCase,
+    private val preferencesManager: PreferencesManager
 ) : ViewModel() {
 
     private val _event = MutableStateFlow<Event?>(null)
@@ -37,7 +39,9 @@ class DetailViewModel(
         viewModelScope.launch {
             _syncStatus.value = SyncStatus.Syncing
             val calendars = calendarUseCase.getAvailableCalendars()
-            val primaryId = calendars.find { it.isPrimary }?.id ?: calendars.firstOrNull()?.id
+            val preferredId = preferencesManager.targetCalendarId
+                .takeIf { id -> id != -1L && calendars.any { it.id == id } }
+            val primaryId = preferredId ?: calendars.find { it.isPrimary }?.id ?: calendars.firstOrNull()?.id
             
             if (primaryId != null) {
                 val result = calendarUseCase.syncEventToSystem(currentEvent, primaryId)

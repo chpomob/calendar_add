@@ -3,6 +3,7 @@ package com.calendaradd.service
 import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
+import com.calendaradd.util.hasCalendarPermissions
 import java.util.TimeZone
 
 /**
@@ -16,6 +17,7 @@ class SystemCalendarService(private val context: Context) {
      * Fetches all available calendars on the device.
      */
     fun getAvailableCalendars(): List<CalendarInfo> {
+        if (!hasCalendarPermissions()) return emptyList()
         val calendars = mutableListOf<CalendarInfo>()
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
@@ -63,6 +65,7 @@ class SystemCalendarService(private val context: Context) {
         endTimeMillis: Long,
         location: String = ""
     ): Long? {
+        if (!hasCalendarPermissions()) return null
         val values = ContentValues().apply {
             put(CalendarContract.Events.DTSTART, startTimeMillis)
             put(CalendarContract.Events.DTEND, endTimeMillis)
@@ -86,4 +89,6 @@ class SystemCalendarService(private val context: Context) {
         return getAvailableCalendars().find { it.isPrimary }?.id 
             ?: getAvailableCalendars().firstOrNull()?.id
     }
+
+    fun hasCalendarPermissions(): Boolean = context.hasCalendarPermissions()
 }

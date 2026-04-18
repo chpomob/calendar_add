@@ -1,5 +1,7 @@
 package com.calendaradd.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,9 +12,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.calendaradd.util.calendarPermissions
+import com.calendaradd.util.hasCalendarPermissions
 
 /**
  * Settings screen for app configuration.
@@ -24,11 +31,45 @@ fun CalendarSettingsScreen(
     viewModel: SettingsViewModel,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val availableCalendars by viewModel.availableCalendars.collectAsState()
     val isAutoAddEnabled by viewModel.isAutoAddEnabled.collectAsState()
     val selectedCalendarId by viewModel.selectedCalendarId.collectAsState()
-    
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val hasCalendarPermissions = remember { mutableStateOf(context.hasCalendarPermissions()) }
+
     var showCalendarDialog by remember { mutableStateOf(false) }
+    var pendingEnableAutoAdd by remember { mutableStateOf(false) }
+    var permissionMessage by remember { mutableStateOf<String?>(null) }
+
+    val calendarPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val granted = result.values.all { it }
+        hasCalendarPermissions.value = granted
+        if (granted) {
+            viewModel.refreshCalendars()
+            if (pendingEnableAutoAdd) {
+                viewModel.setAutoAdd(true)
+            }
+        } else {
+            permissionMessage = "Calendar access is required to sync events and choose a target calendar."
+        }
+        pendingEnableAutoAdd = false
+    }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasCalendarPermissions.value = context.hasCalendarPermissions()
+                viewModel.refreshCalendars()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -61,12 +102,27 @@ fun CalendarSettingsScreen(
                     // Auto-add toggle
                     ListItem(
                         headlineContent = { Text("Auto-add to Calendar") },
-                        supportingContent = { Text("Automatically push new events to your system calendar") },
+                        supportingContent = {
+                            Text(
+                                if (hasCalendarPermissions.value) {
+                                    "Automatically push new events to your system calendar"
+                                } else {
+                                    "Grant calendar permission to enable automatic sync"
+                                }
+                            )
+                        },
                         leadingContent = { Icon(Icons.Default.AutoFixHigh, contentDescription = null) },
                         trailingContent = {
                             Switch(
                                 checked = isAutoAddEnabled,
-                                onCheckedChange = { viewModel.setAutoAdd(it) }
+                                onCheckedChange = { enabled ->
+                                    if (enabled && !hasCalendarPermissions.value) {
+                                        pendingEnableAutoAdd = true
+                                        calendarPermissionLauncher.launch(calendarPermissions)
+                                    } else {
+                                        viewModel.setAutoAdd(enabled)
+                                    }
+                                }
                             )
                         }
                     )
@@ -77,9 +133,20 @@ fun CalendarSettingsScreen(
                     val selectedCalendarName = availableCalendars.find { it.id == selectedCalendarId }?.name ?: "Primary Calendar"
                     ListItem(
                         headlineContent = { Text("Target Calendar") },
-                        supportingContent = { Text(selectedCalendarName) },
+                        supportingContent = {
+                            Text(
+                                if (hasCalendarPermissions.value) selectedCalendarName
+                                else "Grant calendar permission to choose a calendar"
+                            )
+                        },
                         leadingContent = { Icon(Icons.Default.CalendarToday, contentDescription = null) },
-                        modifier = Modifier.clickable { showCalendarDialog = true }
+                        modifier = Modifier.clickable {
+                            if (hasCalendarPermissions.value) {
+                                showCalendarDialog = true
+                            } else {
+                                calendarPermissionLauncher.launch(calendarPermissions)
+                            }
+                        }
                     )
                 }
             }
@@ -108,34 +175,51 @@ fun CalendarSettingsScreen(
         }
     }
 
-    if (showCalendarDialog) {
+    permissionMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { permissionMessage = null },
+            title = { Text("Permission Required") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { permissionMessage = null }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    if (showCalendarDialog && hasCalendarPermissions.value) {
         AlertDialog(
             onDismissRequest = { showCalendarDialog = false },
             title = { Text("Select Calendar") },
             text = {
-                LazyColumn {
-                    items(availableCalendars) { calendar ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.selectCalendar(calendar.id, calendar.name)
-                                    showCalendarDialog = false
+                if (availableCalendars.isEmpty()) {
+                    Text("No device calendars are currently available.")
+                } else {
+                    LazyColumn {
+                        items(availableCalendars) { calendar ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.selectCalendar(calendar.id, calendar.name)
+                                        showCalendarDialog = false
+                                    }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = calendar.id == selectedCalendarId,
+                                    onClick = {
+                                        viewModel.selectCalendar(calendar.id, calendar.name)
+                                        showCalendarDialog = false
+                                    }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(calendar.name, style = MaterialTheme.typography.bodyLarge)
+                                    Text(calendar.accountName, style = MaterialTheme.typography.bodySmall)
                                 }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = calendar.id == selectedCalendarId,
-                                onClick = {
-                                    viewModel.selectCalendar(calendar.id, calendar.name)
-                                    showCalendarDialog = false
-                                }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text(calendar.name, style = MaterialTheme.typography.bodyLarge)
-                                Text(calendar.accountName, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }

@@ -13,11 +13,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.calendaradd.navigation.Screen
 import com.calendaradd.util.FileImportHandler
-import com.calendaradd.util.LinkPreview
 import com.calendaradd.util.LinkPreviewService
+import kotlinx.coroutines.launch
 
 /**
  * Main home screen for the calendar app.
@@ -36,6 +35,8 @@ fun CalendarHomeScreen(
     sharedAudio: ByteArray? = null,
     modifier: Modifier = Modifier
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsState()
     val isModelReady by viewModel.isModelReady.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
@@ -43,7 +44,7 @@ fun CalendarHomeScreen(
     var inputValue by remember { mutableStateOf("") }
 
     // Automatically process shared content
-    LaunchedEffect(sharedText) {
+    LaunchedEffect(sharedText, isModelReady) {
         sharedText?.let { 
             if (isModelReady) {
                 viewModel.processText(it)
@@ -51,7 +52,7 @@ fun CalendarHomeScreen(
             }
         }
     }
-    LaunchedEffect(sharedImage) {
+    LaunchedEffect(sharedImage, isModelReady) {
         sharedImage?.let { 
             if (isModelReady) {
                 viewModel.processImage(it)
@@ -59,7 +60,7 @@ fun CalendarHomeScreen(
             }
         }
     }
-    LaunchedEffect(sharedAudio) {
+    LaunchedEffect(sharedAudio, isModelReady) {
         sharedAudio?.let { 
             if (isModelReady) {
                 viewModel.processAudio(it)
@@ -69,6 +70,7 @@ fun CalendarHomeScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Calendar Add AI") },
@@ -172,13 +174,21 @@ fun CalendarHomeScreen(
                         ActionCard(
                             icon = Icons.Default.Mic,
                             label = "Voice",
-                            onClick = { /* TODO: Implement live recording */ },
+                            onClick = {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Voice capture is not available yet.")
+                                }
+                            },
                             modifier = Modifier.weight(1f)
                         )
                         ActionCard(
                             icon = Icons.Default.Image,
                             label = "Image",
-                            onClick = { /* TODO: Implement gallery picker */ },
+                            onClick = {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Image import is not available yet.")
+                                }
+                            },
                             modifier = Modifier.weight(1f)
                         )
                     }

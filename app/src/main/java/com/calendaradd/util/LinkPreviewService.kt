@@ -1,6 +1,5 @@
 package com.calendaradd.util
 
-import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
@@ -10,9 +9,7 @@ import java.net.URL
 /**
  * Service for creating link previews.
  */
-class LinkPreviewService(
-    private val context: Context
-) {
+class LinkPreviewService {
 
     suspend fun getLinkPreview(url: String): LinkPreview? = withContext(Dispatchers.IO) {
         try {
@@ -36,8 +33,9 @@ class LinkPreviewService(
 
     private fun extractLinkInfo(document: Document, originalUrl: String): LinkPreview? {
         return try {
-            val title = document.title() ?: extractTitleFromMeta(document) ?: ""
-            val description = extractDescription(document) ?: ""
+            val title = document.title()
+                .ifBlank { extractTitleFromMeta(document).orEmpty() }
+            val description = extractDescription(document).orEmpty()
             val imageUrl = extractOpenGraphImage(document) ?: extractMetaImage(document)
 
             LinkPreview(
@@ -53,28 +51,33 @@ class LinkPreviewService(
     }
 
     private fun extractTitleFromMeta(document: Document): String? {
-        val metaTag = document.selectFirst("meta[property=og:title]") ?: return null
-        return metaTag.attr("content") ?: null
+        return document.selectFirst("meta[property=og:title], meta[name=twitter:title]")
+            ?.attr("content")
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun extractDescription(document: Document): String? {
-        val descTag = document.selectFirst("meta[property=og:description]") ?: return null
-        val content = descTag.attr("content") ?: return null
-        return content.take(200)
+        return document.selectFirst("meta[property=og:description], meta[name=description], meta[name=twitter:description]")
+            ?.attr("content")
+            ?.takeIf { it.isNotBlank() }
+            ?.take(200)
     }
 
     private fun extractOpenGraphImage(document: Document): String? {
         val imageTag = document.selectFirst("meta[property=og:image]") ?: return null
-        return imageTag.absUrl("content").ifBlank { imageTag.attr("content") }
+        return imageTag.absUrl("content")
+            .ifBlank { imageTag.attr("content") }
+            .takeIf { it.isNotBlank() }
     }
 
     private fun extractMetaImage(document: Document): String? {
-        val imageTag = document.selectFirst("meta[name=twitter:image]") ?: return null
-        return imageTag.attr("content")
+        return document.selectFirst("meta[name=twitter:image]")
+            ?.attr("content")
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun extractFavicon(document: Document, originalUrl: String): String? {
-        val linkTag = document.selectFirst("link[rel=icon]") ?: return null
+        val linkTag = document.selectFirst("link[rel=icon], link[rel='shortcut icon'], link[rel='apple-touch-icon']") ?: return null
         val href = linkTag.absUrl("href").ifBlank { linkTag.attr("href") }
         return href.takeIf { it.isNotBlank() }?.let {
             if (it.startsWith("http")) it else URL(URL(originalUrl), it).toString()

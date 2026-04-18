@@ -27,7 +27,7 @@ class ModelDownloadManager(private val context: Context) {
      * Returns the local file path where the model should be stored.
      */
     fun getModelFile(): File {
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
         return File(dir, MODEL_FILENAME)
     }
 
@@ -61,29 +61,31 @@ class ModelDownloadManager(private val context: Context) {
         var isDownloading = true
         while (isDownloading) {
             val query = DownloadManager.Query().setFilterById(downloadId)
-            val cursor = downloadManager.query(query)
-            
-            if (cursor.moveToFirst()) {
-                val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                val bytesTotal = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                
-                when (status) {
-                    DownloadManager.STATUS_SUCCESSFUL -> {
-                        emit(DownloadStatus.Success)
-                        isDownloading = false
+            downloadManager.query(query)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                    val bytesTotal = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+
+                    when (status) {
+                        DownloadManager.STATUS_SUCCESSFUL -> {
+                            emit(DownloadStatus.Success)
+                            isDownloading = false
+                        }
+                        DownloadManager.STATUS_FAILED -> {
+                            emit(DownloadStatus.Failed("Download failed. Please check your connection."))
+                            isDownloading = false
+                        }
+                        DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PAUSED -> {
+                            val progress = if (bytesTotal > 0) (bytesDownloaded * 100 / bytesTotal).toInt() else 0
+                            emit(DownloadStatus.Progress(progress))
+                        }
                     }
-                    DownloadManager.STATUS_FAILED -> {
-                        emit(DownloadStatus.Failed("Download failed. Please check your connection."))
-                        isDownloading = false
-                    }
-                    DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PAUSED -> {
-                        val progress = if (bytesTotal > 0) (bytesDownloaded * 100 / bytesTotal).toInt() else 0
-                        emit(DownloadStatus.Progress(progress))
-                    }
+                } else {
+                    emit(DownloadStatus.Failed("Download was not found by the system downloader."))
+                    isDownloading = false
                 }
             }
-            cursor.close()
             if (isDownloading) delay(1000)
         }
     }.flowOn(Dispatchers.IO)

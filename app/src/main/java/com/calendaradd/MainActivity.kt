@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
+import android.os.Parcelable
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,8 +23,6 @@ import com.calendaradd.usecase.EventDatabase
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
-import java.io.InputStream
-
 class MainActivity : ComponentActivity() {
 
     private lateinit var eventDatabase: EventDatabase
@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
                     onImportEvent = { input, sourceType ->
                         // Handled by ViewModels
                     },
-                    linkPreviewService = LinkPreviewService(this),
+                    linkPreviewService = LinkPreviewService(),
                     calendarUseCase = calendarUseCase,
                     gemmaLlmService = gemmaLlmService,
                     modelDownloadManager = modelDownloadManager,
@@ -99,6 +99,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         if (intent?.action == Intent.ACTION_SEND) {
+            resetSharedContent()
             when {
                 intent.type?.startsWith("text/") == true -> {
                     intent.getStringExtra(Intent.EXTRA_TEXT)?.let {
@@ -106,12 +107,12 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 intent.type?.startsWith("image/") == true -> {
-                    (intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))?.let { uri ->
+                    intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
                         sharedImage.value = uriToBitmap(uri)
                     }
                 }
                 intent.type?.startsWith("audio/") == true -> {
-                    (intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))?.let { uri ->
+                    intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
                         sharedAudio.value = uriToBytes(uri)
                     }
                 }
@@ -121,8 +122,7 @@ class MainActivity : ComponentActivity() {
 
     private fun uriToBitmap(uri: Uri): Bitmap? {
         return try {
-            val inputStream: InputStream? = contentResolver.openInputStream(uri)
-            BitmapFactory.decodeStream(inputStream)
+            contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -131,8 +131,7 @@ class MainActivity : ComponentActivity() {
 
     private fun uriToBytes(uri: Uri): ByteArray? {
         return try {
-            val inputStream: InputStream? = contentResolver.openInputStream(uri)
-            inputStream?.readBytes()
+            contentResolver.openInputStream(uri)?.use { it.readBytes() }
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -142,5 +141,14 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         gemmaLlmService.close()
+    }
+
+    private inline fun <reified T : Parcelable> Intent.parcelableExtra(name: String): T? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getParcelableExtra(name, T::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            getParcelableExtra(name)
+        }
     }
 }

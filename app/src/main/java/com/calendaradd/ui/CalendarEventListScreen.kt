@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,8 +21,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.Event
 import com.calendaradd.navigation.Screen
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Screen displaying list of all calendar events.
@@ -30,15 +35,17 @@ import com.calendaradd.navigation.Screen
 @Composable
 fun CalendarEventListScreen(
     navController: NavController,
-    events: List<Event> = emptyList(),
+    calendarUseCase: CalendarUseCase,
     modifier: Modifier = Modifier
 ) {
+    val events by calendarUseCase.getAllEvents().collectAsState(initial = emptyList())
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("My Events") },
                 actions = {
-                    IconButton(onClick = { /* TODO: Settings */ }) {
+                    IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
@@ -77,7 +84,7 @@ fun CalendarEventListScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Tap '+' to create your first event",
+                                text = "Create an event from the home screen to see it here",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -146,7 +153,7 @@ fun EventListItem(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = event.startTime.toString(),
+                    text = event.startTime.toDisplayDateTime(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -158,4 +165,9 @@ fun EventListItem(
             )
         }
     }
+}
+
+private fun Long.toDisplayDateTime(): String {
+    if (this <= 0L) return "No time"
+    return SimpleDateFormat("EEE, MMM d yyyy HH:mm", Locale.getDefault()).format(Date(this))
 }

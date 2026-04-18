@@ -2,8 +2,11 @@ package com.calendaradd.usecase
 
 import android.graphics.Bitmap
 import com.calendaradd.service.*
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 
 /**
  * Use case for creating calendar events from various inputs.
@@ -53,7 +56,12 @@ class CalendarUseCase(
 
     private suspend fun saveAndSyncExtraction(analysis: EventExtraction, sourceType: String): EventResult {
         val startTime = parseIso8601(analysis.startTime) ?: System.currentTimeMillis()
-        val endTime = parseIso8601(analysis.endTime) ?: (startTime + 3600000L) // Default 1 hour
+        val parsedEndTime = parseIso8601(analysis.endTime)
+        val endTime = if (parsedEndTime != null && parsedEndTime > startTime) {
+            parsedEndTime
+        } else {
+            startTime + 3600000L
+        }
 
         val event = Event(
             title = analysis.title.ifEmpty { "Untitled Event" },
@@ -71,12 +79,12 @@ class CalendarUseCase(
         val savedEvent = event.copy(id = internalId)
 
         // Step 2: Auto-add to system calendar if enabled
-        if (preferencesManager.isAutoAddEnabled) {
-            val calendarId = if (preferencesManager.targetCalendarId != -1L) {
-                preferencesManager.targetCalendarId
-            } else {
-                systemCalendarService.getPrimaryCalendarId()
-            }
+        if (preferencesManager.isAutoAddEnabled && systemCalendarService.hasCalendarPermissions()) {
+            val calendars = systemCalendarService.getAvailableCalendars()
+            val calendarId = preferencesManager.targetCalendarId
+                .takeIf { id -> id != -1L && calendars.any { it.id == id } }
+                ?: calendars.find { it.isPrimary }?.id
+                ?: calendars.firstOrNull()?.id
 
             if (calendarId != null) {
                 systemCalendarService.insertEvent(
@@ -107,10 +115,21 @@ class CalendarUseCase(
     private fun parseIso8601(dateString: String?): Long? {
         if (dateString.isNullOrBlank()) return null
         return try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-            sdf.parse(dateString)?.time
+            Instant.parse(dateString).toEpochMilli()
         } catch (e: Exception) {
-            null
+            try {
+                OffsetDateTime.parse(dateString).toInstant().toEpochMilli()
+            } catch (e: Exception) {
+                try {
+                    LocalDateTime.parse(dateString).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                } catch (e: Exception) {
+                    try {
+                        LocalDate.parse(dateString).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            }
         }
     }
 

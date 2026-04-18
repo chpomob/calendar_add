@@ -28,9 +28,21 @@ class SettingsViewModel(
         loadCalendars()
     }
 
+    fun refreshCalendars() {
+        loadCalendars()
+    }
+
     private fun loadCalendars() {
         viewModelScope.launch {
-            _availableCalendars.value = calendarUseCase.getAvailableCalendars()
+            val calendars = calendarUseCase.getAvailableCalendars()
+            _availableCalendars.value = calendars
+
+            val selectedId = _selectedCalendarId.value
+            if (calendars.isNotEmpty() && selectedId != -1L && calendars.none { it.id == selectedId }) {
+                preferencesManager.targetCalendarId = -1L
+                preferencesManager.targetCalendarName = null
+                _selectedCalendarId.value = -1L
+            }
         }
     }
 

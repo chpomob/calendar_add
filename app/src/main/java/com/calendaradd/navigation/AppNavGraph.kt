@@ -59,7 +59,8 @@ fun AppNavGraph(
 
         composable(Screen.EventList.route) {
             CalendarEventListScreen(
-                navController = navController
+                navController = navController,
+                calendarUseCase = calendarUseCase
             )
         }
 

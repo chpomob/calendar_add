@@ -25,7 +25,7 @@ class AppViewModelFactory(
             }
             modelClass.isAssignableFrom(DetailViewModel::class.java) -> {
                 @Suppress("UNCHECKED_CAST")
-                DetailViewModel(eventId!!, calendarUseCase) as T
+                DetailViewModel(eventId!!, calendarUseCase, preferencesManager!!) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class")
         }
