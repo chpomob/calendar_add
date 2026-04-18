@@ -10,6 +10,7 @@ import com.calendaradd.ui.CalendarEventListScreen
 import com.calendaradd.ui.CalendarEventDetailScreen
 import com.calendaradd.ui.CalendarSettingsScreen
 import com.calendaradd.ui.Screen
+import com.calendaradd.util.FileImportHandler
 
 /**
  * App navigation graph defining all routes and navigation logic.
@@ -17,6 +18,9 @@ import com.calendaradd.ui.Screen
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
+    onImportEvent: suspend (String, String) -> Unit,
+    linkPreviewService: com.calendaradd.util.LinkPreviewService,
+    fileImportHandler: FileImportHandler = FileImportHandler,
     startDestination: String = Screen.Home.route
 ) {
     NavHost(
@@ -29,13 +33,17 @@ fun AppNavGraph(
         ) {
             composable(Screen.Home.route) {
                 CalendarHomeScreen(
-                    navController = navController
+                    navController = navController,
+                    onImportEvent = onImportEvent,
+                    fileImportHandler = fileImportHandler,
+                    linkPreviewService = linkPreviewService
                 )
             }
 
             composable(Screen.EventList.route) {
                 CalendarEventListScreen(
-                    navController = navController
+                    navController = navController,
+                    onImportEvent = onImportEvent
                 )
             }
 

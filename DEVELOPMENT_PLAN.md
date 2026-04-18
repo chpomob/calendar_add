@@ -227,16 +227,9 @@ Build a stable, production-ready Android app for creating calendar events via lo
 2. Test extraction accuracy
 3. Implement validation layer
 
-### Tasks
+---
 
-- [ ] Implement prompt engineering for event extraction
-- [ ] Create extraction pipeline:
-  - Input text → LLM analysis → structured output
-  - Audio → transcription → analysis → event
-  - Image → OCR → analysis → event
-- [ ] Handle ambiguous inputs with clarification flow
-- [ ] Add timezone detection and conversion
-- [ ] Validate extracted event data
+## Phase 6: File & Link Import (Week 6-8) - COMPLETED
 
 ### Prompt Template
 

@@ -8,58 +8,76 @@ import kotlinx.coroutines.withContext
  * Service for analyzing various inputs using local LLMs.
  * Supports text, audio, and image analysis for event extraction.
  */
-class TextAnalysisService {
+class TextAnalysisService(
+    private val llmEngine: LlmEngine? = null
+) {
 
     /**
      * Analyzes text input and extracts event information.
-     * For now, returns basic extraction from text.
+     * Uses LLM if available, otherwise falls back to basic extraction.
      */
     suspend fun analyzeInput(
         input: String,
         context: InputContext
     ): EventExtraction = withContext(Dispatchers.IO) {
-        // TODO: Integrate with local LLM (Gemma4 or similar)
-        // For now, extract basic event info from text
-
-        val now = java.util.Date()
-
-        EventExtraction(
-            title = extractTitle(input),
-            description = extractDescription(input),
-            startTime = extractStartTime(input, now),
-            endTime = extractEndTime(input, now),
-            location = extractLocation(input),
-            attendees = extractAttendees(input)
-        )
+        // If LLM engine is loaded, use it for extraction
+        if (llmEngine?.isLoaded() == true) {
+            val llmResult = llmEngine.analyzeInput(input)
+            if (llmResult != null) {
+                // Validate and enrich with current time
+                val now = java.util.Date()
+                EventExtraction(
+                    title = llmResult.title.ifEmpty { extractTitleFromInput(input) },
+                    description = llmResult.description.ifEmpty { extractDescriptionFromInput(input) },
+                    startTime = llmResult.startTime.ifEmpty { now.toString() },
+                    endTime = llmResult.endTime.ifEmpty { "" },
+                    location = llmResult.location.ifEmpty { extractLocationFromInput(input) },
+                    attendees = llmResult.attendees
+                )
+            } else {
+                // Fallback to basic extraction
+                EventExtraction(
+                    title = extractTitleFromInput(input),
+                    description = extractDescriptionFromInput(input),
+                    startTime = now.toString(),
+                    endTime = "",
+                    location = extractLocationFromInput(input),
+                    attendees = extractAttendeesFromInput(input)
+                )
+            }
+        } else {
+            // No LLM, use basic extraction
+            EventExtraction(
+                title = extractTitleFromInput(input),
+                description = extractDescriptionFromInput(input),
+                startTime = now.toString(),
+                endTime = "",
+                location = extractLocationFromInput(input),
+                attendees = extractAttendeesFromInput(input)
+            )
+        }
     }
 
-    private fun extractTitle(input: String): String {
+    private fun extractTitleFromInput(input: String): String {
         return input.lines().firstOrNull { it.isNotBlank() }
             ?: "Untitled Event"
     }
 
-    private fun extractDescription(input: String): String {
+    private fun extractDescriptionFromInput(input: String): String {
         return input.lines().drop(1).joinToString("\n")
             .takeIf { it.isNotEmpty() } ?: ""
     }
 
-    private fun extractStartTime(input: String, now: java.util.Date): String {
-        // TODO: Implement time extraction
-        return now.toString()
-    }
-
-    private fun extractEndTime(input: String, now: java.util.Date): String {
-        // TODO: Implement end time extraction
-        return now.toString()
-    }
-
-    private fun extractLocation(input: String): String {
+    private fun extractLocationFromInput(input: String): String {
         return input.lines()
             .firstOrNull { it.contains("location", ignoreCase = true) || it.contains("place", ignoreCase = true) }
-            ?.removePrefix("- ").removePrefix("📍 ").take(100) ?: ""
+            ?.removePrefix("- ")
+            ?.removePrefix("📍 ")
+            ?.take(100)
+            .orEmpty()
     }
 
-    private fun extractAttendees(input: String): List<String> {
+    private fun extractAttendeesFromInput(input: String): List<String> {
         return input.lines()
             .filter { it.contains("attendee", ignoreCase = true) || it.contains("with", ignoreCase = true) }
             .map { it.replaceFirstChar { it.uppercase() } }

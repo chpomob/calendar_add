@@ -5,12 +5,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.calendaradd.util.FileImportHandler
+import com.calendaradd.util.LinkPreview
+import com.calendaradd.util.UriResolver
 import com.calendaradd.navigation.Screen
 import com.calendaradd.usecase.Event
 
@@ -20,8 +25,10 @@ import com.calendaradd.usecase.Event
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarHomeScreen(
-    useCase: com.calendaradd.usecase.CalendarUseCase,
-    events: List<Event> = emptyList(),
+    navController: androidx.navigation.NavController,
+    onImportEvent: suspend (String, String) -> Unit,
+    linkPreviewService: com.calendaradd.util.LinkPreviewService,
+    fileImportHandler: FileImportHandler = FileImportHandler,
     modifier: Modifier = Modifier
 ) {
     var selectedInput by remember { mutableStateOf("text") }
@@ -29,13 +36,46 @@ fun CalendarHomeScreen(
     var isProcessing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var eventCreated by remember { mutableStateOf<Event?>(null) }
+    var isLinkPreview by remember { mutableStateOf(false) }
+    var linkPreviewTitle by remember { mutableStateOf<String?>(null) }
+    var linkPreviewDescription by remember { mutableStateOf<String?>(null) }
+    var linkPreviewUrl by remember { mutableStateOf<String?>(null) }
+
+    // Handle file import result
+    fun handleFileImport(uri: androidx.content.Uri, type: String) {
+        fileImportHandler.handleFileResult(resultCode = 0, data = null, uriResolver = UriResolver)
+            ?.let { result ->
+                if (result is FileImportHandler.FileImportResult.Success) {
+                    // For now, just use text content
+                    val text = "Imported from file: ${result.uri}"
+                    onImportEvent.invoke(text, type)
+                }
+            }
+    }
+
+    // Process text input
+    fun onTextSubmit() {
+        isProcessing = true
+        errorMessage = null
+        inputValue = ""
+
+        // Extract event from text
+        val extractedEvent = onImportEvent.invoke(inputValue, "text")
+        if (extractedEvent != null) {
+            eventCreated = extractedEvent
+        } else {
+            errorMessage = "Failed to create event. Please try again."
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Calendar Add AI") },
                 actions = {
-                    IconButton(onClick = { /* TODO: Settings */ }) {
+                    IconButton(onClick = {
+                        navController.navigate(Screen.Settings.route)
+                    }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
@@ -65,12 +105,14 @@ fun CalendarHomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val inputTypes = listOf(
-                    "text" to Icons.Default.Event,
-                    "audio" to Icons.Default.Mic,
-                    "image" to Icons.Default.Image
+                    "text" to Icons.Default.Event to 120,
+                    "audio" to Icons.Default.Mic to 0,
+                    "image" to Icons.Default.Image to 0,
+                    "link" to Icons.Default.Link to 0
                 )
 
-                inputTypes.forEach { (type, icon) ->
+                inputTypes.forEach { (type, icon, available) ->
+                    if (available == 0) return@forEach
                     val isSelected = selectedInput == type
                     Card(
                         modifier = Modifier
@@ -108,30 +150,49 @@ fun CalendarHomeScreen(
             // Input field
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    TextField(
-                        value = inputValue,
-                        onValueChange = { inputValue = it },
-                        label = { Text("Enter event description or paste text...") },
-                        placeholder = { Text("Describe your event, or paste notes about a meeting...") },
-                        singleLine = true
-                    )
+                    when (selectedInput) {
+                        "text" -> {
+                            TextField(
+                                value = inputValue,
+                                onValueChange = { inputValue = it },
+                                label = { Text("Enter event description or paste text...") },
+                                placeholder = { Text("Describe your event, or paste notes about a meeting...") },
+                                singleLine = true
+                            )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                    TextButton(onClick = {
-                        isProcessing = true
-                        errorMessage = null
-                        eventCreated = null
-                    }) {
-                        Text("Create Event")
-                    }
-
-                    if (isProcessing) {
-                        Text(
-                            text = "Processing... ✨",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                            TextButton(onClick = {
+                                onTextSubmit()
+                            }) {
+                                Text("Create Event")
+                            }
+                        }
+                        "link" -> {
+                            // Link preview input
+                            TextField(
+                                value = inputValue,
+                                onValueChange = { inputValue = it },
+                                label = { Text("Paste URL for link preview") },
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            if (isLinkPreview) {
+                                LinkPreviewCard(
+                                    preview = LinkPreview(
+                                        url = linkPreviewUrl ?: "",
+                                        title = linkPreviewTitle ?: "",
+                                        description = linkPreviewDescription ?: "",
+                                        imageUrl = null,
+                                        faviconUrl = null
+                                    ),
+                                    onClick = {
+                                        // Create event from link
+                                    }
+                                )
+                            }
+                        }
+                        else -> {}
                     }
 
                     if (errorMessage != null) {
@@ -156,17 +217,14 @@ fun CalendarHomeScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            if (events.isEmpty()) {
+            if (eventCreated != null) {
+                EventCard(event = eventCreated!!)
+            } else if (eventCreated != null) {
                 Text(
                     text = "No events yet. Create your first event above!",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else {
-                // Show recent events (up to 5)
-                events.take(5).forEach { event ->
-                    EventCard(event = event)
-                }
             }
         }
     }
@@ -222,6 +280,67 @@ fun EventCard(
                 contentDescription = "More options",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+/**
+ * Card displaying link preview.
+ */
+@Composable
+fun LinkPreviewCard(
+    preview: LinkPreview,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Favicon or image
+            preview.imageUrl?.let { image ->
+                AsyncImage(
+                    model = image,
+                    contentDescription = null,
+                    modifier = Modifier.size(50.dp)
+                )
+            } ?: Icon(
+                imageVector = Icons.Default.Http,
+                contentDescription = "Link icon",
+                modifier = Modifier.size(50.dp)
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = preview.title.ifEmpty { preview.url },
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
+                )
+                preview.description?.let { desc ->
+                    Text(
+                        text = desc,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            TextButton(onClick = onClick) {
+                Text("Import")
+            }
         }
     }
 }
