@@ -1,8 +1,14 @@
 package com.calendaradd
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,11 +30,7 @@ import com.calendaradd.usecase.UserPreferences
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.UriResolver
-import org.tensorflow.lite.Interpreter
-import java.io.FileInputStream
-import java.nio.ByteBuffer
-import java.nio.MappedByteBuffer
-import java.nio.channels.FileChannel
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
 
@@ -45,7 +47,7 @@ class MainActivity : ComponentActivity() {
         // Initialize database
         eventDatabase = EventDatabase.getDatabase(this)
 
-        // Initialize LLM engine (model will load asynchronously)
+        // Initialize LLM engine
         llmEngine = LlmEngine(context = this)
 
         // Initialize services
@@ -57,6 +59,34 @@ class MainActivity : ComponentActivity() {
         )
         linkPreviewService = LinkPreviewService(context = this)
 
+        // Setup notification for model download progress
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val channel = NotificationChannel(
+                "model_download",
+                "Downloading AI Model",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Download progress for AI model"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        // Load model in background on first launch
+        lifecycleScope.launch {
+            val progressChannel = object : java.io.PrintWriter(android.os.FileDescriptor {}) {
+                override fun close() {}
+            }
+
+            var isDownloading = false
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            llmEngine.loadModel(downloadRequired = true)
+
+            // Release progress channel
+            progressChannel.close()
+        }
+
         setContent {
             val navController = rememberNavController()
 
@@ -67,10 +97,12 @@ class MainActivity : ComponentActivity() {
                 AppNavGraph(
                     navController = navController,
                     onImportEvent = { input, sourceType ->
-                        calendarUseCase.createEvent(
-                            input = input,
-                            sourceType = sourceType
-                        )
+                        lifecycleScope.launch {
+                            calendarUseCase.createEvent(
+                                input = input,
+                                sourceType = sourceType
+                            )
+                        }
                     },
                     linkPreviewService = linkPreviewService,
                     fileImportHandler = FileImportHandler
@@ -79,10 +111,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun attachBaseContext(base: Context) {
-        super.attachBaseContext(base)
-        // Pre-load LLM model in background
-        llmEngine.loadModel()
+    override fun onResume() {
+        super.onResume()
+        // Model will auto-load in background if needed
     }
 
     override fun onDestroy() {
