@@ -2,17 +2,17 @@ package com.calendaradd.usecase
 
 import android.content.Context
 import androidx.room.*
-import androidx.sqlite.db.SupportSQLiteDatabase
-import kotlinx.coroutines.flow.Flow
+import java.util.Date
 
 /**
  * Room database for storing calendar events.
  */
 @Database(
     entities = [Event::class],
-    version = 1
+    version = 1,
+    exportSchema = false
 )
-@TypeConverters(DateConverter::class, TimeConverter::class)
+@TypeConverters(Converters::class)
 abstract class EventDatabase : RoomDatabase() {
 
     abstract fun eventDao(): EventDao
@@ -38,40 +38,16 @@ abstract class EventDatabase : RoomDatabase() {
 }
 
 /**
- * Type converter for date strings.
+ * Type converters for Room.
  */
-@TypeConverter
-fun fromDate(date: Date): String {
-    return date.time.toString()
-}
+class Converters {
+    @TypeConverter
+    fun fromTimestamp(value: Long?): Date? {
+        return value?.let { Date(it) }
+    }
 
-@TypeConverter
-fun toDate(dateString: String): Date {
-    return Date(dateString.toLongOrNull())
-}
-
-/**
- * Type converter for time strings.
- */
-@TypeConverter
-fun fromTime(time: String): String {
-    return time
-}
-
-@TypeConverter
-fun toTime(timeString: String): String {
-    return timeString
-}
-
-/**
- * Type converter for boolean flags.
- */
-@TypeConverter
-fun fromBoolean(value: Boolean): Boolean {
-    return value
-}
-
-@TypeConverter
-fun toBoolean(value: String): Boolean {
-    return value.lowercase() == "true"
+    @TypeConverter
+    fun dateToTimestamp(date: Date?): Long? {
+        return date?.time
+    }
 }

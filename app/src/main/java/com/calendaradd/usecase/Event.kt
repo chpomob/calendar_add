@@ -15,15 +15,15 @@ data class Event(
     val title: String = "",
     val description: String = "",
 
-    val startTime: String = "",
-    val endTime: String = "",
+    val startTime: Long = 0L,
+    val endTime: Long = 0L,
 
     val location: String = "",
     val attendees: String = "",
 
     val isFavorite: Boolean = false,
-    val createdAt: Long = Date().time,
-    val updatedAt: Long = Date().time,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
 
     // Source of event creation
     val sourceType: String = "manual", // manual, text, audio, image
@@ -36,14 +36,4 @@ data class Event(
 /**
  * Type-safe extension properties for Event.
  */
-val Event.duration: String? get() = when {
-    startTime.isNotEmpty() && endTime.isNotEmpty() -> {
-        val start = Date().time // TODO: Parse time strings properly
-        val end = 0
-        val diff = end - start
-        if (diff >= 0 && diff < 60 * 1000) "Just now"
-        else if (diff < 60 * 60 * 1000 * 24) "${diff / 60 / 60}h ${diff % 60 / 60}m"
-        else "${diff / 60 / 60 / 24}d ${diff % 60 / 60 / 24}h"
-    }
-    else -> null
-}
+val Event.durationMillis: Long get() = if (endTime > startTime) endTime - startTime else 0L

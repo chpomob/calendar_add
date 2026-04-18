@@ -1,6 +1,10 @@
 package com.calendaradd.usecase
 
+import android.graphics.Bitmap
+import com.calendaradd.service.EventExtraction
 import com.calendaradd.service.TextAnalysisService
+import java.text.SimpleDateFormat
+import java.util.*
 
 /**
  * Use case for creating calendar events from various inputs.
@@ -8,54 +12,65 @@ import com.calendaradd.service.TextAnalysisService
  */
 class CalendarUseCase(
     private val textAnalysisService: TextAnalysisService,
-    private val eventDatabase: EventDatabase,
-    private val userPreferences: UserPreferences = UserPreferences()
+    private val eventDatabase: EventDatabase
 ) {
 
-    suspend fun createEvent(
+    suspend fun createEventFromText(
         input: String,
-        context: InputContext = InputContext(),
-        sourceType: String = "text",
-        onProgress: ((String) -> Unit)? = null
-    ): EventResult? {
+        context: InputContext = InputContext()
+    ): EventResult {
         return try {
-            // Step 1: Analyze input with AI
             val analysis = textAnalysisService.analyzeInput(input, context)
-
-            // Step 2: Create event from analysis
-            val event = Event(
-                title = analysis.title.ifEmpty { "Untitled Event" },
-                description = analysis.description,
-                startTime = analysis.startTime.ifEmpty { "" },
-                endTime = analysis.endTime.ifEmpty { "" },
-                location = analysis.location.ifEmpty { "" },
-                attendees = analysis.attendees.ifEmpty { "" },
-                sourceType = sourceType,
-                aiConfidence = analysis.confidence ?: 1.0f,
-                aiSourceModel = context.aiModel ?: ""
-            )
-
-            // Step 3: Save to database
-            val eventId = eventDatabase.eventDao().insert(event)
-
-            // Step 4: Update creation timestamp
-            val updatedEvent = event.copy(id = eventId, createdAt = System.currentTimeMillis())
-            eventDatabase.eventDao().update(updatedEvent)
-
-            return EventResult.Success(updatedEvent)
-
+            saveExtraction(analysis, "text")
         } catch (e: Exception) {
-            return EventResult.Failure(e.message ?: "Unknown error occurred while creating event")
+            EventResult.Failure(e.message ?: "Unknown error")
         }
     }
 
-    suspend fun getAllEvents(): List<Event> = eventDatabase.eventDao().getAllEvents()
-
-    suspend fun getUpcomingEvents(): List<Event> = eventDatabase.eventDao().getUpcomingEvents()
-
-    suspend fun deleteEvent(eventId: Long) {
-        eventDatabase.eventDao().deleteEvent(eventId)
+    suspend fun createEventFromImage(
+        bitmap: Bitmap,
+        context: InputContext = InputContext()
+    ): EventResult {
+        return try {
+            val analysis = textAnalysisService.analyzeImage(bitmap, context)
+            saveExtraction(analysis, "image")
+        } catch (e: Exception) {
+            EventResult.Failure(e.message ?: "Unknown error")
+        }
     }
+
+    private suspend fun saveExtraction(analysis: EventExtraction, sourceType: String): EventResult {
+        val startTime = parseIso8601(analysis.startTime) ?: System.currentTimeMillis()
+        val endTime = parseIso8601(analysis.endTime) ?: (startTime + 3600000L) // Default 1 hour
+
+        val event = Event(
+            title = analysis.title.ifEmpty { "Untitled Event" },
+            description = analysis.description,
+            startTime = startTime,
+            endTime = endTime,
+            location = analysis.location,
+            attendees = analysis.attendees.joinToString(", "),
+            sourceType = sourceType,
+            aiConfidence = analysis.confidence ?: 1.0f
+        )
+
+        val id = eventDatabase.eventDao().insert(event)
+        return EventResult.Success(event.copy(id = id))
+    }
+
+    private fun parseIso8601(dateString: String?): Long? {
+        if (dateString.isNullOrBlank()) return null
+        return try {
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+            sdf.parse(dateString)?.time
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun getAllEvents() = eventDatabase.eventDao().getAllEvents()
+    
+    suspend fun deleteEvent(id: Long) = eventDatabase.eventDao().deleteEvent(id)
 }
 
 /**
@@ -64,16 +79,7 @@ class CalendarUseCase(
 data class InputContext(
     val timestamp: Long = System.currentTimeMillis(),
     val timezone: String = java.util.TimeZone.getDefault().id,
-    val aiModel: String = "",
-    val language: String = "en"
-)
-
-/**
- * Default user preferences.
- */
-data class UserPreferences(
-    val preferredTimezone: String = java.util.TimeZone.getDefault().id,
-    val defaultReminder: Long = 60 * 60 * 1000L, // 1 hour
+    val aiModel: String = "Gemma 4",
     val language: String = "en"
 )
 
