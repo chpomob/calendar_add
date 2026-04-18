@@ -70,9 +70,9 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
 
-    // TensorFlow Lite for local AI inference
-    implementation("org.tensorflow:tensorflow-lite:2.14.0")
-    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+    // MLC-LLM for running Gemma on Android (better than TensorFlow Lite for LLMs)
+    // Download via Gradle or include manually
+    implementation("com.metalink.mllm:android-mlc-llm:0.1.0")
 
     // Room for database
     implementation("androidx.room:room-runtime:2.6.1")
