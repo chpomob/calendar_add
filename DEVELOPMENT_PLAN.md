@@ -77,28 +77,51 @@ Build a stable, production-ready Android app for creating calendar events via lo
 
 ---
 
-## Phase 2: Core UI & Navigation (Week 2-3)
+## Phase 2: Core UI & Navigation (Week 2-3) - IN PROGRESS
 
 ### Tasks
 
-- [ ] Implement main screen navigation (Jetpack Compose Navigation)
-- [ ] Create home screen with input selection
+- [x] Implement main screen navigation (Jetpack Compose Navigation)
+- [x] Create home screen with input selection
 - [ ] Implement event list with search/filter
-- [ ] Create event detail view with edit mode
+- [x] Create event detail view with edit mode
 - [ ] Add onboarding/tutorial flow
-- [ ] Implement Material 3 theming (light/dark)
+- [x] Implement Material 3 theming (light/dark)
 
 ### Deliverables
 
-- Complete navigation flow
-- All core screens implemented
-- Material 3 theming in place
+- Complete navigation flow ✅
+- All core screens implemented (Home, Event List, Event Detail, Settings) ✅
+- Material 3 theming in place ✅
+- Navigation bar component ✅
+
+### Completed Components
+
+1. **AppNavGraph.kt** - Navigation graph with all routes
+2. **NavigationBar.kt** - Animated bottom navigation
+3. **CalendarHomeScreen.kt** - Main screen with FAB and input options
+4. **CalendarEventListScreen.kt** - Event list with empty state
+5. **CalendarEventDetailScreen.kt** - Event details with edit mode
+6. **CalendarSettingsScreen.kt** - Settings screen with privacy controls
+7. **NavColors.kt** - Navigation bar theming
 
 ### Acceptance Criteria
 
-- App navigates between screens smoothly
-- Dark mode works correctly
-- Accessibility labels present on all elements
+- ✅ App navigates between screens smoothly
+- ✅ Dark mode works correctly  
+- ✅ Accessibility labels present on all elements
+- ✅ All screens use Material 3 components
+- ✅ Navigation transitions are smooth
+
+### Next Steps
+
+1. Add search/filter to event list
+2. Implement file/audio/image input handling
+3. Create onboarding flow
+
+---
+
+*Last updated: 2026-04-18*
 
 ---
 
