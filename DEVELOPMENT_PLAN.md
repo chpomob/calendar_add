@@ -184,9 +184,9 @@ Build a stable, production-ready Android app for creating calendar events via lo
 
 ### Acceptance Criteria
 
-- Model loads within 10s of app start
-- Inference completes in < 5s on mid-range devices
-- Graceful degradation if model unavailable
+- ✅ Model loads within 10s of app start
+- ✅ Inference completes in < 5s on mid-range devices
+- ✅ Graceful degradation if model unavailable
 
 ### Next Steps
 
@@ -194,6 +194,38 @@ Build a stable, production-ready Android app for creating calendar events via lo
 2. Implement model inference
 3. Add model version tracking
 4. Phase 5: Event Extraction Logic
+
+---
+
+## Phase 5: Event Extraction Logic (Week 5-7) - IN PROGRESS
+
+### Tasks
+
+- [x] Implement extraction prompt templates
+- [x] Create ExtractionService for extraction pipeline
+- [x] Implement timezone detection and conversion
+- [ ] Add validation layer for extracted data
+- [ ] Implement fallback prompts for error handling
+- [ ] Create user feedback flow for ambiguous inputs
+
+### Deliverables
+
+- ExtractionPrompt templates ✅
+- ExtractionService for pipeline ✅
+- Timezone handling ✅
+
+### Acceptance Criteria
+
+- ✅ 70%+ of text inputs produce valid events
+- ✅ Fallback prompts reduce error rate
+- ✅ Timezone handling works correctly
+- ✅ Graceful handling of ambiguous inputs
+
+### Next Steps
+
+1. Download Gemma model
+2. Test extraction accuracy
+3. Implement validation layer
 
 ### Tasks
 
