@@ -1,7 +1,6 @@
 package com.calendaradd.util
 
 import android.content.Context
-import android.content.Intent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
@@ -46,7 +45,7 @@ class LinkPreviewService(
                 title = title,
                 description = description,
                 imageUrl = imageUrl,
-                faviconUrl = extractFavicon(document)
+                faviconUrl = extractFavicon(document, originalUrl)
             )
         } catch (e: Exception) {
             null
@@ -66,7 +65,7 @@ class LinkPreviewService(
 
     private fun extractOpenGraphImage(document: Document): String? {
         val imageTag = document.selectFirst("meta[property=og:image]") ?: return null
-        return imageTag.attr("content")?.let { Uri.parse(it).toString() }
+        return imageTag.absUrl("content").ifBlank { imageTag.attr("content") }
     }
 
     private fun extractMetaImage(document: Document): String? {
@@ -74,12 +73,11 @@ class LinkPreviewService(
         return imageTag.attr("content")
     }
 
-    private fun extractFavicon(document: Document): String? {
+    private fun extractFavicon(document: Document, originalUrl: String): String? {
         val linkTag = document.selectFirst("link[rel=icon]") ?: return null
-        return linkTag.attr("href")?.let {
-            context.resources.getString(R.string.base_url).let { base ->
-                if (it.startsWith("http")) it else "$base$it"
-            }
+        val href = linkTag.absUrl("href").ifBlank { linkTag.attr("href") }
+        return href.takeIf { it.isNotBlank() }?.let {
+            if (it.startsWith("http")) it else URL(URL(originalUrl), it).toString()
         }
     }
 }

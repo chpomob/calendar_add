@@ -1,6 +1,6 @@
 [versions]
-agp = "8.2.0"
-kotlin = "1.9.0"
+agp = "8.10.1"
+kotlin = "2.2.21"
 coreKtx = "1.13.1"
 junit = "4.13.2"
 lifecycleRuntimeKtx = "2.8.3"
@@ -8,8 +8,10 @@ activityCompose = "1.8.2"
 composeBom = "2024.04.00"
 coroutines = "1.7.3"
 mlkitTextRecognition = "19.0.1"
-litertlm = "0.10.1"
-room = "2.6.1"
+litertlm = "0.10.0"
+room = "2.7.2"
+ksp = "2.2.21-2.0.4"
+mockk = "1.13.9"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -23,6 +25,7 @@ androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version = "2.8.0" }
 
 # LiteRT-LM (2026)
@@ -38,6 +41,7 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 
 # Mocking
@@ -46,5 +50,7 @@ io-mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version = "12.1.0" }
 kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }

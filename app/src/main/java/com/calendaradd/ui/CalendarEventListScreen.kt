@@ -1,19 +1,25 @@
 package com.calendaradd.ui
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import com.calendaradd.usecase.Event
 import com.calendaradd.navigation.Screen
 
@@ -23,7 +29,7 @@ import com.calendaradd.navigation.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarEventListScreen(
-    navController: com.calendaradd.navigation.NavHostController,
+    navController: NavController,
     events: List<Event> = emptyList(),
     modifier: Modifier = Modifier
 ) {
@@ -100,9 +106,8 @@ fun EventListItem(
 ) {
     val scale by animateFloatAsState(
         targetValue = if (event.isFavorite) 1.02f else 1f,
-        animationSpec = androidx.compose.animation.core.SpringSpec(
-            stiffness = androidx.compose.animation.core.StiffnessMediumLow
-        )
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "eventScale"
     )
 
     Card(
@@ -136,12 +141,12 @@ fun EventListItem(
                         text = event.description,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 2,
-                        overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = event.startTime.ifEmpty { "No time" },
+                    text = event.startTime.toString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

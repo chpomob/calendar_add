@@ -122,16 +122,6 @@ class CalendarUseCase(
 }
 
 /**
- * Input context for event creation.
- */
-data class InputContext(
-    val timestamp: Long = System.currentTimeMillis(),
-    val timezone: String = java.util.TimeZone.getDefault().id,
-    val aiModel: String = "Gemma 4",
-    val language: String = "en"
-)
-
-/**
  * Result of event creation operation.
  */
 sealed class EventResult {

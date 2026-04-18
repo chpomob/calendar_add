@@ -2,17 +2,15 @@ package com.calendaradd.service
 
 import android.graphics.Bitmap
 import com.calendaradd.usecase.InputContext
+import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.*
 
 /**
  * Service for orchestrating the AI analysis pipeline.
  */
 class TextAnalysisService(
-    private val gemmaLlmService: GemmaLlmService
+    private val gemmaLlmService: EventJsonExtractor
 ) {
 
     /**
@@ -57,18 +55,16 @@ class TextAnalysisService(
                 .removePrefix("```")
                 .removeSuffix("```")
                 .trim()
-                
-            val json = JSONObject(cleaned)
-            
+
+            val json = JsonParser.parseString(cleaned).asJsonObject
+
             EventExtraction(
-                title = json.optString("title"),
-                description = json.optString("description"),
-                startTime = json.optString("startTime"),
-                endTime = json.optString("endTime"),
-                location = json.optString("location"),
-                attendees = json.optJSONArray("attendees")?.let { arr ->
-                    List(arr.length()) { i -> arr.getString(i) }
-                } ?: emptyList()
+                title = json.stringValue("title"),
+                description = json.stringValue("description"),
+                startTime = json.stringValue("startTime"),
+                endTime = json.stringValue("endTime"),
+                location = json.stringValue("location"),
+                attendees = json.arrayValue("attendees")
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -84,6 +80,16 @@ class TextAnalysisService(
         location = "",
         attendees = emptyList()
     )
+
+    private fun com.google.gson.JsonObject.stringValue(key: String): String {
+        return get(key)?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+    }
+
+    private fun com.google.gson.JsonObject.arrayValue(key: String): List<String> {
+        return getAsJsonArray(key)
+            ?.mapNotNull { element -> element.takeIf { !it.isJsonNull }?.asString }
+            ?: emptyList()
+    }
 }
 
 /**

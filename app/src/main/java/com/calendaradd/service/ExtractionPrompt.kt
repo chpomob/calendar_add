@@ -5,6 +5,10 @@ package com.calendaradd.service
  */
 object ExtractionPrompt {
 
+    private const val INPUT_PLACEHOLDER = "__INPUT__"
+    private const val TRANSCRIPTION_PLACEHOLDER = "__TRANSCRIPTION__"
+    private const val OCR_PLACEHOLDER = "__OCR_TEXT__"
+
     const val DEFAULT_SYSTEM_PROMPT = """
         You are an AI assistant that extracts calendar events from user input.
         Extract only one event from the input. If multiple events exist, extract the first complete one.
@@ -36,7 +40,7 @@ object ExtractionPrompt {
     const val TEXT_EXTRACTION_PROMPT = """
         Extract calendar event from this text:
 
-        $input
+        __INPUT__
 
         Return JSON or null if no valid event found.
     """
@@ -44,7 +48,7 @@ object ExtractionPrompt {
     const val AUDIO_TRANSCRIPTION_PROMPT = """
         Transcribe this audio and extract event:
 
-        $transcription
+        __TRANSCRIPTION__
 
         Return JSON or null if no valid event.
     """
@@ -52,15 +56,15 @@ object ExtractionPrompt {
     const val IMAGE_OCR_PROMPT = """
         Extract event information from this image:
 
-        $ocrText
+        __OCR_TEXT__
 
         Return JSON or null if no valid event.
     """
 
     fun getPrompt(input: String, modelType: String = "text"): String = when (modelType) {
-        "text" -> TEXT_EXTRACTION_PROMPT.replace("$input", input)
-        "audio" -> AUDIO_TRANSCRIPTION_PROMPT.replace("$transcription", input)
-        "image" -> IMAGE_OCR_PROMPT.replace("$ocrText", input)
-        else -> TEXT_EXTRACTION_PROMPT.replace("$input", input)
+        "text" -> TEXT_EXTRACTION_PROMPT.replace(INPUT_PLACEHOLDER, input)
+        "audio" -> AUDIO_TRANSCRIPTION_PROMPT.replace(TRANSCRIPTION_PLACEHOLDER, input)
+        "image" -> IMAGE_OCR_PROMPT.replace(OCR_PLACEHOLDER, input)
+        else -> TEXT_EXTRACTION_PROMPT.replace(INPUT_PLACEHOLDER, input)
     }
 }

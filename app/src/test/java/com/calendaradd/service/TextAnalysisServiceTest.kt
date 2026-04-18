@@ -9,7 +9,7 @@ import org.junit.Test
 
 class TextAnalysisServiceTest {
 
-    private lateinit var gemmaLlmService: GemmaLlmService
+    private lateinit var gemmaLlmService: EventJsonExtractor
     private lateinit var textAnalysisService: TextAnalysisService
 
     @Before
@@ -33,7 +33,7 @@ class TextAnalysisServiceTest {
             }
         """.trimIndent()
         
-        coEvery { gemmaLlmService.extractEventJson(text = input) } returns jsonResponse
+        coEvery { gemmaLlmService.extractEventJson(input, null, null) } returns jsonResponse
 
         // When
         val result = textAnalysisService.analyzeText(input)
@@ -50,7 +50,7 @@ class TextAnalysisServiceTest {
         val bitmap = mockk<android.graphics.Bitmap>()
         val jsonResponse = "{\"title\": \"Event from image\"}"
         
-        coEvery { gemmaLlmService.extractEventJson(text = any(), image = bitmap) } returns jsonResponse
+        coEvery { gemmaLlmService.extractEventJson("Extract event from this image.", bitmap, null) } returns jsonResponse
 
         // When
         val result = textAnalysisService.analyzeImage(bitmap)
@@ -65,7 +65,7 @@ class TextAnalysisServiceTest {
         val audioData = byteArrayOf(1, 2, 3)
         val jsonResponse = "{\"title\": \"Event from audio\"}"
         
-        coEvery { gemmaLlmService.extractEventJson(text = any(), audio = audioData) } returns jsonResponse
+        coEvery { gemmaLlmService.extractEventJson("Extract event from this audio recording.", null, audioData) } returns jsonResponse
 
         // When
         val result = textAnalysisService.analyzeAudio(audioData)

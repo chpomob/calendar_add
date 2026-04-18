@@ -11,7 +11,10 @@
 *.wav binary
 
 # Generated files
-build/ export/ release/ *.class binary
+build/** binary
+export/** binary
+release/** binary
+*.class binary
 
 # Android Studio
 .idea/ binary

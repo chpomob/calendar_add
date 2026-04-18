@@ -1,15 +1,16 @@
 package com.calendaradd.service
 
 import com.calendaradd.usecase.InputContext
-import com.calendaradd.usecase.EventExtraction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.*
 
 /**
  * Service for extracting events from various inputs using LLM.
  */
+interface LlmEngine {
+    suspend fun analyzeInput(input: String): EventExtraction?
+}
+
 class ExtractionService(
     private val llmEngine: LlmEngine
 ) {
@@ -49,56 +50,10 @@ class ExtractionService(
     }
 
     private fun parseAndValidate(result: EventExtraction, context: InputContext): EventExtraction? {
-        return try {
-            // Validate and enrich extraction
-            EventExtraction(
-                title = result.title.ifEmpty { extractTitleFromInput(input) },
-                description = result.description.ifEmpty { extractDescriptionFromInput(input) },
-                startTime = formatDateTime(
-                    result.date.ifEmpty { "" },
-                    result.time.ifEmpty { "" },
-                    context.timezone
-                ),
-                endTime = formatEndTime(result.startTime, result.duration),
-                location = result.location.ifEmpty { extractLocationFromInput(input) },
-                attendees = result.attendees.filter { it.isNotEmpty() }.toSet().toList().sorted()
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    private fun extractTitleFromInput(input: String): String {
-        return input.lines().firstOrNull { it.isNotBlank() }
-            ?: "Untitled Event"
-    }
-
-    private fun extractDescriptionFromInput(input: String): String {
-        return input.lines().drop(1).joinToString("\n")
-            .takeIf { it.isNotEmpty() } ?: ""
-    }
-
-    private fun extractLocationFromInput(input: String): String {
-        return input.lines()
-            .firstOrNull { it.contains("location", ignoreCase = true) || it.contains("place", ignoreCase = true) }
-            ?.removePrefix("- ")
-            ?.removePrefix("📍 ")
-            ?.take(100)
-            .orEmpty()
-    }
-
-    private fun formatDateTime(
-        date: String,
-        time: String,
-        timezone: String
-    ): String {
-        // TODO: Implement proper datetime formatting
-        return "${System.currentTimeMillis()}"
-    }
-
-    private fun formatEndTime(startTime: String, duration: Int = 60): String {
-        // TODO: Implement end time calculation
-        return ""
+        return result.copy(
+            title = result.title.ifBlank { "Untitled Event" },
+            attendees = result.attendees.filter { it.isNotBlank() }.distinct(),
+            confidence = result.confidence ?: 1.0f
+        )
     }
 }

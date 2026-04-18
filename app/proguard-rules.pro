@@ -27,7 +27,6 @@
 # Allow reflection for AndroidX and Jetpack Compose
 -keepnames class kotlinx.coroutines.MainDispatcher { *; }
 -keep class * implements kotlin.coroutines.CoroutineScope
--keepnames * { public final <init>(); }
 
 # Keep navigation components
 -keep class androidx.navigation.NavHostController { *; }

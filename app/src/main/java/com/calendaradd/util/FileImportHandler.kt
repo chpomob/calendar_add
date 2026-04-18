@@ -1,8 +1,8 @@
 package com.calendaradd.util
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
-import com.calendaradd.usecase.Event
 
 /**
  * Handles file import from share intents.
@@ -72,7 +72,7 @@ object FileImportHandler {
         data: Intent?,
         uriResolver: UriResolver
     ): FileImportResult? {
-        return if (resultCode == Intent.RESULT_OK && data != null) {
+        return if (resultCode == Activity.RESULT_OK && data != null) {
             val uri = data.data ?: return null
             val type = data.type ?: FILE_TYPE_ALL
             FileImportResult.Success(uri, type, uriResolver.getPath(uri))
@@ -95,5 +95,5 @@ data class FileImportOptions(
     val allowAudio: Boolean = true,
     val allowImage: Boolean = true,
     val allowText: Boolean = true,
-    val defaultType: String = FILE_TYPE_ALL
+    val defaultType: String = FileImportHandler.FILE_TYPE_ALL
 )

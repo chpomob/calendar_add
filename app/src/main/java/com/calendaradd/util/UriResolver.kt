@@ -1,8 +1,6 @@
 package com.calendaradd.util
 
 import android.net.Uri
-import android.os.Environment
-import android.provider.MediaStore
 
 /**
  * Utility for resolving URIs to file paths.
@@ -11,42 +9,8 @@ object UriResolver {
 
     fun getPath(uri: Uri): String? {
         return when (uri.scheme) {
-            "content" -> {
-                // Check if it's a file type that can be converted to path
-                when (uri.authority) {
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI -> {
-                        // Image from gallery
-                        getMediaStorePath(uri, MediaStore.Images.Media.DATA)
-                    }
-                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI -> {
-                        // Video from gallery
-                        getMediaStorePath(uri, MediaStore.Video.Media.DATA)
-                    }
-                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI -> {
-                        // Audio from gallery
-                        getMediaStorePath(uri, MediaStore.Audio.Media.DATA)
-                    }
-                    else -> {
-                        // Unknown authority - use content:// URI directly
-                        uri.toString()
-                    }
-                }
-            }
-            "file" -> uri.path ?: null
+            "file" -> uri.path
             else -> uri.toString()
-        }
-    }
-
-    private fun getMediaStorePath(uri: Uri, columnName: String): String? {
-        return try {
-            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    cursor.getString(cursor.getColumnIndexOrThrow(columnName))
-                } else null
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
         }
     }
 
@@ -54,7 +18,7 @@ object UriResolver {
      * Checks if URI is a public file (external storage).
      */
     fun isPublicFile(uri: Uri): Boolean {
-        return uri.authority?.contains(Environment.getExternalStorageDirectory().canonicalPath) == true
+        return uri.scheme == "file"
     }
 
     /**
