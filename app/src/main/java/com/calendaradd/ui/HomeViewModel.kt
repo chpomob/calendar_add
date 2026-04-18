@@ -20,6 +20,8 @@ class HomeViewModel(
     private val gemmaLlmService: GemmaLlmService,
     private val modelDownloadManager: ModelDownloadManager
 ) : ViewModel() {
+    private var isDownloadingModel = false
+    private var isInitializingModel = false
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -44,6 +46,8 @@ class HomeViewModel(
     }
 
     private fun initializeModel() {
+        if (_isModelReady.value || isInitializingModel) return
+        isInitializingModel = true
         viewModelScope.launch {
             try {
                 _uiState.value = HomeUiState.Loading("Initializing Gemma 4 Engine...")
@@ -52,12 +56,17 @@ class HomeViewModel(
                 _uiState.value = HomeUiState.Idle
             } catch (e: Exception) {
                 _uiState.value = HomeUiState.Error("Failed to initialize Gemma 4: ${e.message}")
+            } finally {
+                isInitializingModel = false
             }
         }
     }
 
     fun downloadModel() {
+        if (_isModelReady.value || isDownloadingModel) return
+        isDownloadingModel = true
         viewModelScope.launch {
+            _downloadProgress.value = 0
             _uiState.value = HomeUiState.Loading("Starting download of Gemma 4 (~1.5GB)...")
             val downloadId = modelDownloadManager.startDownload()
             modelDownloadManager.trackProgress(downloadId).collect { status ->
@@ -67,10 +76,13 @@ class HomeViewModel(
                         _uiState.value = HomeUiState.Loading("Downloading model: ${status.percentage}%")
                     }
                     is DownloadStatus.Success -> {
+                        isDownloadingModel = false
                         _downloadProgress.value = 100
                         initializeModel()
                     }
                     is DownloadStatus.Failed -> {
+                        isDownloadingModel = false
+                        _downloadProgress.value = null
                         _uiState.value = HomeUiState.Error(status.error)
                     }
                 }
@@ -113,6 +125,9 @@ class HomeViewModel(
     }
 
     fun resetState() {
+        if (_isModelReady.value) {
+            _downloadProgress.value = null
+        }
         _uiState.value = HomeUiState.Idle
     }
 }

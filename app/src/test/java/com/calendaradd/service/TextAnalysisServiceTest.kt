@@ -73,4 +73,40 @@ class TextAnalysisServiceTest {
         // Then
         assertEquals("Event from audio", result.title)
     }
+
+    @Test
+    fun `analyzeText should accept attendees as comma separated string`() = runBlocking {
+        val input = "Meet Alice and Bob tomorrow"
+        val jsonResponse = """
+            {
+                "title": "Meeting",
+                "attendees": "Alice, Bob, Alice"
+            }
+        """.trimIndent()
+
+        coEvery { gemmaLlmService.extractEventJson(input, null, null) } returns jsonResponse
+
+        val result = textAnalysisService.analyzeText(input)
+
+        assertEquals(listOf("Alice", "Bob"), result.attendees)
+    }
+
+    @Test
+    fun `analyzeText should parse JSON wrapped in extra prose`() = runBlocking {
+        val input = "Dinner with Sam at 7pm"
+        val jsonResponse = """
+            Here is the extracted event:
+            {
+                "title": "Dinner",
+                "description": "With Sam"
+            }
+        """.trimIndent()
+
+        coEvery { gemmaLlmService.extractEventJson(input, null, null) } returns jsonResponse
+
+        val result = textAnalysisService.analyzeText(input)
+
+        assertEquals("Dinner", result.title)
+        assertEquals("With Sam", result.description)
+    }
 }

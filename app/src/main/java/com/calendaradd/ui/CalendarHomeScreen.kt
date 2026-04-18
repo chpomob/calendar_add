@@ -93,7 +93,7 @@ fun CalendarHomeScreen(
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            if (uiState is HomeUiState.ModelMissing) {
+            if (!isModelReady) {
                 // Download Model Screen
                 Column(
                     modifier = Modifier
@@ -124,9 +124,25 @@ fun CalendarHomeScreen(
                     Spacer(Modifier.height(32.dp))
                     Button(
                         onClick = { viewModel.downloadModel() },
-                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        enabled = uiState !is HomeUiState.Loading
                     ) {
-                        Text("Download Model")
+                        Text(
+                            when {
+                                downloadProgress != null -> "Downloading Model"
+                                uiState is HomeUiState.Error -> "Retry Download"
+                                else -> "Download Model"
+                            }
+                        )
+                    }
+
+                    if (downloadProgress != null) {
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Model download progress: ${downloadProgress}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             } else {

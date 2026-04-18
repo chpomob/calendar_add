@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import com.google.ai.edge.litertlm.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 
 /**
@@ -57,12 +58,15 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
             appendLine("Extract one calendar event from the following input.")
             appendLine("Respond only with JSON using keys: title, description, startTime, endTime, location, attendees.")
             append(text)
-            if (image != null) append("\n[image attached]")
-            if (audio != null) append("\n[audio attached]")
+        }
+        val requestContents = buildList {
+            add(Content.Text(requestText))
+            image?.let { add(Content.ImageBytes(it.toPngBytes())) }
+            audio?.let { add(Content.AudioBytes(it)) }
         }
 
         return@withContext try {
-            val response = conv.sendMessage(requestText)
+            val response = conv.sendMessage(Contents.of(requestContents))
             response.contents.contents
                 .filterIsInstance<Content.Text>()
                 .joinToString("\n") { it.text }
@@ -81,5 +85,12 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
         engine?.close()
         engine = null
         conversation = null
+    }
+}
+
+private fun Bitmap.toPngBytes(): ByteArray {
+    return ByteArrayOutputStream().use { output ->
+        compress(Bitmap.CompressFormat.PNG, 100, output)
+        output.toByteArray()
     }
 }

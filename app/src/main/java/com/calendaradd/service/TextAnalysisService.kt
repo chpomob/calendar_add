@@ -55,8 +55,9 @@ class TextAnalysisService(
                 .removePrefix("```")
                 .removeSuffix("```")
                 .trim()
+            val jsonPayload = cleaned.extractJsonPayload()
 
-            val json = JsonParser.parseString(cleaned).asJsonObject
+            val json = JsonParser.parseString(jsonPayload).asJsonObject
 
             EventExtraction(
                 title = json.stringValue("title"),
@@ -64,7 +65,7 @@ class TextAnalysisService(
                 startTime = json.stringValue("startTime"),
                 endTime = json.stringValue("endTime"),
                 location = json.stringValue("location"),
-                attendees = json.arrayValue("attendees")
+                attendees = json.attendeesValue("attendees")
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -85,10 +86,27 @@ class TextAnalysisService(
         return get(key)?.takeIf { !it.isJsonNull }?.asString.orEmpty()
     }
 
-    private fun com.google.gson.JsonObject.arrayValue(key: String): List<String> {
-        return getAsJsonArray(key)
-            ?.mapNotNull { element -> element.takeIf { !it.isJsonNull }?.asString }
-            ?: emptyList()
+    private fun com.google.gson.JsonObject.attendeesValue(key: String): List<String> {
+        val rawValue = get(key) ?: return emptyList()
+        return when {
+            rawValue.isJsonArray -> rawValue.asJsonArray
+                .mapNotNull { element -> element.takeIf { !it.isJsonNull }?.asString?.trim() }
+            rawValue.isJsonPrimitive -> rawValue.asString
+                .split(",", ";", "\n")
+                .map { it.trim() }
+            else -> emptyList()
+        }.filter { it.isNotEmpty() }
+            .distinct()
+    }
+
+    private fun String.extractJsonPayload(): String {
+        val firstBrace = indexOf('{')
+        val lastBrace = lastIndexOf('}')
+        return if (firstBrace >= 0 && lastBrace > firstBrace) {
+            substring(firstBrace, lastBrace + 1)
+        } else {
+            this
+        }
     }
 }
 

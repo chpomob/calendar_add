@@ -1,7 +1,6 @@
 package com.calendaradd.navigation
 
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,7 +17,7 @@ fun NavigationBar(
     onItemClicked: (index: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    NavigationBar(modifier = modifier) {
+    androidx.compose.material3.NavigationBar(modifier = modifier) {
         items.forEachIndexed { index, item ->
             NavigationBarItem(
                 icon = {
