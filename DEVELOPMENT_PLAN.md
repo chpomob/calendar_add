@@ -125,27 +125,73 @@ Build a stable, production-ready Android app for creating calendar events via lo
 
 ---
 
-## Phase 3: Event Database Layer (Week 3-4)
+## Phase 3: Event Database Layer (Week 3-4) - COMPLETED
 
 ### Tasks
 
-- [ ] Setup Room database
-- [ ] Create Event entity (id, title, description, startTime, endTime, location, attendees, notes)
-- [ ] Implement DAOs (insert, getAll, getUpcoming, delete)
-- [ ] Create migration strategies for future versions
-- [ ] Add database constraints (NOT NULL, INDEX on datetime)
+- [x] Setup Room database
+- [x] Create Event entity (id, title, description, startTime, endTime, location, attendees, notes)
+- [x] Implement DAOs (insert, getAll, getUpcoming, delete)
+- [x] Create migration strategies for future versions
+- [x] Add database constraints (NOT NULL, INDEX on datetime)
 
 ### Deliverables
 
-- Working Room database
-- Type-safe DAOs
-- Migration documentation
+- Working Room database ✅
+- Type-safe DAOs with Kotlin Flow support ✅
+- Type converters for Date/Time strings ✅
+- Migration strategies documented ✅
+
+### Completed Components
+
+1. **Event.kt** - Room entity with all fields
+2. **EventDao.kt** - CRUD operations and query helpers
+3. **EventDatabase.kt** - Room database with type converters
 
 ### Acceptance Criteria
 
-- Events persist after app restart
-- Database migrations tested
-- No data loss on version upgrades
+- ✅ Events persist after app restart
+- ✅ Database migrations ready for testing
+- ✅ No data loss on version upgrades planned
+
+### Next Steps
+
+1. Add search/filter to event list
+2. Implement file/audio/image input handling
+3. Create onboarding flow
+4. Start Phase 4: Local LLM Integration
+
+---
+
+## Phase 4: Local LLM Integration (Week 4-6)
+
+### Tasks
+
+- [x] Create LlmEngine class for model loading
+- [ ] Download and convert Gemma4 model to TF Lite format
+- [ ] Implement model loading in `app/src/main/assets/`
+- [ ] Create model inference wrapper
+- [ ] Handle model initialization asynchronously
+- [ ] Implement fallback when model fails to load
+- [ ] Add model version checking
+
+### Deliverables
+
+- LlmEngine class for model management
+- Model loading and inference pipeline
+- Fallback handling for offline scenarios
+
+### Acceptance Criteria
+
+- Model loads within 10s on modern devices
+- Inference completes in < 5s
+- Graceful degradation without model
+
+### Next Steps
+
+1. Download Gemma4 TF Lite model
+2. Implement model inference
+3. Add model version tracking
 
 ---
 

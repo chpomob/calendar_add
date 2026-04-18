@@ -51,6 +51,8 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        // Don't include placeholder model file
+        pickFirsts += null
     }
 }
 
