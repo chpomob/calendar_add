@@ -18,6 +18,13 @@ import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import kotlinx.coroutines.launch
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.calendaradd.util.hasCalendarPermissions
+import com.calendaradd.util.calendarPermissions
+import android.Manifest
+
 /**
  * Main home screen for the calendar app.
  * Handles model download and AI extraction.
@@ -35,6 +42,7 @@ fun CalendarHomeScreen(
     sharedAudio: ByteArray? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsState()
@@ -42,6 +50,46 @@ fun CalendarHomeScreen(
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     
     var inputValue by remember { mutableStateOf("") }
+
+    // Permission Launchers
+    val calendarPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        if (!allGranted) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Calendar permissions are needed to auto-sync events.")
+            }
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            scope.launch { snackbarHostState.showSnackbar("Voice capture ready!") }
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Audio permission denied.") }
+        }
+    }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            val bitmap = context.contentResolver.openInputStream(it)?.use { stream ->
+                android.graphics.BitmapFactory.decodeStream(stream)
+            }
+            bitmap?.let { viewModel.processImage(it) }
+        }
+    }
+
+    // Check permissions on launch
+    LaunchedEffect(Unit) {
+        if (!context.hasCalendarPermissions()) {
+            calendarPermissionLauncher.launch(calendarPermissions)
+        }
+    }
 
     // Automatically process shared content
     LaunchedEffect(sharedText, isModelReady) {
@@ -191,9 +239,7 @@ fun CalendarHomeScreen(
                             icon = Icons.Default.Mic,
                             label = "Voice",
                             onClick = {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Voice capture is not available yet.")
-                                }
+                                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             },
                             modifier = Modifier.weight(1f)
                         )
@@ -201,9 +247,7 @@ fun CalendarHomeScreen(
                             icon = Icons.Default.Image,
                             label = "Image",
                             onClick = {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Image import is not available yet.")
-                                }
+                                imagePickerLauncher.launch("image/*")
                             },
                             modifier = Modifier.weight(1f)
                         )

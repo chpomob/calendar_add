@@ -64,28 +64,39 @@ class HomeViewModel(
 
     fun downloadModel() {
         if (_isModelReady.value || isDownloadingModel) return
+        
+        if (!modelDownloadManager.hasEnoughSpace()) {
+            _uiState.value = HomeUiState.Error("Not enough disk space. Please free up at least 2GB.")
+            return
+        }
+
         isDownloadingModel = true
         viewModelScope.launch {
-            _downloadProgress.value = 0
-            _uiState.value = HomeUiState.Loading("Starting download of Gemma 4 (~1.5GB)...")
-            val downloadId = modelDownloadManager.startDownload()
-            modelDownloadManager.trackProgress(downloadId).collect { status ->
-                when (status) {
-                    is DownloadStatus.Progress -> {
-                        _downloadProgress.value = status.percentage
-                        _uiState.value = HomeUiState.Loading("Downloading model: ${status.percentage}%")
-                    }
-                    is DownloadStatus.Success -> {
-                        isDownloadingModel = false
-                        _downloadProgress.value = 100
-                        initializeModel()
-                    }
-                    is DownloadStatus.Failed -> {
-                        isDownloadingModel = false
-                        _downloadProgress.value = null
-                        _uiState.value = HomeUiState.Error(status.error)
+            try {
+                _downloadProgress.value = 0
+                _uiState.value = HomeUiState.Loading("Starting download of Gemma 4 (~1.5GB)...")
+                val downloadId = modelDownloadManager.startDownload()
+                modelDownloadManager.trackProgress(downloadId).collect { status ->
+                    when (status) {
+                        is DownloadStatus.Progress -> {
+                            _downloadProgress.value = status.percentage
+                            _uiState.value = HomeUiState.Loading("Downloading model: ${status.percentage}%")
+                        }
+                        is DownloadStatus.Success -> {
+                            isDownloadingModel = false
+                            _downloadProgress.value = 100
+                            initializeModel()
+                        }
+                        is DownloadStatus.Failed -> {
+                            isDownloadingModel = false
+                            _downloadProgress.value = null
+                            _uiState.value = HomeUiState.Error(status.error)
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                isDownloadingModel = false
+                _uiState.value = HomeUiState.Error("Download initialization failed: ${e.message}")
             }
         }
     }

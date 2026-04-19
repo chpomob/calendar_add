@@ -25,17 +25,22 @@ class ModelDownloadManager(private val context: Context) {
 
     /**
      * Returns the local file path where the model should be stored.
+     * Use internal filesDir for better security and stability.
      */
     fun getModelFile(): File {
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        val dir = File(context.filesDir, "models").apply { mkdirs() }
         return File(dir, MODEL_FILENAME)
     }
 
     /**
-     * Checks if the model is already downloaded.
+     * Estimates if there is enough disk space for the model.
+     * Model is ~1.5GB, we check for 2.0GB to be safe.
      */
-    fun isModelDownloaded(): Boolean {
-        return getModelFile().exists() && getModelFile().length() > 0
+    fun hasEnoughSpace(): Boolean {
+        val file = context.filesDir
+        val availableBytes = file.usableSpace
+        val requiredBytes = 1.5 * 1024 * 1024 * 1024 // 1.5 GB
+        return availableBytes > (requiredBytes + (500 * 1024 * 1024)) // +500MB buffer
     }
 
     /**
@@ -43,11 +48,15 @@ class ModelDownloadManager(private val context: Context) {
      * Returns the download ID.
      */
     fun startDownload(): Long {
+        if (!hasEnoughSpace()) {
+            throw IllegalStateException("Not enough disk space to download the model (requires ~2GB free).")
+        }
+
         val request = DownloadManager.Request(Uri.parse(MODEL_URL))
             .setTitle("Downloading Gemma 4 AI Model")
             .setDescription("Required for local event extraction")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, MODEL_FILENAME)
+            .setDestinationUri(Uri.fromFile(getModelFile()))
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(true)
 
