@@ -25,10 +25,11 @@ class ModelDownloadManager(private val context: Context) {
 
     /**
      * Returns the local file path where the model should be stored.
-     * Use internal filesDir for better security and stability.
+     * Use externalFilesDir (Downloads) which is app-specific but accessible by DownloadManager.
      */
     fun getModelFile(): File {
-        val dir = File(context.filesDir, "models").apply { mkdirs() }
+        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        if (!dir.exists()) dir.mkdirs()
         return File(dir, MODEL_FILENAME)
     }
 
@@ -36,7 +37,8 @@ class ModelDownloadManager(private val context: Context) {
      * Checks if the model is already downloaded.
      */
     fun isModelDownloaded(): Boolean {
-        return getModelFile().exists() && getModelFile().length() > 0
+        val file = getModelFile()
+        return file.exists() && file.length() > 2000000000L // Check if roughly correct size (>2GB)
     }
 
     /**
@@ -44,8 +46,8 @@ class ModelDownloadManager(private val context: Context) {
      * Model is ~2.6GB, we check for 3.1GB to be safe.
      */
     fun hasEnoughSpace(): Boolean {
-        val file = context.filesDir
-        val availableBytes = file.usableSpace
+        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        val availableBytes = dir.usableSpace
         val requiredBytes = 2.6 * 1024 * 1024 * 1024 // 2.6 GB
         return availableBytes > (requiredBytes.toLong() + (500 * 1024 * 1024)) // +500MB buffer
     }
@@ -69,7 +71,7 @@ class ModelDownloadManager(private val context: Context) {
             .setTitle("Downloading Gemma 4 AI Model")
             .setDescription("Required for local event extraction")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationUri(Uri.fromFile(targetFile))
+            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, MODEL_FILENAME)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(true)
 
