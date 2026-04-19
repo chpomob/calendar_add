@@ -4,7 +4,16 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Calendar Shape -->
+    <path
+        android:fillColor="#6200EE"
+        android:pathData="M25,30 h58 v53 h-58 z" />
+    <!-- Calendar Top -->
+    <path
+        android:fillColor="#3700B3"
+        android:pathData="M25,30 h58 v12 h-58 z" />
+    <!-- Plus Sign (White) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,30 L54,78 M30,54 L78,54" />
+        android:pathData="M50,55 h8 v2 h-8 z M53,52 h2 v8 h-2 z" />
 </vector>
