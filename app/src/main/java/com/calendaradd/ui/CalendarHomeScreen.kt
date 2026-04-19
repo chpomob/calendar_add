@@ -1,29 +1,31 @@
 package com.calendaradd.ui
 
 import android.graphics.Bitmap
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.calendaradd.navigation.Screen
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
-import kotlinx.coroutines.launch
-
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.platform.LocalContext
-import com.calendaradd.util.hasCalendarPermissions
 import com.calendaradd.util.calendarPermissions
-import android.Manifest
+import com.calendaradd.util.hasCalendarPermissions
+import kotlinx.coroutines.launch
 
 /**
  * Main home screen for the calendar app.
@@ -136,7 +138,7 @@ fun CalendarHomeScreen(
                 onClick = { navController.navigate(Screen.EventList.route) },
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Icon(Icons.Default.List, contentDescription = "View Events")
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "View Events")
             }
         }
     ) { padding ->
@@ -146,7 +148,8 @@ fun CalendarHomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(24.dp),
+                        .padding(24.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -192,13 +195,28 @@ fun CalendarHomeScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
+                    if (sharedText != null || sharedImage != null || sharedAudio != null) {
+                        Spacer(Modifier.height(16.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Text(
+                                "Shared content is queued and will be processed after the model is ready.",
+                                modifier = Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
                 }
             } else {
                 // Main Content
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp),
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
@@ -213,14 +231,15 @@ fun CalendarHomeScreen(
                             OutlinedTextField(
                                 value = inputValue,
                                 onValueChange = { inputValue = it },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 300.dp),
                                 label = { Text("Event details...") },
-                                placeholder = { Text("e.g., Lunch with Maria at 1pm tomorrow") }
+                                placeholder = { Text("e.g., Lunch with Maria at 1pm tomorrow") },
+                                maxLines = 10
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(
                                 onClick = { viewModel.processText(inputValue) },
-                                modifier = Modifier.align(Alignment.End),
+                                modifier = Modifier.fillMaxWidth(),
                                 enabled = isModelReady && inputValue.isNotBlank()
                             ) {
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null)
@@ -252,20 +271,6 @@ fun CalendarHomeScreen(
                             modifier = Modifier.weight(1f)
                         )
                     }
-
-                    // Shared Content Notification
-                    if (!isModelReady && (sharedText != null || sharedImage != null || sharedAudio != null)) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            Text(
-                                "Waiting for AI model to process shared content...",
-                                modifier = Modifier.padding(12.dp),
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
                 }
             }
 
@@ -289,7 +294,7 @@ fun CalendarHomeScreen(
                             downloadProgress?.let {
                                 Spacer(Modifier.height(8.dp))
                                 LinearProgressIndicator(
-                                    progress = it / 100f,
+                                    progress = { it / 100f },
                                     modifier = Modifier.fillMaxWidth().height(8.dp)
                                 )
                             }

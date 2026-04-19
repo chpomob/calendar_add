@@ -23,7 +23,7 @@ interface EventJsonExtractor {
 open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
 
     private var engine: Engine? = null
-    private var conversation: Conversation? = null
+    private val mutex = Any()
     
     /**
      * Tracks the last successfully initialized backend.
@@ -31,60 +31,63 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     var lastBackendUsed: String? = null
         private set
 
+    protected open fun createEngine(config: EngineConfig): Engine = Engine(config)
+
+    protected open fun createConversation(engine: Engine): Conversation =
+        engine.createConversation(ConversationConfig())
+
     /**
      * Initializes the LiteRT-LM engine with a Gemma 4 model.
      * Attempts to use NPU acceleration first, falling back to CPU if it fails.
      */
     open suspend fun initialize(modelPath: String) = withContext(Dispatchers.IO) {
-        if (engine != null) return@withContext
+        synchronized(mutex) {
+            if (engine != null) return@synchronized
 
-        val cacheDirPath = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
-        
-        // Strategy: Try NPU first, then fallback to CPU
-        val backends = listOf(
-            "NPU" to Backend.NPU(),
-            "CPU" to Backend.CPU()
-        )
+            val cacheDirPath = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
+            
+            // Strategy: Try NPU first, then fallback to CPU
+            val backends = listOf(
+                "NPU" to Backend.NPU(),
+                "CPU" to Backend.CPU()
+            )
 
-        var lastError: Exception? = null
+            var lastError: Exception? = null
 
-        for ((name, backend) in backends) {
-            try {
-                val config = EngineConfig(
-                    modelPath = modelPath,
-                    backend = backend,
-                    cacheDir = cacheDirPath
-                )
-                val initializedEngine = Engine(config).apply {
-                    initialize()
+            for ((name, backend) in backends) {
+                var initializedEngine: Engine? = null
+                try {
+                    val config = EngineConfig(
+                        modelPath = modelPath,
+                        backend = backend,
+                        cacheDir = cacheDirPath
+                    )
+                    initializedEngine = createEngine(config).apply {
+                        initialize()
+                    }
+                    engine = initializedEngine
+                    lastBackendUsed = name
+                    return@withContext
+                } catch (e: Exception) {
+                    initializedEngine?.close()
+                    lastError = e
                 }
-                engine = initializedEngine
-                conversation = initializedEngine.createConversation(ConversationConfig())
-                lastBackendUsed = name
-                return@withContext
-            } catch (e: Exception) {
-                lastError = e
-                // Continue to next backend
             }
-        }
 
-        throw lastError ?: RuntimeException("Failed to initialize engine with any backend")
+            throw lastError ?: RuntimeException("Failed to initialize engine with any backend")
+        }
     }
 
     /**
      * Processes multimodal content and returns the extracted event JSON string.
-     * Creates a fresh conversation for each request to ensure statelessness.
+     * Uses a fresh conversation per request so the model stays stateless while
+     * respecting LiteRT-LM's single active session limit.
      */
     override suspend fun extractEventJson(
         text: String,
         image: Bitmap?,
         audio: ByteArray?
     ): String? = withContext(Dispatchers.IO) {
-        val currentEngine = engine ?: return@withContext null
-        
-        // Create a new stateless conversation for this specific extraction
-        val conv = currentEngine.createConversation(ConversationConfig())
-        
         val requestText = buildString {
             appendLine("Extract ONE calendar event from the input.")
             appendLine("Return ONLY valid JSON. Structure: { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601\", \"endTime\": \"ISO-8601\", \"location\": \"\", \"attendees\": [] }")
@@ -98,19 +101,25 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
             audio?.let { add(Content.AudioBytes(it)) }
         }
 
-        return@withContext try {
-            val response = conv.sendMessage(Contents.of(requestContents))
-            val result = response.contents.contents
-                .filterIsInstance<Content.Text>()
-                .joinToString("\n") { it.text }
-                .ifBlank { null }
-            
-            conv.close() // Close the transient conversation
-            result
-        } catch (e: Exception) {
-            e.printStackTrace()
-            conv.close()
-            null
+        synchronized(mutex) {
+            val currentEngine = engine ?: return@withContext null
+            var conversation: Conversation? = null
+
+            try {
+                conversation = createConversation(currentEngine)
+                val response = conversation.sendMessage(Contents.of(requestContents))
+                val result = response.contents.contents
+                    .filterIsInstance<Content.Text>()
+                    .joinToString("\n") { it.text }
+                    .ifBlank { null }
+
+                return@synchronized result
+            } catch (e: Exception) {
+                e.printStackTrace()
+                return@synchronized null
+            } finally {
+                conversation?.close()
+            }
         }
     }
 
@@ -118,10 +127,10 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
      * Closes the engine and releases resources.
      */
     open fun close() {
-        conversation?.close()
-        engine?.close()
-        engine = null
-        conversation = null
+        synchronized(mutex) {
+            engine?.close()
+            engine = null
+        }
     }
 }
 
