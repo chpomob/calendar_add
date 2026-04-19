@@ -73,17 +73,23 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
 
     /**
      * Processes multimodal content and returns the extracted event JSON string.
+     * Creates a fresh conversation for each request to ensure statelessness.
      */
     override suspend fun extractEventJson(
         text: String,
         image: Bitmap?,
         audio: ByteArray?
     ): String? = withContext(Dispatchers.IO) {
-        val conv = conversation ?: return@withContext null
+        val currentEngine = engine ?: return@withContext null
+        
+        // Create a new stateless conversation for this specific extraction
+        val conv = currentEngine.createConversation(ConversationConfig())
+        
         val requestText = buildString {
-            appendLine("Extract ONE calendar event from the following input.")
-            appendLine("Return ONLY valid JSON. Do not include any explanation or markdown code blocks.")
-            appendLine("JSON structure: { \"title\": string, \"description\": string, \"startTime\": \"ISO-8601\", \"endTime\": \"ISO-8601\", \"location\": string, \"attendees\": [string] }")
+            appendLine("Extract ONE calendar event from the input.")
+            appendLine("Return ONLY valid JSON. Structure: { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601\", \"endTime\": \"ISO-8601\", \"location\": \"\", \"attendees\": [] }")
+            appendLine("Example: User: 'Lunch with Bob tomorrow at 12pm' -> Response: { \"title\": \"Lunch with Bob\", \"startTime\": \"2026-04-20T12:00:00\", \"endTime\": \"2026-04-20T13:00:00\" }")
+            appendLine("Input data:")
             append(text)
         }
         val requestContents = buildList {
@@ -94,12 +100,16 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
 
         return@withContext try {
             val response = conv.sendMessage(Contents.of(requestContents))
-            response.contents.contents
+            val result = response.contents.contents
                 .filterIsInstance<Content.Text>()
                 .joinToString("\n") { it.text }
                 .ifBlank { null }
+            
+            conv.close() // Close the transient conversation
+            result
         } catch (e: Exception) {
             e.printStackTrace()
+            conv.close()
             null
         }
     }

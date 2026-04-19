@@ -20,7 +20,12 @@ class TextAnalysisService(
         input: String,
         context: InputContext = InputContext()
     ): EventExtraction = withContext(Dispatchers.IO) {
-        val jsonString = gemmaLlmService.extractEventJson(text = input)
+        val promptText = buildString {
+            appendLine("Current context: ${context.timestamp} (UTC/Local depending on timezone), Timezone: ${context.timezone}, Language: ${context.language}")
+            appendLine("Reference date: ${java.time.Instant.ofEpochMilli(context.timestamp).atZone(java.time.ZoneId.of(context.timezone))}")
+            appendLine("User input: $input")
+        }
+        val jsonString = gemmaLlmService.extractEventJson(text = promptText)
         parseJsonToExtraction(jsonString)
     }
 
@@ -31,7 +36,11 @@ class TextAnalysisService(
         bitmap: Bitmap,
         context: InputContext = InputContext()
     ): EventExtraction = withContext(Dispatchers.IO) {
-        val jsonString = gemmaLlmService.extractEventJson(text = "Extract event from this image.", image = bitmap)
+        val promptText = buildString {
+            appendLine("Current context: ${context.timestamp}, Reference date: ${java.time.Instant.ofEpochMilli(context.timestamp).atZone(java.time.ZoneId.of(context.timezone))}")
+            appendLine("Extract event from this image.")
+        }
+        val jsonString = gemmaLlmService.extractEventJson(text = promptText, image = bitmap)
         parseJsonToExtraction(jsonString)
     }
 
@@ -42,7 +51,11 @@ class TextAnalysisService(
         audioData: ByteArray,
         context: InputContext = InputContext()
     ): EventExtraction = withContext(Dispatchers.IO) {
-        val jsonString = gemmaLlmService.extractEventJson(text = "Extract event from this audio recording.", audio = audioData)
+        val promptText = buildString {
+            appendLine("Current context: ${context.timestamp}, Reference date: ${java.time.Instant.ofEpochMilli(context.timestamp).atZone(java.time.ZoneId.of(context.timezone))}")
+            appendLine("Extract event from this audio recording.")
+        }
+        val jsonString = gemmaLlmService.extractEventJson(text = promptText, audio = audioData)
         parseJsonToExtraction(jsonString)
     }
 

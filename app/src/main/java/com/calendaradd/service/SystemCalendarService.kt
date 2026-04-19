@@ -56,6 +56,7 @@ class SystemCalendarService(private val context: Context) {
 
     /**
      * Inserts an event into a specific calendar.
+     * Returns the event ID if successful, null if failed.
      */
     fun insertEvent(
         calendarId: Long,
@@ -65,7 +66,11 @@ class SystemCalendarService(private val context: Context) {
         endTimeMillis: Long,
         location: String = ""
     ): Long? {
-        if (!hasCalendarPermissions()) return null
+        if (!hasCalendarPermissions()) {
+            android.util.Log.e("SystemCalendarService", "Missing calendar permissions")
+            return null
+        }
+        
         val values = ContentValues().apply {
             put(CalendarContract.Events.DTSTART, startTimeMillis)
             put(CalendarContract.Events.DTEND, endTimeMillis)
@@ -78,9 +83,12 @@ class SystemCalendarService(private val context: Context) {
 
         return try {
             val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            if (uri == null) {
+                android.util.Log.e("SystemCalendarService", "Failed to insert event: uri is null")
+            }
             uri?.lastPathSegment?.toLong()
-        } catch (e: SecurityException) {
-            e.printStackTrace()
+        } catch (e: Exception) {
+            android.util.Log.e("SystemCalendarService", "Error inserting calendar event", e)
             null
         }
     }

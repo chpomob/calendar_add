@@ -33,7 +33,7 @@ class TextAnalysisServiceTest {
             }
         """.trimIndent()
         
-        coEvery { gemmaLlmService.extractEventJson(input, null, null) } returns jsonResponse
+        coEvery { gemmaLlmService.extractEventJson(any(), null, null) } returns jsonResponse
 
         // When
         val result = textAnalysisService.analyzeText(input)
@@ -50,7 +50,7 @@ class TextAnalysisServiceTest {
         val bitmap = mockk<android.graphics.Bitmap>()
         val jsonResponse = "{\"title\": \"Event from image\"}"
         
-        coEvery { gemmaLlmService.extractEventJson("Extract event from this image.", bitmap, null) } returns jsonResponse
+        coEvery { gemmaLlmService.extractEventJson(any(), bitmap, null) } returns jsonResponse
 
         // When
         val result = textAnalysisService.analyzeImage(bitmap)
@@ -65,7 +65,7 @@ class TextAnalysisServiceTest {
         val audioData = byteArrayOf(1, 2, 3)
         val jsonResponse = "{\"title\": \"Event from audio\"}"
         
-        coEvery { gemmaLlmService.extractEventJson("Extract event from this audio recording.", null, audioData) } returns jsonResponse
+        coEvery { gemmaLlmService.extractEventJson(any(), null, audioData) } returns jsonResponse
 
         // When
         val result = textAnalysisService.analyzeAudio(audioData)
@@ -84,7 +84,7 @@ class TextAnalysisServiceTest {
             }
         """.trimIndent()
 
-        coEvery { gemmaLlmService.extractEventJson(input, null, null) } returns jsonResponse
+        coEvery { gemmaLlmService.extractEventJson(any(), null, null) } returns jsonResponse
 
         val result = textAnalysisService.analyzeText(input)
 
@@ -102,7 +102,7 @@ class TextAnalysisServiceTest {
             }
         """.trimIndent()
 
-        coEvery { gemmaLlmService.extractEventJson(input, null, null) } returns jsonResponse
+        coEvery { gemmaLlmService.extractEventJson(any(), null, null) } returns jsonResponse
 
         val result = textAnalysisService.analyzeText(input)
 
