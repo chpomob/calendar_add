@@ -33,6 +33,13 @@ class ModelDownloadManager(private val context: Context) {
     }
 
     /**
+     * Checks if the model is already downloaded.
+     */
+    fun isModelDownloaded(): Boolean {
+        return getModelFile().exists() && getModelFile().length() > 0
+    }
+
+    /**
      * Estimates if there is enough disk space for the model.
      * Model is ~2.6GB, we check for 3.1GB to be safe.
      */
@@ -40,7 +47,7 @@ class ModelDownloadManager(private val context: Context) {
         val file = context.filesDir
         val availableBytes = file.usableSpace
         val requiredBytes = 2.6 * 1024 * 1024 * 1024 // 2.6 GB
-        return availableBytes > (requiredBytes + (500 * 1024 * 1024)) // +500MB buffer
+        return availableBytes > (requiredBytes.toLong() + (500 * 1024 * 1024)) // +500MB buffer
     }
 
     /**
@@ -49,14 +56,20 @@ class ModelDownloadManager(private val context: Context) {
      */
     fun startDownload(): Long {
         if (!hasEnoughSpace()) {
-            throw IllegalStateException("Not enough disk space to download the model (requires ~2GB free).")
+            throw IllegalStateException("Not enough disk space to download the model (requires ~3.1GB free).")
+        }
+
+        // Clean up any existing file or partial download first to avoid ERROR_FILE_ALREADY_EXISTS
+        val targetFile = getModelFile()
+        if (targetFile.exists()) {
+            targetFile.delete()
         }
 
         val request = DownloadManager.Request(Uri.parse(MODEL_URL))
             .setTitle("Downloading Gemma 4 AI Model")
             .setDescription("Required for local event extraction")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationUri(Uri.fromFile(getModelFile()))
+            .setDestinationUri(Uri.fromFile(targetFile))
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(true)
 
@@ -82,7 +95,19 @@ class ModelDownloadManager(private val context: Context) {
                             isDownloading = false
                         }
                         DownloadManager.STATUS_FAILED -> {
-                            emit(DownloadStatus.Failed("Download failed. Please check your connection."))
+                            val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+                            val message = when (reason) {
+                                DownloadManager.ERROR_CANNOT_RESUME -> "Cannot resume download."
+                                DownloadManager.ERROR_DEVICE_NOT_FOUND -> "Device not found."
+                                DownloadManager.ERROR_FILE_ALREADY_EXISTS -> "File already exists."
+                                DownloadManager.ERROR_FILE_ERROR -> "File error."
+                                DownloadManager.ERROR_HTTP_DATA_ERROR -> "HTTP data error."
+                                DownloadManager.ERROR_INSUFFICIENT_SPACE -> "Insufficient disk space."
+                                DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "Too many redirects."
+                                DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> "Unhandled HTTP code."
+                                else -> "Download failed (error code: $reason). Please check your connection."
+                            }
+                            emit(DownloadStatus.Failed(message))
                             isDownloading = false
                         }
                         DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PAUSED -> {
