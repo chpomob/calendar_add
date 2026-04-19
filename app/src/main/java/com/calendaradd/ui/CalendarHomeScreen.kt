@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.calendaradd.navigation.Screen
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
+import com.calendaradd.util.ModelImageLoader
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
 import kotlinx.coroutines.launch
@@ -79,10 +80,21 @@ fun CalendarHomeScreen(
         ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            val bitmap = context.contentResolver.openInputStream(it)?.use { stream ->
-                android.graphics.BitmapFactory.decodeStream(stream)
+            try {
+                val bitmap = ModelImageLoader.loadForInference(context.contentResolver, it)
+                if (bitmap != null) {
+                    viewModel.processImage(bitmap)
+                } else {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Unable to load that image for analysis.")
+                    }
+                }
+            } catch (e: OutOfMemoryError) {
+                e.printStackTrace()
+                scope.launch {
+                    snackbarHostState.showSnackbar("That image is too large to analyze safely.")
+                }
             }
-            bitmap?.let { viewModel.processImage(it) }
         }
     }
 

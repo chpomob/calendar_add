@@ -2,7 +2,6 @@ package com.calendaradd
 
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.os.Build
@@ -23,6 +22,7 @@ import com.calendaradd.usecase.EventDatabase
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
+import com.calendaradd.util.ModelImageLoader
 class MainActivity : ComponentActivity() {
 
     private lateinit var eventDatabase: EventDatabase
@@ -53,12 +53,8 @@ class MainActivity : ComponentActivity() {
         modelDownloadManager = ModelDownloadManager(this)
         systemCalendarService = SystemCalendarService(this)
         preferencesManager = PreferencesManager(this)
-        val ocrService = OcrService()
 
-        val textAnalysisService = TextAnalysisService(
-            gemmaLlmService = gemmaLlmService,
-            imageTextExtractor = ocrService
-        )
+        val textAnalysisService = TextAnalysisService(gemmaLlmService)
         calendarUseCase = CalendarUseCase(
             textAnalysisService = textAnalysisService,
             eventDatabase = eventDatabase,
@@ -126,8 +122,11 @@ class MainActivity : ComponentActivity() {
 
     private fun uriToBitmap(uri: Uri): Bitmap? {
         return try {
-            contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)
+            ModelImageLoader.loadForInference(contentResolver, uri)
         } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        } catch (e: OutOfMemoryError) {
             e.printStackTrace()
             null
         }

@@ -2,11 +2,17 @@ package com.calendaradd.service
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.util.Log
 import com.google.ai.edge.litertlm.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import kotlin.math.max
+import kotlin.math.roundToInt
+
+private const val GEMMA_MAX_IMAGE_DIMENSION = 1280
+private const val GEMMA_JPEG_QUALITY = 88
 
 /**
  * Service for interacting with Gemma 4 via LiteRT-LM API.
@@ -21,7 +27,9 @@ interface EventJsonExtractor {
 }
 
 open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
-
+    companion object {
+        private const val TAG = "GemmaLlmService"
+    }
     private var engine: Engine? = null
     private val mutex = Any()
     
@@ -95,17 +103,19 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
             appendLine("Input data:")
             append(text)
         }
-        val requestContents = buildList {
-            add(Content.Text(requestText))
-            image?.let { add(Content.ImageBytes(it.toPngBytes())) }
-            audio?.let { add(Content.AudioBytes(it)) }
-        }
 
         synchronized(mutex) {
             val currentEngine = engine ?: return@withContext null
             var conversation: Conversation? = null
 
             try {
+                val requestContents = buildList {
+                    add(Content.Text(requestText))
+                    image?.let {
+                        add(Content.ImageBytes(it.toModelImageBytes()))
+                    }
+                    audio?.let { add(Content.AudioBytes(it)) }
+                }
                 conversation = createConversation(currentEngine)
                 val response = conversation.sendMessage(Contents.of(requestContents))
                 val result = response.contents.contents
@@ -114,8 +124,11 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                     .ifBlank { null }
 
                 return@synchronized result
+            } catch (e: OutOfMemoryError) {
+                Log.e(TAG, "Image preprocessing ran out of memory", e)
+                return@synchronized null
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "LiteRT-LM extraction failed", e)
                 return@synchronized null
             } finally {
                 conversation?.close()
@@ -134,9 +147,27 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     }
 }
 
-private fun Bitmap.toPngBytes(): ByteArray {
-    return ByteArrayOutputStream().use { output ->
-        compress(Bitmap.CompressFormat.PNG, 100, output)
-        output.toByteArray()
+private fun Bitmap.toModelImageBytes(): ByteArray {
+    val preparedBitmap = scaleDownIfNeeded(GEMMA_MAX_IMAGE_DIMENSION)
+
+    return try {
+        ByteArrayOutputStream().use { output ->
+            preparedBitmap.compress(Bitmap.CompressFormat.JPEG, GEMMA_JPEG_QUALITY, output)
+            output.toByteArray()
+        }
+    } finally {
+        if (preparedBitmap !== this) {
+            preparedBitmap.recycle()
+        }
     }
+}
+
+private fun Bitmap.scaleDownIfNeeded(maxDimension: Int): Bitmap {
+    val largestSide = max(width, height)
+    if (largestSide <= maxDimension) return this
+
+    val scale = maxDimension.toFloat() / largestSide.toFloat()
+    val scaledWidth = (width * scale).roundToInt().coerceAtLeast(1)
+    val scaledHeight = (height * scale).roundToInt().coerceAtLeast(1)
+    return Bitmap.createScaledBitmap(this, scaledWidth, scaledHeight, true)
 }

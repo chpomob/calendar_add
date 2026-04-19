@@ -55,6 +55,10 @@ class CalendarUseCase(
     }
 
     private suspend fun saveAndSyncExtraction(analysis: EventExtraction, sourceType: String): EventResult {
+        if (!analysis.hasMeaningfulContent()) {
+            return EventResult.Failure("Could not extract enough event details from the $sourceType input.")
+        }
+
         // Use current time as fallback, but AI should ideally provide it.
         val now = System.currentTimeMillis()
         val startTime = parseIso8601(analysis.startTime) ?: now
@@ -158,6 +162,15 @@ class CalendarUseCase(
     suspend fun deleteEvent(id: Long) = eventDatabase.eventDao().deleteEvent(id)
     
     fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
+}
+
+private fun EventExtraction.hasMeaningfulContent(): Boolean {
+    return title.isNotBlank() ||
+        description.isNotBlank() ||
+        startTime.isNotBlank() ||
+        endTime.isNotBlank() ||
+        location.isNotBlank() ||
+        attendees.isNotEmpty()
 }
 
 /**

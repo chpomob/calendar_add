@@ -59,3 +59,7 @@ keystore
 
 # Local avd
 .avd/
+
+# Local agent notes
+AGENTS.md
+QWEN.md
