@@ -10,7 +10,8 @@ import kotlinx.coroutines.withContext
  * Service for orchestrating the AI analysis pipeline.
  */
 class TextAnalysisService(
-    private val gemmaLlmService: EventJsonExtractor
+    private val gemmaLlmService: EventJsonExtractor,
+    private val imageTextExtractor: ImageTextExtractor? = null
 ) {
 
     /**
@@ -36,12 +37,19 @@ class TextAnalysisService(
         bitmap: Bitmap,
         context: InputContext = InputContext()
     ): EventExtraction = withContext(Dispatchers.IO) {
-        val promptText = buildString {
-            appendLine("Current context: ${context.timestamp}, Reference date: ${java.time.Instant.ofEpochMilli(context.timestamp).atZone(java.time.ZoneId.of(context.timezone))}")
-            appendLine("Extract event from this image.")
+        val extractedText = imageTextExtractor?.extractText(bitmap)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("No readable text was found in the selected image.")
+
+        val imagePrompt = buildString {
+            appendLine("This text was extracted from an image via OCR.")
+            appendLine("Prioritize event details that are explicitly present in the OCR text.")
+            appendLine("OCR text:")
+            append(extractedText)
         }
-        val jsonString = gemmaLlmService.extractEventJson(text = promptText, image = bitmap)
-        parseJsonToExtraction(jsonString)
+
+        analyzeText(imagePrompt, context)
     }
 
     /**

@@ -53,8 +53,12 @@ class MainActivity : ComponentActivity() {
         modelDownloadManager = ModelDownloadManager(this)
         systemCalendarService = SystemCalendarService(this)
         preferencesManager = PreferencesManager(this)
+        val ocrService = OcrService()
 
-        val textAnalysisService = TextAnalysisService(gemmaLlmService)
+        val textAnalysisService = TextAnalysisService(
+            gemmaLlmService = gemmaLlmService,
+            imageTextExtractor = ocrService
+        )
         calendarUseCase = CalendarUseCase(
             textAnalysisService = textAnalysisService,
             eventDatabase = eventDatabase,

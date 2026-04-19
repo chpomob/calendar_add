@@ -2,20 +2,24 @@ package com.calendaradd.service
 
 import io.mockk.coEvery
 import io.mockk.mockk
+import io.mockk.coVerify
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 class TextAnalysisServiceTest {
 
     private lateinit var gemmaLlmService: EventJsonExtractor
+    private lateinit var imageTextExtractor: ImageTextExtractor
     private lateinit var textAnalysisService: TextAnalysisService
 
     @Before
     fun setup() {
         gemmaLlmService = mockk()
-        textAnalysisService = TextAnalysisService(gemmaLlmService)
+        imageTextExtractor = mockk()
+        textAnalysisService = TextAnalysisService(gemmaLlmService, imageTextExtractor)
     }
 
     @Test
@@ -45,18 +49,36 @@ class TextAnalysisServiceTest {
     }
 
     @Test
-    fun `analyzeImage should call LLM with image`() = runBlocking {
+    fun `analyzeImage should extract OCR text and call LLM with text only`() = runBlocking {
         // Given
         val bitmap = mockk<android.graphics.Bitmap>()
+        val ocrText = "Board meeting tomorrow at 9am"
         val jsonResponse = "{\"title\": \"Event from image\"}"
-        
-        coEvery { gemmaLlmService.extractEventJson(any(), bitmap, null) } returns jsonResponse
+
+        coEvery { imageTextExtractor.extractText(bitmap) } returns ocrText
+        coEvery { gemmaLlmService.extractEventJson(any(), null, null) } returns jsonResponse
 
         // When
         val result = textAnalysisService.analyzeImage(bitmap)
 
         // Then
         assertEquals("Event from image", result.title)
+        coVerify(exactly = 1) { imageTextExtractor.extractText(bitmap) }
+        coVerify(exactly = 0) { gemmaLlmService.extractEventJson(any(), bitmap, null) }
+    }
+
+    @Test
+    fun `analyzeImage should fail clearly when OCR finds no text`() = runBlocking {
+        val bitmap = mockk<android.graphics.Bitmap>()
+
+        coEvery { imageTextExtractor.extractText(bitmap) } returns "   "
+
+        try {
+            textAnalysisService.analyzeImage(bitmap)
+            assertTrue("Expected analyzeImage to throw when OCR text is missing", false)
+        } catch (e: IllegalArgumentException) {
+            assertEquals("No readable text was found in the selected image.", e.message)
+        }
     }
 
     @Test
