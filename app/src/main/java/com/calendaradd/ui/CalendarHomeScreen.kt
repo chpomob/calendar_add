@@ -121,7 +121,7 @@ fun CalendarHomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Calendar Add AI") },
+                title = { Text("Calendar Add (Recovery)") },
                 actions = {
                     IconButton(onClick = {
                         navController.navigate(Screen.Settings.route)

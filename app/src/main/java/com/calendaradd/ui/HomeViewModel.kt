@@ -55,7 +55,8 @@ class HomeViewModel(
                 _isModelReady.value = true
                 _uiState.value = HomeUiState.Idle
             } catch (e: Exception) {
-                _uiState.value = HomeUiState.Error("Failed to initialize Gemma 4: ${e.message}")
+                val backendInfo = gemmaLlmService.lastBackendUsed ?: "None"
+                _uiState.value = HomeUiState.Error("Init failed (Backend: $backendInfo): ${e.message}")
             } finally {
                 isInitializingModel = false
             }
