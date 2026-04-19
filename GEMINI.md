@@ -51,10 +51,11 @@ The project follows **Clean Architecture** with a simplified AI pipeline:
 ### AI & Privacy
 - **Native Multimodality:** Use `Content.builder()` to combine text, bitmaps, and audio bytes.
 - **Local-Only:** No data leaves the device. LiteRT-LM ensures all processing is on-device.
-- **Performance:** Always prefer `Backend.NPU()` for inference to save battery and reduce latency.
+- **Performance:** **NPU-First Strategy.** The app attempts to use `Backend.NPU()` for inference to save battery and reduce latency, with an automatic fallback to `Backend.CPU()` if hardware acceleration is unavailable.
+- **Java Requirement:** Due to LiteRT-LM 0.10.0+ requirements, the project must be compiled with **Java 21**.
 
 ### Structured Data
-- **JSON extraction:** Gemma 4 is prompted to return structured JSON. 
+- **JSON extraction:** Gemma 4 is prompted to return structured JSON. The extraction pipeline is hardened to strip markdown prose and handle malformed outputs.
 - **Time Handling:** ISO-8601 for AI exchange, `Long` (milliseconds) for database and calendar.
 
 ---

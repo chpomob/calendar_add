@@ -24,25 +24,51 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
 
     private var engine: Engine? = null
     private var conversation: Conversation? = null
+    
+    /**
+     * Tracks the last successfully initialized backend.
+     */
+    var lastBackendUsed: String? = null
+        private set
 
     /**
      * Initializes the LiteRT-LM engine with a Gemma 4 model.
-     * Uses NPU acceleration for 2026-era hardware.
+     * Attempts to use NPU acceleration first, falling back to CPU if it fails.
      */
     open suspend fun initialize(modelPath: String) = withContext(Dispatchers.IO) {
         if (engine != null) return@withContext
 
-        val config = EngineConfig(
-            modelPath = modelPath,
-            backend = Backend.CPU(),
-            cacheDir = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
+        val cacheDirPath = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
+        
+        // Strategy: Try NPU first, then fallback to CPU
+        val backends = listOf(
+            "NPU" to Backend.NPU(),
+            "CPU" to Backend.CPU()
         )
 
-        val initializedEngine = Engine(config).apply {
-            initialize()
+        var lastError: Exception? = null
+
+        for ((name, backend) in backends) {
+            try {
+                val config = EngineConfig(
+                    modelPath = modelPath,
+                    backend = backend,
+                    cacheDir = cacheDirPath
+                )
+                val initializedEngine = Engine(config).apply {
+                    initialize()
+                }
+                engine = initializedEngine
+                conversation = initializedEngine.createConversation(ConversationConfig())
+                lastBackendUsed = name
+                return@withContext
+            } catch (e: Exception) {
+                lastError = e
+                // Continue to next backend
+            }
         }
-        engine = initializedEngine
-        conversation = initializedEngine.createConversation(ConversationConfig())
+
+        throw lastError ?: RuntimeException("Failed to initialize engine with any backend")
     }
 
     /**
@@ -55,8 +81,9 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     ): String? = withContext(Dispatchers.IO) {
         val conv = conversation ?: return@withContext null
         val requestText = buildString {
-            appendLine("Extract one calendar event from the following input.")
-            appendLine("Respond only with JSON using keys: title, description, startTime, endTime, location, attendees.")
+            appendLine("Extract ONE calendar event from the following input.")
+            appendLine("Return ONLY valid JSON. Do not include any explanation or markdown code blocks.")
+            appendLine("JSON structure: { \"title\": string, \"description\": string, \"startTime\": \"ISO-8601\", \"endTime\": \"ISO-8601\", \"location\": string, \"attendees\": [string] }")
             append(text)
         }
         val requestContents = buildList {
