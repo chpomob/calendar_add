@@ -19,8 +19,8 @@ class ModelDownloadManager(private val context: Context) {
     private val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
 
     companion object {
-        const val MODEL_URL = "https://huggingface.co/google/gemma-4-e2b-it-litertlm/resolve/main/gemma-4-e2b-it.litertlm"
-        const val MODEL_FILENAME = "gemma-4-e2b-it.litertlm"
+        const val MODEL_URL = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm"
+        const val MODEL_FILENAME = "gemma-4-E2B-it.litertlm"
     }
 
     /**
@@ -34,12 +34,12 @@ class ModelDownloadManager(private val context: Context) {
 
     /**
      * Estimates if there is enough disk space for the model.
-     * Model is ~1.5GB, we check for 2.0GB to be safe.
+     * Model is ~2.6GB, we check for 3.1GB to be safe.
      */
     fun hasEnoughSpace(): Boolean {
         val file = context.filesDir
         val availableBytes = file.usableSpace
-        val requiredBytes = 1.5 * 1024 * 1024 * 1024 // 1.5 GB
+        val requiredBytes = 2.6 * 1024 * 1024 * 1024 // 2.6 GB
         return availableBytes > (requiredBytes + (500 * 1024 * 1024)) // +500MB buffer
     }
 

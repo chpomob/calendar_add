@@ -66,7 +66,7 @@ class HomeViewModel(
         if (_isModelReady.value || isDownloadingModel) return
         
         if (!modelDownloadManager.hasEnoughSpace()) {
-            _uiState.value = HomeUiState.Error("Not enough disk space. Please free up at least 2GB.")
+            _uiState.value = HomeUiState.Error("Not enough disk space. Please free up at least 3.1GB.")
             return
         }
 
@@ -74,7 +74,7 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 _downloadProgress.value = 0
-                _uiState.value = HomeUiState.Loading("Starting download of Gemma 4 (~1.5GB)...")
+                _uiState.value = HomeUiState.Loading("Starting download of Gemma 4 (~2.6GB)...")
                 val downloadId = modelDownloadManager.startDownload()
                 modelDownloadManager.trackProgress(downloadId).collect { status ->
                     when (status) {

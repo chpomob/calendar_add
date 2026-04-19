@@ -32,7 +32,7 @@ The project follows **Clean Architecture** with a simplified AI pipeline:
 ### Prerequisites
 - Android Studio (2026 version).
 - Device with NPU (Pixel 8+, Galaxy S24+, or 2026-era MediaTek/Qualcomm chips).
-- **Model:** Gemma 4 E2B/E4B in `.litertlm` format.
+- **Model:** Gemma 4 E2B/E4B in `.litertlm` format (~2.6GB).
 
 ### Key Commands
 - **Build Project:**
@@ -53,6 +53,7 @@ The project follows **Clean Architecture** with a simplified AI pipeline:
 - **Local-Only:** No data leaves the device. LiteRT-LM ensures all processing is on-device.
 - **Performance:** **NPU-First Strategy.** The app attempts to use `Backend.NPU()` for inference to save battery and reduce latency, with an automatic fallback to `Backend.CPU()` if hardware acceleration is unavailable.
 - **Java Requirement:** Due to LiteRT-LM 0.10.0+ requirements, the project must be compiled with **Java 21**.
+- **Model Source:** Gemma 4 models are sourced from the `litert-community` on Hugging Face.
 
 ### Structured Data
 - **JSON extraction:** Gemma 4 is prompted to return structured JSON. The extraction pipeline is hardened to strip markdown prose and handle malformed outputs.

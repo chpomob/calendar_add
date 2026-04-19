@@ -164,7 +164,7 @@ fun CalendarHomeScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "To extract events locally and protect your privacy, a one-time download of the Gemma 4 model (~1.5GB) is required.",
+                        "To extract events locally and protect your privacy, a one-time download of the Gemma 4 model (~2.6GB) is required.",
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -179,7 +179,7 @@ fun CalendarHomeScreen(
                             when {
                                 downloadProgress != null -> "Downloading Model"
                                 uiState is HomeUiState.Error -> "Retry Download"
-                                else -> "Download Model"
+                                else -> "Download Model (~2.6GB)"
                             }
                         )
                     }
