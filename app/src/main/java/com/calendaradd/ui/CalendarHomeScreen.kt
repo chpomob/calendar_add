@@ -17,10 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.calendaradd.navigation.Screen
+import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
@@ -45,12 +47,15 @@ fun CalendarHomeScreen(
     sharedAudio: ByteArray? = null,
     modifier: Modifier = Modifier
 ) {
+    val tag = "CalendarHomeScreen"
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsState()
     val isModelReady by viewModel.isModelReady.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val selectedModel by viewModel.selectedModel.collectAsState()
     
     var inputValue by remember { mutableStateOf("") }
 
@@ -80,17 +85,20 @@ fun CalendarHomeScreen(
         ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
+            AppLog.i(tag, "Image picker selected uri=$it")
             try {
                 val bitmap = ModelImageLoader.loadForInference(context.contentResolver, it)
                 if (bitmap != null) {
+                    AppLog.i(tag, "Image picker decoded bitmap=${bitmap.width}x${bitmap.height}")
                     viewModel.processImage(bitmap)
                 } else {
+                    AppLog.w(tag, "Image picker failed to decode uri=$it")
                     scope.launch {
                         snackbarHostState.showSnackbar("Unable to load that image for analysis.")
                     }
                 }
             } catch (e: OutOfMemoryError) {
-                e.printStackTrace()
+                AppLog.e(tag, "Image picker ran out of memory uri=$it", e)
                 scope.launch {
                     snackbarHostState.showSnackbar("That image is too large to analyze safely.")
                 }
@@ -102,6 +110,18 @@ fun CalendarHomeScreen(
     LaunchedEffect(Unit) {
         if (!context.hasCalendarPermissions()) {
             calendarPermissionLauncher.launch(calendarPermissions)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshModelState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -179,7 +199,7 @@ fun CalendarHomeScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "To extract events locally and protect your privacy, a one-time download of the Gemma 4 model (~2.6GB) is required.",
+                        "To extract events locally and protect your privacy, a one-time download of ${selectedModel.shortName} (${selectedModel.sizeLabel}) is required.",
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -192,9 +212,9 @@ fun CalendarHomeScreen(
                     ) {
                         Text(
                             when {
-                                downloadProgress != null -> "Downloading Model"
+                                downloadProgress != null -> "Downloading ${selectedModel.shortName}"
                                 uiState is HomeUiState.Error -> "Retry Download"
-                                else -> "Download Model (~2.6GB)"
+                                else -> "Download ${selectedModel.shortName} (${selectedModel.sizeLabel})"
                             }
                         )
                     }
@@ -202,7 +222,7 @@ fun CalendarHomeScreen(
                     if (downloadProgress != null) {
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            "Model download progress: ${downloadProgress}%",
+                            "${selectedModel.shortName} download progress: ${downloadProgress}%",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -236,6 +256,11 @@ fun CalendarHomeScreen(
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
+                    Text(
+                        text = "Model: ${selectedModel.displayName} • ${selectedModel.capabilitySummary}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
                     // Text Input Card
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -256,7 +281,7 @@ fun CalendarHomeScreen(
                             ) {
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Analyze")
+                                Text("Analyze with ${selectedModel.shortName}")
                             }
                         }
                     }
@@ -268,9 +293,15 @@ fun CalendarHomeScreen(
                     ) {
                         ActionCard(
                             icon = Icons.Default.Mic,
-                            label = "Voice",
+                            label = if (selectedModel.supportsAudio) "Voice" else "Voice off",
                             onClick = {
-                                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                if (selectedModel.supportsAudio) {
+                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                } else {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("${selectedModel.displayName} does not support audio.")
+                                    }
+                                }
                             },
                             modifier = Modifier.weight(1f)
                         )
@@ -317,10 +348,24 @@ fun CalendarHomeScreen(
 
             // Success/Error Dialogs
             if (uiState is HomeUiState.Success) {
+                val successState = uiState as HomeUiState.Success
                 AlertDialog(
                     onDismissRequest = { viewModel.resetState() },
-                    title = { Text("Event Created!") },
-                    text = { Text("Successfully created event: ${(uiState as HomeUiState.Success).eventTitle}") },
+                    title = {
+                        Text(
+                            if (successState.createdCount == 1) "Event Created!"
+                            else "Events Created!"
+                        )
+                    },
+                    text = {
+                        Text(
+                            if (successState.createdCount == 1) {
+                                "Successfully created event: ${successState.firstEventTitle}"
+                            } else {
+                                "Successfully created ${successState.createdCount} events. First event: ${successState.firstEventTitle}"
+                            }
+                        )
+                    },
                     confirmButton = {
                         Button(onClick = { 
                             viewModel.resetState()

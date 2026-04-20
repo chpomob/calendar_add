@@ -2,6 +2,7 @@ package com.calendaradd.usecase
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.calendaradd.service.LiteRtModelCatalog
 
 /**
  * Manages user preferences persistence.
@@ -13,6 +14,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_AUTO_ADD = "auto_add_to_calendar"
         private const val KEY_TARGET_CALENDAR_ID = "target_calendar_id"
         private const val KEY_TARGET_CALENDAR_NAME = "target_calendar_name"
+        private const val KEY_SELECTED_MODEL_ID = "selected_model_id"
     }
 
     var isAutoAddEnabled: Boolean
@@ -26,4 +28,9 @@ class PreferencesManager(context: Context) {
     var targetCalendarName: String?
         get() = prefs.getString(KEY_TARGET_CALENDAR_NAME, null)
         set(value) = prefs.edit().putString(KEY_TARGET_CALENDAR_NAME, value).apply()
+
+    var selectedModelId: String
+        get() = prefs.getString(KEY_SELECTED_MODEL_ID, LiteRtModelCatalog.DEFAULT_MODEL_ID)
+            ?: LiteRtModelCatalog.DEFAULT_MODEL_ID
+        set(value) = prefs.edit().putString(KEY_SELECTED_MODEL_ID, value).apply()
 }

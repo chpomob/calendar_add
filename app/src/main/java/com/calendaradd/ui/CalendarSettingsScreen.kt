@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.calendaradd.service.LiteRtModelConfig
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
 
@@ -32,8 +35,10 @@ fun CalendarSettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val availableModels by viewModel.availableModels.collectAsState()
     val availableCalendars by viewModel.availableCalendars.collectAsState()
     val isAutoAddEnabled by viewModel.isAutoAddEnabled.collectAsState()
+    val selectedModelId by viewModel.selectedModelId.collectAsState()
     val selectedCalendarId by viewModel.selectedCalendarId.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val hasCalendarPermissions = remember { mutableStateOf(context.hasCalendarPermissions()) }
@@ -86,17 +91,57 @@ fun CalendarSettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(padding)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Calendar Integration Section
+            Text(
+                "AI Model",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Card {
+                Column {
+                    ListItem(
+                        headlineContent = { Text("Chosen Model") },
+                        supportingContent = {
+                            Text(
+                                availableModels.firstOrNull { it.id == selectedModelId }?.displayName
+                                    ?: "Gemma 4 E2B"
+                            )
+                        },
+                        leadingContent = { Icon(Icons.Default.AutoAwesome, contentDescription = null) }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    Text(
+                        "Tap a model below to switch. The app will reinitialize on return to Home.",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 320.dp)
+                    ) {
+                        items(availableModels) { model ->
+                            ModelOptionRow(
+                                model = model,
+                                selected = model.id == selectedModelId,
+                                onSelect = { viewModel.selectModel(model.id) }
+                            )
+                        }
+                    }
+                }
+            }
+
             Text(
                 "System Calendar",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary
             )
-            
+
+            // Calendar Integration Section
             Card {
                 Column {
                     // Auto-add toggle
@@ -167,7 +212,12 @@ fun CalendarSettingsScreen(
                     )
                     ListItem(
                         headlineContent = { Text("AI Model") },
-                        supportingContent = { Text("Gemma 4 E2B (Local)") },
+                        supportingContent = {
+                            Text(
+                                availableModels.firstOrNull { it.id == selectedModelId }?.displayName
+                                    ?: "Gemma 4 E2B (Local)"
+                            )
+                        },
                         leadingContent = { Icon(Icons.Default.AutoAwesome, contentDescription = null) }
                     )
                 }
@@ -232,4 +282,26 @@ fun CalendarSettingsScreen(
             }
         )
     }
+}
+
+@Composable
+private fun ModelOptionRow(
+    model: LiteRtModelConfig,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    ListItem(
+        headlineContent = { Text(model.displayName) },
+        supportingContent = {
+            Text("${model.capabilitySummary} • ${model.sizeLabel}\n${model.description}")
+        },
+        leadingContent = { RadioButton(selected = selected, onClick = onSelect) },
+        trailingContent = {
+            if (selected) {
+                AssistChip(onClick = onSelect, label = { Text("Selected") })
+            }
+        },
+        modifier = Modifier.clickable(onClick = onSelect)
+            .padding(horizontal = 4.dp)
+    )
 }

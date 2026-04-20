@@ -23,7 +23,12 @@ import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
+import com.calendaradd.util.AppLog
+
 class MainActivity : ComponentActivity() {
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
     private lateinit var eventDatabase: EventDatabase
     private lateinit var calendarUseCase: CalendarUseCase
@@ -50,9 +55,9 @@ class MainActivity : ComponentActivity() {
         // Initialize Services
         eventDatabase = EventDatabase.getDatabase(this)
         gemmaLlmService = GemmaLlmService(this)
-        modelDownloadManager = ModelDownloadManager(this)
-        systemCalendarService = SystemCalendarService(this)
         preferencesManager = PreferencesManager(this)
+        modelDownloadManager = ModelDownloadManager(this, preferencesManager)
+        systemCalendarService = SystemCalendarService(this)
 
         val textAnalysisService = TextAnalysisService(gemmaLlmService)
         calendarUseCase = CalendarUseCase(
@@ -98,21 +103,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        AppLog.i(TAG, "handleIntent action=${intent?.action} type=${intent?.type}")
         if (intent?.action == Intent.ACTION_SEND) {
             resetSharedContent()
             when {
                 intent.type?.startsWith("text/") == true -> {
                     intent.getStringExtra(Intent.EXTRA_TEXT)?.let {
+                        AppLog.i(TAG, "Received shared text chars=${it.length}")
                         sharedText.value = it
                     }
                 }
                 intent.type?.startsWith("image/") == true -> {
                     intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
+                        AppLog.i(TAG, "Received shared image uri=$uri")
                         sharedImage.value = uriToBitmap(uri)
                     }
                 }
                 intent.type?.startsWith("audio/") == true -> {
                     intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
+                        AppLog.i(TAG, "Received shared audio uri=$uri")
                         sharedAudio.value = uriToBytes(uri)
                     }
                 }
@@ -122,21 +131,28 @@ class MainActivity : ComponentActivity() {
 
     private fun uriToBitmap(uri: Uri): Bitmap? {
         return try {
-            ModelImageLoader.loadForInference(contentResolver, uri)
+            ModelImageLoader.loadForInference(contentResolver, uri)?.also { bitmap ->
+                AppLog.i(TAG, "Decoded shared image uri=$uri size=${bitmap.width}x${bitmap.height}")
+            } ?: run {
+                AppLog.w(TAG, "Unable to decode shared image uri=$uri")
+                null
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            AppLog.e(TAG, "Failed to decode shared image uri=$uri", e)
             null
         } catch (e: OutOfMemoryError) {
-            e.printStackTrace()
+            AppLog.e(TAG, "Out of memory decoding shared image uri=$uri", e)
             null
         }
     }
 
     private fun uriToBytes(uri: Uri): ByteArray? {
         return try {
-            contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            contentResolver.openInputStream(uri)?.use { it.readBytes() }?.also { bytes ->
+                AppLog.i(TAG, "Decoded shared audio uri=$uri bytes=${bytes.size}")
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            AppLog.e(TAG, "Failed to decode shared audio uri=$uri", e)
             null
         }
     }

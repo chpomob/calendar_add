@@ -2,6 +2,8 @@ package com.calendaradd.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.calendaradd.service.LiteRtModelCatalog
+import com.calendaradd.service.LiteRtModelConfig
 import com.calendaradd.service.SystemCalendarService
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.PreferencesManager
@@ -14,6 +16,11 @@ class SettingsViewModel(
     private val calendarUseCase: CalendarUseCase,
     private val preferencesManager: PreferencesManager
 ) : ViewModel() {
+    private val _availableModels = MutableStateFlow(LiteRtModelCatalog.models)
+    val availableModels: StateFlow<List<LiteRtModelConfig>> = _availableModels.asStateFlow()
+
+    private val _selectedModelId = MutableStateFlow(preferencesManager.selectedModelId)
+    val selectedModelId: StateFlow<String> = _selectedModelId.asStateFlow()
 
     private val _availableCalendars = MutableStateFlow<List<SystemCalendarService.CalendarInfo>>(emptyList())
     val availableCalendars: StateFlow<List<SystemCalendarService.CalendarInfo>> = _availableCalendars.asStateFlow()
@@ -49,6 +56,11 @@ class SettingsViewModel(
     fun setAutoAdd(enabled: Boolean) {
         preferencesManager.isAutoAddEnabled = enabled
         _isAutoAddEnabled.value = enabled
+    }
+
+    fun selectModel(modelId: String) {
+        preferencesManager.selectedModelId = modelId
+        _selectedModelId.value = modelId
     }
 
     fun selectCalendar(calendarId: Long, calendarName: String) {

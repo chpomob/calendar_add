@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.calendaradd.service.*
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.EventResult
+import com.calendaradd.util.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +21,9 @@ class HomeViewModel(
     private val gemmaLlmService: GemmaLlmService,
     private val modelDownloadManager: ModelDownloadManager
 ) : ViewModel() {
+    companion object {
+        private const val TAG = "HomeViewModel"
+    }
     private var isDownloadingModel = false
     private var isInitializingModel = false
 
@@ -32,26 +36,47 @@ class HomeViewModel(
     private val _downloadProgress = MutableStateFlow<Int?>(null)
     val downloadProgress: StateFlow<Int?> = _downloadProgress.asStateFlow()
 
+    private val _selectedModel = MutableStateFlow(modelDownloadManager.getSelectedModel())
+    val selectedModel: StateFlow<LiteRtModelConfig> = _selectedModel.asStateFlow()
+
     init {
-        checkModelAvailability()
+        refreshModelState()
     }
 
-    private fun checkModelAvailability() {
-        if (modelDownloadManager.isModelDownloaded()) {
+    fun refreshModelState() {
+        val currentModel = modelDownloadManager.getSelectedModel()
+        val hasModelChanged = currentModel.id != _selectedModel.value.id
+
+        if (hasModelChanged) {
+            AppLog.i(TAG, "Switching selected model to ${currentModel.displayName}")
+            gemmaLlmService.close()
+            _selectedModel.value = currentModel
+            _isModelReady.value = false
+            _downloadProgress.value = null
+            if (_uiState.value !is HomeUiState.Loading) {
+                _uiState.value = HomeUiState.Idle
+            }
+        }
+
+        if (modelDownloadManager.isModelDownloaded(currentModel)) {
             initializeModel()
         } else {
-            // Model not present, needs download
+            _isModelReady.value = false
             _uiState.value = HomeUiState.ModelMissing
         }
     }
 
     private fun initializeModel() {
         if (_isModelReady.value || isInitializingModel) return
+        val currentModel = _selectedModel.value
         isInitializingModel = true
         viewModelScope.launch {
             try {
-                _uiState.value = HomeUiState.Loading("Initializing Gemma 4 Engine...")
-                gemmaLlmService.initialize(modelDownloadManager.getModelFile().absolutePath)
+                _uiState.value = HomeUiState.Loading("Initializing ${currentModel.shortName}...")
+                gemmaLlmService.initialize(
+                    modelPath = modelDownloadManager.getModelFile(currentModel).absolutePath,
+                    modelConfig = currentModel
+                )
                 _isModelReady.value = true
                 _uiState.value = HomeUiState.Idle
             } catch (e: Exception) {
@@ -65,9 +90,12 @@ class HomeViewModel(
 
     fun downloadModel() {
         if (_isModelReady.value || isDownloadingModel) return
+        val currentModel = _selectedModel.value
         
-        if (!modelDownloadManager.hasEnoughSpace()) {
-            _uiState.value = HomeUiState.Error("Not enough disk space. Please free up at least 3.1GB.")
+        if (!modelDownloadManager.hasEnoughSpace(currentModel)) {
+            _uiState.value = HomeUiState.Error(
+                "Not enough disk space. Please free up at least ${currentModel.requiredFreeSpaceLabel}."
+            )
             return
         }
 
@@ -75,13 +103,13 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 _downloadProgress.value = 0
-                _uiState.value = HomeUiState.Loading("Starting download of Gemma 4 (~2.6GB)...")
-                val downloadId = modelDownloadManager.startDownload()
+                _uiState.value = HomeUiState.Loading("Starting download of ${currentModel.shortName} (${currentModel.sizeLabel})...")
+                val downloadId = modelDownloadManager.startDownload(currentModel)
                 modelDownloadManager.trackProgress(downloadId).collect { status ->
                     when (status) {
                         is DownloadStatus.Progress -> {
                             _downloadProgress.value = status.percentage
-                            _uiState.value = HomeUiState.Loading("Downloading model: ${status.percentage}%")
+                            _uiState.value = HomeUiState.Loading("Downloading ${currentModel.shortName}: ${status.percentage}%")
                         }
                         is DownloadStatus.Success -> {
                             isDownloadingModel = false
@@ -104,34 +132,75 @@ class HomeViewModel(
 
     fun processText(input: String) {
         if (input.isBlank() || !_isModelReady.value) return
-        
+        val currentModel = _selectedModel.value
+
         viewModelScope.launch {
-            _uiState.value = HomeUiState.Loading("Analyzing text with Gemma 4...")
+            AppLog.i(TAG, "Starting text analysis chars=${input.length}")
+            _uiState.value = HomeUiState.Loading("Analyzing text with ${currentModel.shortName}...")
             when (val result = calendarUseCase.createEventFromText(input)) {
-                is EventResult.Success -> _uiState.value = HomeUiState.Success(result.event.title)
-                is EventResult.Failure -> _uiState.value = HomeUiState.Error(result.message)
+                is EventResult.Success -> {
+                    AppLog.i(TAG, "Text analysis created event title=${result.event.title}")
+                    _uiState.value = HomeUiState.Success(
+                        createdCount = 1,
+                        firstEventTitle = result.event.title
+                    )
+                }
+                is EventResult.Failure -> {
+                    AppLog.w(TAG, "Text analysis failed: ${result.message}")
+                    _uiState.value = HomeUiState.Error(result.message)
+                }
             }
         }
     }
 
     fun processImage(bitmap: Bitmap) {
+        val currentModel = _selectedModel.value
         if (!_isModelReady.value) return
+        if (!currentModel.supportsImage) {
+            _uiState.value = HomeUiState.Error("${currentModel.displayName} does not support image input.")
+            return
+        }
         viewModelScope.launch {
-            _uiState.value = HomeUiState.Loading("Analyzing image with Gemma 4...")
+            AppLog.i(TAG, "Starting image analysis bitmap=${bitmap.width}x${bitmap.height}")
+            _uiState.value = HomeUiState.Loading("Analyzing image with ${currentModel.shortName}...")
             when (val result = calendarUseCase.createEventFromImage(bitmap)) {
-                is EventResult.Success -> _uiState.value = HomeUiState.Success(result.event.title)
-                is EventResult.Failure -> _uiState.value = HomeUiState.Error(result.message)
+                is EventResult.Success -> {
+                    AppLog.i(TAG, "Image analysis created event title=${result.event.title}")
+                    _uiState.value = HomeUiState.Success(
+                        createdCount = 1,
+                        firstEventTitle = result.event.title
+                    )
+                }
+                is EventResult.Failure -> {
+                    AppLog.w(TAG, "Image analysis failed: ${result.message}")
+                    _uiState.value = HomeUiState.Error(result.message)
+                }
             }
         }
     }
 
     fun processAudio(audioData: ByteArray) {
+        val currentModel = _selectedModel.value
         if (!_isModelReady.value) return
+        if (!currentModel.supportsAudio) {
+            _uiState.value = HomeUiState.Error("${currentModel.displayName} does not support audio input.")
+            return
+        }
         viewModelScope.launch {
-            _uiState.value = HomeUiState.Loading("Analyzing audio with Gemma 4...")
+            AppLog.i(TAG, "Starting audio analysis bytes=${audioData.size}")
+            _uiState.value = HomeUiState.Loading("Analyzing audio with ${currentModel.shortName}...")
             when (val result = calendarUseCase.createEventFromAudio(audioData)) {
-                is EventResult.Success -> _uiState.value = HomeUiState.Success(result.event.title)
-                is EventResult.Failure -> _uiState.value = HomeUiState.Error(result.message)
+                is EventResult.Success -> {
+                    AppLog.i(TAG, "Audio analysis created event title=${result.event.title}")
+                    _uiState.value = HomeUiState.Success(
+                        createdCount = 1,
+                        firstEventTitle = result.event.title
+                    )
+                }
+                is EventResult.Failure -> {
+                    AppLog.w(TAG, "Audio analysis failed: ${result.message}")
+                    _uiState.value = HomeUiState.Error(result.message)
+                }
             }
         }
     }
@@ -148,6 +217,6 @@ sealed class HomeUiState {
     object Idle : HomeUiState()
     object ModelMissing : HomeUiState()
     data class Loading(val message: String) : HomeUiState()
-    data class Success(val eventTitle: String) : HomeUiState()
+    data class Success(val createdCount: Int, val firstEventTitle: String) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }

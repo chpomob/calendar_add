@@ -1,6 +1,7 @@
 package com.calendaradd.service
 
 import android.content.Context
+import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Engine
 import io.mockk.mockk
@@ -8,6 +9,7 @@ import io.mockk.verify
 import io.mockk.every
 import io.mockk.unmockkAll
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -40,5 +42,44 @@ class GemmaLlmServiceTest {
         service.initialize("/tmp/fake-model.litertlm")
 
         verify(exactly = 0) { engine.createConversation(any()) }
+    }
+
+    @Test
+    fun `initialize should keep vision and audio on CPU when text uses NPU`() = runBlocking {
+        var capturedConfig: EngineConfig? = null
+        service = object : GemmaLlmService(context) {
+            override fun createEngine(config: EngineConfig): Engine {
+                capturedConfig = config
+                return engine
+            }
+        }
+
+        service.initialize("/tmp/fake-model.litertlm")
+
+        val config = requireNotNull(capturedConfig)
+        assertEquals(Backend.NPU::class.java.name, config.backend::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, requireNotNull(config.audioBackend)::class.java.name)
+    }
+
+    @Test
+    fun `initialize should keep Qwen on CPU-only and omit audio backend`() = runBlocking {
+        var capturedConfig: EngineConfig? = null
+        service = object : GemmaLlmService(context) {
+            override fun createEngine(config: EngineConfig): Engine {
+                capturedConfig = config
+                return engine
+            }
+        }
+
+        service.initialize(
+            modelPath = "/tmp/fake-qwen-model.litertlm",
+            modelConfig = LiteRtModelCatalog.find("qwen-3_5-4b")
+        )
+
+        val config = requireNotNull(capturedConfig)
+        assertEquals(Backend.CPU::class.java.name, config.backend::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
+        assertEquals(null, config.audioBackend)
     }
 }
