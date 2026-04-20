@@ -33,6 +33,7 @@ class CalendarUseCaseTest {
 
         every { eventDatabase.eventDao() } returns eventDao
         every { preferencesManager.isAutoAddEnabled } returns false
+        every { preferencesManager.targetCalendarId } returns -1L
 
         useCase = CalendarUseCase(
             textAnalysisService = textAnalysisService,
@@ -44,14 +45,16 @@ class CalendarUseCaseTest {
 
     @Test
     fun `createEventFromImage should fail when extraction is empty`() = runBlocking {
-        val bitmap = mockk<Bitmap>()
-        coEvery { textAnalysisService.analyzeImage(bitmap, any()) } returns EventExtraction(
-            title = "",
-            description = "",
-            startTime = "",
-            endTime = "",
-            location = "",
-            attendees = emptyList()
+        val bitmap = mockk<Bitmap>(relaxed = true)
+        coEvery { textAnalysisService.analyzeImage(bitmap, any()) } returns listOf(
+            EventExtraction(
+                title = "",
+                description = "",
+                startTime = "",
+                endTime = "",
+                location = "",
+                attendees = emptyList()
+            )
         )
 
         val result = useCase.createEventFromImage(bitmap)
@@ -62,5 +65,37 @@ class CalendarUseCaseTest {
             (result as EventResult.Failure).message
         )
         coVerify(exactly = 0) { eventDao.insert(any()) }
+    }
+
+    @Test
+    fun `createEventFromText should persist multiple extracted events`() = runBlocking {
+        coEvery { eventDao.insert(any()) } returnsMany listOf(1L, 2L)
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            EventExtraction(
+                title = "Lunch",
+                description = "",
+                startTime = "2026-04-20T12:00:00",
+                endTime = "",
+                location = "",
+                attendees = emptyList()
+            ),
+            EventExtraction(
+                title = "Dentist",
+                description = "",
+                startTime = "2026-04-21T09:00:00",
+                endTime = "",
+                location = "",
+                attendees = emptyList()
+            )
+        )
+
+        val result = useCase.createEventFromText("Lunch tomorrow and dentist Tuesday")
+
+        assertTrue(result is EventResult.Success)
+        result as EventResult.Success
+        assertEquals(2, result.events.size)
+        assertEquals("Lunch", result.events[0].title)
+        assertEquals("Dentist", result.events[1].title)
+        coVerify(exactly = 2) { eventDao.insert(any()) }
     }
 }

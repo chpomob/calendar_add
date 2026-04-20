@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.calendaradd.service.*
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.EventResult
+import com.calendaradd.usecase.InputContext
 import com.calendaradd.util.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -135,18 +136,19 @@ class HomeViewModel(
         val currentModel = _selectedModel.value
 
         viewModelScope.launch {
-            AppLog.i(TAG, "Starting text analysis chars=${input.length}")
+            val context = InputContext(traceId = newTraceId("text"))
+            AppLog.i(TAG, "[${context.traceId}] Starting text analysis chars=${input.length}")
             _uiState.value = HomeUiState.Loading("Analyzing text with ${currentModel.shortName}...")
-            when (val result = calendarUseCase.createEventFromText(input)) {
+            when (val result = calendarUseCase.createEventFromText(input, context)) {
                 is EventResult.Success -> {
-                    AppLog.i(TAG, "Text analysis created event title=${result.event.title}")
+                    AppLog.i(TAG, "[${context.traceId}] Text analysis created ${result.events.size} event(s)")
                     _uiState.value = HomeUiState.Success(
-                        createdCount = 1,
+                        createdCount = result.events.size,
                         firstEventTitle = result.event.title
                     )
                 }
                 is EventResult.Failure -> {
-                    AppLog.w(TAG, "Text analysis failed: ${result.message}")
+                    AppLog.w(TAG, "[${context.traceId}] Text analysis failed: ${result.message}")
                     _uiState.value = HomeUiState.Error(result.message)
                 }
             }
@@ -161,18 +163,19 @@ class HomeViewModel(
             return
         }
         viewModelScope.launch {
-            AppLog.i(TAG, "Starting image analysis bitmap=${bitmap.width}x${bitmap.height}")
+            val context = InputContext(traceId = newTraceId("img"))
+            AppLog.i(TAG, "[${context.traceId}] Starting image analysis bitmap=${bitmap.width}x${bitmap.height}")
             _uiState.value = HomeUiState.Loading("Analyzing image with ${currentModel.shortName}...")
-            when (val result = calendarUseCase.createEventFromImage(bitmap)) {
+            when (val result = calendarUseCase.createEventFromImage(bitmap, context)) {
                 is EventResult.Success -> {
-                    AppLog.i(TAG, "Image analysis created event title=${result.event.title}")
+                    AppLog.i(TAG, "[${context.traceId}] Image analysis created ${result.events.size} event(s)")
                     _uiState.value = HomeUiState.Success(
-                        createdCount = 1,
+                        createdCount = result.events.size,
                         firstEventTitle = result.event.title
                     )
                 }
                 is EventResult.Failure -> {
-                    AppLog.w(TAG, "Image analysis failed: ${result.message}")
+                    AppLog.w(TAG, "[${context.traceId}] Image analysis failed: ${result.message}")
                     _uiState.value = HomeUiState.Error(result.message)
                 }
             }
@@ -187,18 +190,19 @@ class HomeViewModel(
             return
         }
         viewModelScope.launch {
-            AppLog.i(TAG, "Starting audio analysis bytes=${audioData.size}")
+            val context = InputContext(traceId = newTraceId("audio"))
+            AppLog.i(TAG, "[${context.traceId}] Starting audio analysis bytes=${audioData.size}")
             _uiState.value = HomeUiState.Loading("Analyzing audio with ${currentModel.shortName}...")
-            when (val result = calendarUseCase.createEventFromAudio(audioData)) {
+            when (val result = calendarUseCase.createEventFromAudio(audioData, context)) {
                 is EventResult.Success -> {
-                    AppLog.i(TAG, "Audio analysis created event title=${result.event.title}")
+                    AppLog.i(TAG, "[${context.traceId}] Audio analysis created ${result.events.size} event(s)")
                     _uiState.value = HomeUiState.Success(
-                        createdCount = 1,
+                        createdCount = result.events.size,
                         firstEventTitle = result.event.title
                     )
                 }
                 is EventResult.Failure -> {
-                    AppLog.w(TAG, "Audio analysis failed: ${result.message}")
+                    AppLog.w(TAG, "[${context.traceId}] Audio analysis failed: ${result.message}")
                     _uiState.value = HomeUiState.Error(result.message)
                 }
             }
@@ -210,6 +214,10 @@ class HomeViewModel(
             _downloadProgress.value = null
         }
         _uiState.value = HomeUiState.Idle
+    }
+
+    private fun newTraceId(prefix: String): String {
+        return "$prefix-${System.currentTimeMillis().toString(16)}"
     }
 }
 

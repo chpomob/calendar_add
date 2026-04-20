@@ -4,6 +4,7 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -19,7 +20,7 @@ class TextAnalysisServiceTest {
     }
 
     @Test
-    fun `analyzeText should return EventExtraction when LLM returns valid JSON`() = runBlocking {
+    fun `analyzeText should return single extraction when LLM returns valid JSON`() = runBlocking {
         // Given
         val input = "Meeting at 10am tomorrow"
         val jsonResponse = """
@@ -39,15 +40,16 @@ class TextAnalysisServiceTest {
         val result = textAnalysisService.analyzeText(input)
 
         // Then
-        assertEquals("Meeting", result.title)
-        assertEquals("2026-04-19T10:00:00", result.startTime)
-        assertEquals(2, result.attendees.size)
+        assertEquals(1, result.size)
+        assertEquals("Meeting", result.first().title)
+        assertEquals("2026-04-19T10:00:00", result.first().startTime)
+        assertEquals(2, result.first().attendees.size)
     }
 
     @Test
     fun `analyzeImage should call LLM with image`() = runBlocking {
         // Given
-        val bitmap = mockk<android.graphics.Bitmap>()
+        val bitmap = mockk<android.graphics.Bitmap>(relaxed = true)
         val jsonResponse = "{\"title\": \"Event from image\"}"
 
         coEvery { gemmaLlmService.extractEventJson(any(), bitmap, null) } returns jsonResponse
@@ -56,7 +58,7 @@ class TextAnalysisServiceTest {
         val result = textAnalysisService.analyzeImage(bitmap)
 
         // Then
-        assertEquals("Event from image", result.title)
+        assertEquals("Event from image", result.first().title)
     }
 
     @Test
@@ -71,7 +73,7 @@ class TextAnalysisServiceTest {
         val result = textAnalysisService.analyzeAudio(audioData)
 
         // Then
-        assertEquals("Event from audio", result.title)
+        assertEquals("Event from audio", result.first().title)
     }
 
     @Test
@@ -88,7 +90,7 @@ class TextAnalysisServiceTest {
 
         val result = textAnalysisService.analyzeText(input)
 
-        assertEquals(listOf("Alice", "Bob"), result.attendees)
+        assertEquals(listOf("Alice", "Bob"), result.first().attendees)
     }
 
     @Test
@@ -106,7 +108,71 @@ class TextAnalysisServiceTest {
 
         val result = textAnalysisService.analyzeText(input)
 
-        assertEquals("Dinner", result.title)
-        assertEquals("With Sam", result.description)
+        assertEquals("Dinner", result.first().title)
+        assertEquals("With Sam", result.first().description)
+    }
+
+    @Test
+    fun `analyzeText should parse multiple events from events wrapper`() = runBlocking {
+        val input = "Lunch tomorrow and dentist on Friday"
+        val jsonResponse = """
+            {
+              "events": [
+                { "title": "Lunch", "startTime": "2026-04-20T12:00:00" },
+                { "title": "Dentist", "startTime": "2026-04-24T09:00:00" }
+              ]
+            }
+        """.trimIndent()
+
+        coEvery { gemmaLlmService.extractEventJson(any(), null, null) } returns jsonResponse
+
+        val result = textAnalysisService.analyzeText(input)
+
+        assertEquals(2, result.size)
+        assertEquals("Lunch", result[0].title)
+        assertEquals("Dentist", result[1].title)
+    }
+
+    @Test
+    fun `analyzeText should merge fragmented copies of the same event`() = runBlocking {
+        val input = "Project kickoff tomorrow 10am at HQ with Alice"
+        val jsonResponse = """
+            {
+              "events": [
+                { "title": "Project kickoff", "startTime": "2026-04-20T10:00:00" },
+                { "title": "Project kickoff", "location": "HQ", "attendees": ["Alice"] }
+              ]
+            }
+        """.trimIndent()
+
+        coEvery { gemmaLlmService.extractEventJson(any(), null, null) } returns jsonResponse
+
+        val result = textAnalysisService.analyzeText(input)
+
+        assertEquals(1, result.size)
+        assertEquals("Project kickoff", result.first().title)
+        assertEquals("HQ", result.first().location)
+        assertTrue(result.first().attendees.contains("Alice"))
+    }
+
+    @Test
+    fun `analyzeText should not merge untitled events without a shared anchor`() = runBlocking {
+        val input = "Bring snacks. Bring slides."
+        val jsonResponse = """
+            {
+              "events": [
+                { "description": "Bring snacks" },
+                { "description": "Bring slides" }
+              ]
+            }
+        """.trimIndent()
+
+        coEvery { gemmaLlmService.extractEventJson(any(), null, null) } returns jsonResponse
+
+        val result = textAnalysisService.analyzeText(input)
+
+        assertEquals(2, result.size)
+        assertEquals("Bring snacks", result[0].description)
+        assertEquals("Bring slides", result[1].description)
     }
 }

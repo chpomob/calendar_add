@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
-import android.util.Log
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -22,17 +21,27 @@ object ModelImageLoader {
         uri: Uri,
         maxDimension: Int = MAX_DIMENSION
     ): Bitmap? {
+        AppLog.i(TAG, "Loading image for inference uri=$uri maxDimension=$maxDimension sdk=${Build.VERSION.SDK_INT}")
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 loadWithImageDecoder(contentResolver, uri, maxDimension)
             } else {
                 loadWithBitmapFactory(contentResolver, uri, maxDimension)
             }
+            if (bitmap != null) {
+                AppLog.i(
+                    TAG,
+                    "Loaded image uri=$uri size=${bitmap.width}x${bitmap.height} config=${bitmap.config ?: "null"} bytes=${bitmap.allocationByteCount}"
+                )
+            } else {
+                AppLog.w(TAG, "Decoder returned null image for uri=$uri")
+            }
+            bitmap
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to decode image uri=$uri", e)
+            AppLog.e(TAG, "Failed to decode image uri=$uri", e)
             null
         } catch (e: OutOfMemoryError) {
-            Log.e(TAG, "Out of memory while decoding image uri=$uri", e)
+            AppLog.e(TAG, "Out of memory while decoding image uri=$uri", e)
             null
         }
     }
@@ -50,12 +59,19 @@ object ModelImageLoader {
             BitmapFactory.decodeStream(stream, null, bounds)
         } ?: return null
 
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            AppLog.w(TAG, "BitmapFactory bounds decode failed for uri=$uri")
+            return null
+        }
 
         val decodeOptions = BitmapFactory.Options().apply {
             inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxDimension)
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
+        AppLog.i(
+            TAG,
+            "BitmapFactory bounds uri=$uri original=${bounds.outWidth}x${bounds.outHeight} sampleSize=${decodeOptions.inSampleSize}"
+        )
 
         val decoded = contentResolver.openInputStream(uri)?.use { stream ->
             BitmapFactory.decodeStream(stream, null, decodeOptions)
@@ -76,6 +92,10 @@ object ModelImageLoader {
             val sampleSize = calculateInSampleSize(size.width, size.height, maxDimension)
             decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
             decoder.isMutableRequired = false
+            AppLog.i(
+                TAG,
+                "ImageDecoder source uri=$uri original=${size.width}x${size.height} sampleSize=$sampleSize mime=${info.mimeType}"
+            )
             if (sampleSize > 1) {
                 decoder.setTargetSampleSize(sampleSize)
             }

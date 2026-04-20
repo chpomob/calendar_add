@@ -1,160 +1,117 @@
-# Calendar Add AI - Gemma Model Integration
+# Calendar Add AI - LiteRT-LM Model Integration
 
-## Quick Start
+Last updated: 2026-04-20
 
-### 1. Download the Model
+## Overview
 
-```bash
-cd scripts
-chmod +x download_model.sh
-./download_model.sh
+The app no longer uses bundled GGUF assets or a manual workstation-side download step.
 
-# Or manually download:
-wget -O app/src/main/assets/models/gemma-2b-it-q4f32.gguf "https://huggingface.co/cjpizzolo/Gemma-2b-it-GGUF/resolve/main/ggml-model-q4f32.gguf"
-```
+Current model behavior:
 
-### 2. Run Tests
+- models are defined in `LiteRtModelCatalog`
+- the user selects the model in Settings
+- the app downloads the selected `.litertlm` file at runtime with `DownloadManager`
+- the downloaded file is stored in the app-specific downloads directory
+- `GemmaLlmService` initializes backends from the selected model profile
 
-```bash
-# Download model first
-./scripts/download_model.sh
+Relevant code:
 
-# Run unit tests
-./gradlew test
+- `app/src/main/java/com/calendaradd/service/LiteRtModelCatalog.kt`
+- `app/src/main/java/com/calendaradd/service/ModelDownloadManager.kt`
+- `app/src/main/java/com/calendaradd/service/GemmaLlmService.kt`
+- `app/src/main/java/com/calendaradd/ui/CalendarSettingsScreen.kt`
+- `app/src/main/java/com/calendaradd/ui/HomeViewModel.kt`
 
-# Run integration tests
-./gradlew test --tests ExtractionIntegrationTest
-```
+## Available Models
 
-### 3. Verify Model
+| Model | File Type | Inputs | Execution Profile |
+|------|-----------|--------|-------------------|
+| Gemma 4 E2B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
+| Gemma 4 E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
+| Gemma 3n E2B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
+| Gemma 3n E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
+| Qwen 3.5 0.8B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal |
+| Qwen 3.5 4B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal |
 
-```bash
-# Check model file
-ls -lh app/src/main/assets/models/gemma-2b-it-q4f32.gguf
+## Download And Storage
 
-# Verify GGUF format
-file app/src/main/assets/models/gemma-2b-it-q4f32.gguf
+The app downloads models with Android `DownloadManager` and stores them in:
 
-# Expected output: "GGML: binary data file"
-```
+- `context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)`
+- fallback: `context.filesDir`
 
-## Model Information
+The app checks:
 
-- **Model**: Gemma-2B-IT (Instruction-Tuned)
-- **Size**: ~1.5 GB (quantized)
-- **Format**: GGUF (Q4_0 quantization)
-- **Parameters**: 2B
-- **Context Length**: 8192 tokens
-- **Download Time**: ~5-10 minutes (50-100 MB/s)
+- enough free space before download
+- a minimum downloaded size threshold before treating a model as usable
 
-## Testing
+There is no longer a supported flow that downloads models into `app/src/main/assets/`.
 
-### Run All Tests
+## Backend Profiles
 
-```bash
-./gradlew test
-```
+`GemmaLlmService` selects backends from the chosen model:
 
-### Test Results Expected
+- `ACCELERATED_GEMMA`
+  - text: prefer NPU
+  - vision: CPU
+  - audio: CPU when the model supports audio
+- `CPU_ONLY_MULTIMODAL`
+  - text: CPU
+  - vision: CPU
+  - audio: disabled
 
-```
-Task :test
-...
-LlmEngineTest ... OK
-ExtractionIntegrationTest ... OK
-Total tests: 14
-Passed: 14
-Failed: 0
-```
+This is why Qwen models now load correctly in the app: they are initialized with the CPU-only multimodal profile instead of the Gemma-oriented backend path.
 
-## Integration
+## Input Support
 
-### In MainActivity
+- Text input is available from the home screen
+- Image input is available from the home screen and Android share intents
+- Audio bytes can be accepted from Android share intents
+- In-app voice recording UI is still unfinished
 
-```kotlin
-override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    
-    // Initialize LLM engine
-    llmEngine = LlmEngine(context = this)
-    
-    // Load model (async)
-    CoroutineScope(Dispatchers.IO).launch {
-        llmEngine.loadModel()
+## Event Extraction Contract
+
+The app now expects the LLM to return JSON in this shape:
+
+```json
+{
+  "events": [
+    {
+      "title": "",
+      "description": "",
+      "startTime": "ISO-8601",
+      "endTime": "ISO-8601",
+      "location": "",
+      "attendees": []
     }
-}
-
-override fun onDestroy() {
-    super.onDestroy()
-    llmEngine?.unloadModel()
+  ]
 }
 ```
 
-### In TextAnalysisService
+Single-event responses are still represented as an `events` array with one item.
 
-```kotlin
-class TextAnalysisService(
-    private val llmEngine: LlmEngine? = null
-) {
-    suspend fun analyzeInput(
-        input: String,
-        context: InputContext
-    ): EventExtraction = runBlocking {
-        // Use LLM if available
-        if (llmEngine?.isLoaded() == true) {
-            llmEngine.analyzeInput(input)
-        } else {
-            // Fallback extraction
-            EventExtraction(...)
-        }
-    }
-}
-```
+`TextAnalysisService` can also tolerate:
 
-## Troubleshooting
+- a single root object
+- a root array
+- fenced JSON output
 
-### Model Not Found
+It merges compatible fragments of the same event and keeps distinct events separate.
 
-```
-Error: Model not found at: /path/to/model
-```
+## Verification
 
-**Solution:** Run download script or manually download.
-
-### Out of Memory
-
-```
-Error: Unable to load model
-```
-
-**Solution:**
-1. Use quantized model (Q4_0)
-2. Close other apps
-3. Clear app data
-4. Restart device
-
-### Build Errors
-
-If you see errors with dependencies:
+Current verified commands:
 
 ```bash
-./gradlew clean build
+./gradlew test
+./gradlew assembleDebug
 ```
 
-## Performance
+## Obsolete Guidance
 
-| Device | Model Size | Response Time |
-|--------|--|-------|
-| Pixel 7 | 1.5 GB | 2-3s |
-| iPhone 14 | 1.5 GB | 3-4s |
-| Samsung S21 | 1.5 GB | 2-2.5s |
+The following old assumptions are no longer correct:
 
-## License
-
-Gemma models require acceptance of Google's usage policy before download.
-
-See: https://ai.google.dev/gemma
-
----
-
-*Last updated: 2026-04-18*
+- GGUF model files in `assets/`
+- llama.cpp integration
+- manual `download_model.sh` setup
+- “fallback extraction without a model”

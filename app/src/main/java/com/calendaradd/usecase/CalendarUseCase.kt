@@ -2,6 +2,7 @@ package com.calendaradd.usecase
 
 import android.graphics.Bitmap
 import com.calendaradd.service.*
+import com.calendaradd.util.AppLog
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -17,15 +18,20 @@ class CalendarUseCase(
     private val systemCalendarService: SystemCalendarService,
     private val preferencesManager: PreferencesManager
 ) {
+    companion object {
+        private const val TAG = "CalendarUseCase"
+    }
 
     suspend fun createEventFromText(
         input: String,
         context: InputContext = InputContext()
     ): EventResult {
         return try {
-            val analysis = textAnalysisService.analyzeText(input, context)
-            saveAndSyncExtraction(analysis, "text")
+            AppLog.i(TAG, "[${context.traceId}] createEventFromText chars=${input.length}")
+            val analyses = textAnalysisService.analyzeText(input, context)
+            saveAndSyncExtractions(analyses, "text", context)
         } catch (e: Exception) {
+            AppLog.e(TAG, "[${context.traceId}] Text event creation failed", e)
             EventResult.Failure(e.message ?: "Unknown error")
         }
     }
@@ -35,9 +41,11 @@ class CalendarUseCase(
         context: InputContext = InputContext()
     ): EventResult {
         return try {
-            val analysis = textAnalysisService.analyzeImage(bitmap, context)
-            saveAndSyncExtraction(analysis, "image")
+            AppLog.i(TAG, "[${context.traceId}] createEventFromImage bitmap=${bitmap.width}x${bitmap.height}")
+            val analyses = textAnalysisService.analyzeImage(bitmap, context)
+            saveAndSyncExtractions(analyses, "image", context)
         } catch (e: Exception) {
+            AppLog.e(TAG, "[${context.traceId}] Image event creation failed", e)
             EventResult.Failure(e.message ?: "Unknown error")
         }
     }
@@ -47,70 +55,64 @@ class CalendarUseCase(
         context: InputContext = InputContext()
     ): EventResult {
         return try {
-            val analysis = textAnalysisService.analyzeAudio(audioData, context)
-            saveAndSyncExtraction(analysis, "audio")
+            AppLog.i(TAG, "[${context.traceId}] createEventFromAudio bytes=${audioData.size}")
+            val analyses = textAnalysisService.analyzeAudio(audioData, context)
+            saveAndSyncExtractions(analyses, "audio", context)
         } catch (e: Exception) {
+            AppLog.e(TAG, "[${context.traceId}] Audio event creation failed", e)
             EventResult.Failure(e.message ?: "Unknown error")
         }
     }
 
-    private suspend fun saveAndSyncExtraction(analysis: EventExtraction, sourceType: String): EventResult {
-        if (!analysis.hasMeaningfulContent()) {
+    private suspend fun saveAndSyncExtractions(
+        analyses: List<EventExtraction>,
+        sourceType: String,
+        context: InputContext
+    ): EventResult {
+        val validAnalyses = analyses.filter { it.hasMeaningfulContent() }
+        if (validAnalyses.isEmpty()) {
+            AppLog.w(TAG, "[${context.traceId}] No valid events extracted from $sourceType input")
             return EventResult.Failure("Could not extract enough event details from the $sourceType input.")
         }
 
-        // Use current time as fallback, but AI should ideally provide it.
-        val now = System.currentTimeMillis()
-        val startTime = parseIso8601(analysis.startTime) ?: now
-        
-        val parsedEndTime = parseIso8601(analysis.endTime)
-        // If end time is missing or invalid (before start), default to +1 hour
-        val endTime = if (parsedEndTime != null && parsedEndTime > startTime) {
-            parsedEndTime
-        } else {
-            startTime + 3600000L // 1 hour default
-        }
-
-        val event = Event(
-            title = analysis.title.takeIf { it.isNotBlank() } ?: "New Event",
-            description = analysis.description,
-            startTime = startTime,
-            endTime = endTime,
-            location = analysis.location,
-            attendees = analysis.attendees.joinToString(", "),
-            sourceType = sourceType,
-            aiConfidence = analysis.confidence ?: 1.0f
-        )
-
         return try {
-            // Step 1: Save to internal database
-            val internalId = eventDatabase.eventDao().insert(event)
-            val savedEvent = event.copy(id = internalId)
+            val calendars = if (preferencesManager.isAutoAddEnabled && systemCalendarService.hasCalendarPermissions()) {
+                systemCalendarService.getAvailableCalendars()
+            } else {
+                emptyList()
+            }
+            val preferredCalendarId = preferencesManager.targetCalendarId
+                .takeIf { id -> id != -1L && calendars.any { it.id == id } }
+                ?: calendars.find { it.isPrimary }?.id
+                ?: calendars.firstOrNull()?.id
 
-            // Step 2: Auto-add to system calendar if enabled
-            if (preferencesManager.isAutoAddEnabled && systemCalendarService.hasCalendarPermissions()) {
-                val calendars = systemCalendarService.getAvailableCalendars()
-                val calendarId = preferencesManager.targetCalendarId
-                    .takeIf { id -> id != -1L && calendars.any { it.id == id } }
-                    ?: calendars.find { it.isPrimary }?.id
-                    ?: calendars.firstOrNull()?.id
+            AppLog.i(
+                TAG,
+                "[${context.traceId}] Saving ${validAnalyses.size} extracted event(s) source=$sourceType autoSync=${preferredCalendarId != null}"
+            )
+            val savedEvents = validAnalyses.map { analysis ->
+                val event = analysis.toEvent(sourceType, ::parseIso8601)
+                val internalId = eventDatabase.eventDao().insert(event)
+                val savedEvent = event.copy(id = internalId)
 
-                if (calendarId != null) {
-                    val systemId = systemCalendarService.insertEvent(
-                        calendarId = calendarId,
+                if (preferredCalendarId != null) {
+                    systemCalendarService.insertEvent(
+                        calendarId = preferredCalendarId,
                         title = savedEvent.title,
                         description = savedEvent.description,
                         startTimeMillis = savedEvent.startTime,
                         endTimeMillis = savedEvent.endTime,
                         location = savedEvent.location
                     )
-                    if (systemId == null) {
-                        // Log or handle sync failure, but we still return success because it's in our DB
-                    }
                 }
+
+                savedEvent
             }
-            EventResult.Success(savedEvent)
+
+            AppLog.i(TAG, "[${context.traceId}] Saved ${savedEvents.size} event(s) source=$sourceType")
+            EventResult.Success(savedEvents)
         } catch (e: Exception) {
+            AppLog.e(TAG, "[${context.traceId}] Failed to persist extracted events source=$sourceType", e)
             EventResult.Failure("Database error: ${e.message}")
         }
     }
@@ -164,19 +166,37 @@ class CalendarUseCase(
     fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
 }
 
-private fun EventExtraction.hasMeaningfulContent(): Boolean {
-    return title.isNotBlank() ||
-        description.isNotBlank() ||
-        startTime.isNotBlank() ||
-        endTime.isNotBlank() ||
-        location.isNotBlank() ||
-        attendees.isNotEmpty()
+private fun EventExtraction.toEvent(
+    sourceType: String,
+    parseIso8601: (String?) -> Long?
+): Event {
+    val now = System.currentTimeMillis()
+    val startTimeMillis = parseIso8601(startTime) ?: now
+    val parsedEndTime = parseIso8601(endTime)
+    val endTimeMillis = if (parsedEndTime != null && parsedEndTime > startTimeMillis) {
+        parsedEndTime
+    } else {
+        startTimeMillis + 3600000L
+    }
+
+    return Event(
+        title = title.takeIf { it.isNotBlank() } ?: "New Event",
+        description = description,
+        startTime = startTimeMillis,
+        endTime = endTimeMillis,
+        location = location,
+        attendees = attendees.joinToString(", "),
+        sourceType = sourceType,
+        aiConfidence = confidence ?: 1.0f
+    )
 }
 
 /**
  * Result of event creation operation.
  */
 sealed class EventResult {
-    data class Success(val event: Event) : EventResult()
+    data class Success(val events: List<Event>) : EventResult() {
+        val event: Event get() = events.first()
+    }
     data class Failure(val message: String) : EventResult()
 }

@@ -1,5 +1,9 @@
 # Calendar Add AI - V1 Development Plan
 
+> Historical planning document. Parts of this checklist reflect the prototype phase and are no longer the source of truth for the current implementation.
+>
+> Current reality: the app uses runtime-downloaded LiteRT-LM models selected in Settings, supports multiple extracted events per input, does not ship a GGUF/assets workflow, and still lacks a finished in-app voice recording flow plus advanced event-list editing/search features.
+
 ## Overview
 
 Build a stable, production-ready Android app for creating calendar events via local AI (Gemma4). Features easy importing of events from text, audio, and images.

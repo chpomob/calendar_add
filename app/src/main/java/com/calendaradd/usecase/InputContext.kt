@@ -8,5 +8,6 @@ import java.util.Date
 data class InputContext(
     val timestamp: Long = Date().time,
     val timezone: String = java.util.TimeZone.getDefault().id,
-    val language: String = "en"
+    val language: String = "en",
+    val traceId: String = "req-${timestamp.toString(16)}"
 )
