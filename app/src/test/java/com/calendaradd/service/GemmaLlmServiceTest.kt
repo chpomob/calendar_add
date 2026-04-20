@@ -20,6 +20,7 @@ class GemmaLlmServiceTest {
     private lateinit var context: Context
     private lateinit var service: GemmaLlmService
     private lateinit var engine: Engine
+    private val servicesToClose = mutableListOf<GemmaLlmService>()
 
     @Before
     fun setup() {
@@ -30,10 +31,13 @@ class GemmaLlmServiceTest {
         service = object : GemmaLlmService(context) {
             override fun createEngine(config: EngineConfig): Engine = engine
         }
+        servicesToClose += service
     }
 
     @After
     fun tearDown() {
+        servicesToClose.asReversed().forEach { it.close() }
+        servicesToClose.clear()
         unmockkAll()
     }
 
@@ -53,6 +57,7 @@ class GemmaLlmServiceTest {
                 return engine
             }
         }
+        servicesToClose += service
 
         service.initialize("/tmp/fake-model.litertlm")
 
@@ -71,6 +76,7 @@ class GemmaLlmServiceTest {
                 return engine
             }
         }
+        servicesToClose += service
 
         service.initialize(
             modelPath = "/tmp/fake-qwen-model.litertlm",
@@ -91,6 +97,7 @@ class GemmaLlmServiceTest {
                 throw IllegalStateException("synthetic failure")
             }
         }
+        servicesToClose += service
 
         try {
             service.initialize(
@@ -106,5 +113,25 @@ class GemmaLlmServiceTest {
             "attempted=CPU-only multimodal error=IllegalStateException: synthetic failure",
             failure
         )
+    }
+
+    @Test
+    fun `initialize should close a previously active service instance in the same process`() = runBlocking {
+        val firstEngine = mockk<Engine>(relaxed = true)
+        val secondEngine = mockk<Engine>(relaxed = true)
+        val firstService = object : GemmaLlmService(context) {
+            override fun createEngine(config: EngineConfig): Engine = firstEngine
+        }
+        val secondService = object : GemmaLlmService(context) {
+            override fun createEngine(config: EngineConfig): Engine = secondEngine
+        }
+        servicesToClose += firstService
+        servicesToClose += secondService
+
+        firstService.initialize("/tmp/fake-model-a.litertlm")
+        secondService.initialize("/tmp/fake-model-b.litertlm")
+
+        verify(exactly = 1) { firstEngine.close() }
+        verify(exactly = 1) { secondEngine.initialize() }
     }
 }

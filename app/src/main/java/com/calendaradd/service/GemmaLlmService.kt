@@ -30,6 +30,8 @@ interface EventJsonExtractor {
 open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     companion object {
         private const val TAG = "GemmaLlmService"
+        private val processEngineGuard = Any()
+        private var activeService: GemmaLlmService? = null
     }
     private var engine: Engine? = null
     private val mutex = Any()
@@ -55,70 +57,79 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
      * Attempts to use NPU acceleration first, falling back to CPU if it fails.
      */
     open suspend fun initialize(modelPath: String, modelConfig: LiteRtModelConfig? = null) = withContext(Dispatchers.IO) {
-        synchronized(mutex) {
-            if (engine != null && activeModelPath == modelPath) return@synchronized
-            if (engine != null && activeModelPath != modelPath) {
-                AppLog.i(TAG, "Switching LiteRT-LM model from $activeModelPath to $modelPath")
-                engine?.close()
-                engine = null
-                activeBackendLabel = null
-                activeModelPath = null
-                lastInitializationFailure = null
+        synchronized(processEngineGuard) {
+            synchronized(mutex) {
+                if (engine != null && activeModelPath == modelPath) return@withContext
             }
 
-            val cacheDirPath = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
-            val backends = backendProfilesFor(modelConfig)
+            val previousActiveService = activeService
+            if (previousActiveService != null && previousActiveService !== this) {
+                AppLog.w(TAG, "Closing previously active LiteRT-LM service instance before initialization")
+                previousActiveService.closeEngineForProcessTransfer()
+            }
 
-            var lastError: Exception? = null
-            val attemptedBackends = mutableListOf<String>()
-
-            for (profile in backends) {
-                var initializedEngine: Engine? = null
-                try {
-                    attemptedBackends += profile.label
-                    AppLog.i(
-                        TAG,
-                        "Initializing LiteRT-LM engine backend=${profile.label} model=${modelConfig?.displayName ?: "unknown"}"
-                    )
-                    val config = EngineConfig(
-                        modelPath = modelPath,
-                        backend = profile.textBackend,
-                        visionBackend = profile.visionBackend,
-                        audioBackend = profile.audioBackend,
-                        maxNumTokens = modelConfig?.maxNumTokens,
-                        cacheDir = cacheDirPath
-                    )
-                    initializedEngine = createEngine(config).apply {
-                        initialize()
-                    }
-                    engine = initializedEngine
-                    activeBackendLabel = profile.label
-                    activeModelPath = modelPath
-                    lastBackendUsed = profile.label
+            synchronized(mutex) {
+                if (engine != null && activeModelPath != modelPath) {
+                    AppLog.i(TAG, "Switching LiteRT-LM model from $activeModelPath to $modelPath")
+                    closeEngineLocked()
                     lastInitializationFailure = null
-                    AppLog.i(TAG, "LiteRT-LM engine ready backend=${profile.label}")
-                    return@withContext
-                } catch (e: Exception) {
-                    AppLog.w(TAG, "LiteRT-LM engine init failed backend=${profile.label}", e)
-                    initializedEngine?.close()
-                    lastError = e
                 }
-            }
 
-            lastInitializationFailure = buildString {
-                append("attempted=")
-                append(attemptedBackends.joinToString(", "))
-                if (lastError != null) {
-                    append(" error=")
-                    append(lastError::class.java.simpleName)
-                    val message = lastError.message?.trim()
-                    if (!message.isNullOrEmpty()) {
-                        append(": ")
-                        append(message)
+                val cacheDirPath = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
+                val backends = backendProfilesFor(modelConfig)
+
+                var lastError: Exception? = null
+                val attemptedBackends = mutableListOf<String>()
+
+                for (profile in backends) {
+                    var initializedEngine: Engine? = null
+                    try {
+                        attemptedBackends += profile.label
+                        AppLog.i(
+                            TAG,
+                            "Initializing LiteRT-LM engine backend=${profile.label} model=${modelConfig?.displayName ?: "unknown"}"
+                        )
+                        val config = EngineConfig(
+                            modelPath = modelPath,
+                            backend = profile.textBackend,
+                            visionBackend = profile.visionBackend,
+                            audioBackend = profile.audioBackend,
+                            maxNumTokens = modelConfig?.maxNumTokens,
+                            cacheDir = cacheDirPath
+                        )
+                        initializedEngine = createEngine(config).apply {
+                            initialize()
+                        }
+                        engine = initializedEngine
+                        activeBackendLabel = profile.label
+                        activeModelPath = modelPath
+                        lastBackendUsed = profile.label
+                        lastInitializationFailure = null
+                        activeService = this@GemmaLlmService
+                        AppLog.i(TAG, "LiteRT-LM engine ready backend=${profile.label}")
+                        return@withContext
+                    } catch (e: Exception) {
+                        AppLog.w(TAG, "LiteRT-LM engine init failed backend=${profile.label}", e)
+                        initializedEngine?.close()
+                        lastError = e
                     }
                 }
+
+                lastInitializationFailure = buildString {
+                    append("attempted=")
+                    append(attemptedBackends.joinToString(", "))
+                    if (lastError != null) {
+                        append(" error=")
+                        append(lastError::class.java.simpleName)
+                        val message = lastError.message?.trim()
+                        if (!message.isNullOrEmpty()) {
+                            append(": ")
+                            append(message)
+                        }
+                    }
+                }
+                throw lastError ?: RuntimeException("Failed to initialize engine with any backend")
             }
-            throw lastError ?: RuntimeException("Failed to initialize engine with any backend")
         }
     }
 
@@ -207,12 +218,30 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
      * Closes the engine and releases resources.
      */
     open fun close() {
-        synchronized(mutex) {
-            engine?.close()
-            engine = null
-            activeBackendLabel = null
-            activeModelPath = null
+        synchronized(processEngineGuard) {
+            synchronized(mutex) {
+                closeEngineLocked()
+                if (activeService === this) {
+                    activeService = null
+                }
+            }
         }
+    }
+
+    private fun closeEngineForProcessTransfer() {
+        synchronized(mutex) {
+            closeEngineLocked()
+            if (activeService === this) {
+                activeService = null
+            }
+        }
+    }
+
+    private fun closeEngineLocked() {
+        engine?.close()
+        engine = null
+        activeBackendLabel = null
+        activeModelPath = null
     }
 }
 
