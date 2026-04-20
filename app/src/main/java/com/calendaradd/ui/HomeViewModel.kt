@@ -78,6 +78,7 @@ class HomeViewModel(
                     modelPath = modelDownloadManager.getModelFile(currentModel).absolutePath,
                     modelConfig = currentModel
                 )
+                modelDownloadManager.cleanupUnusedModelFiles(currentModel)
                 _isModelReady.value = true
                 _uiState.value = HomeUiState.Idle
             } catch (e: Exception) {

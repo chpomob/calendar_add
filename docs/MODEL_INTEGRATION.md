@@ -47,6 +47,8 @@ The app checks:
 
 There is no longer a supported flow that downloads models into `app/src/main/assets/`.
 
+After the selected model initializes successfully, the app removes older app-managed model files from the same storage directory and keeps the active model file.
+
 ## Backend Profiles
 
 `GemmaLlmService` selects backends from the chosen model:

@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import com.calendaradd.usecase.PreferencesManager
+import com.calendaradd.util.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -19,15 +20,26 @@ class ModelDownloadManager(
     private val context: Context,
     private val preferencesManager: PreferencesManager
 ) {
+    companion object {
+        private const val TAG = "ModelDownloadManager"
+        private val LEGACY_MODEL_FILE_NAMES = setOf(
+            "qwen3.5-0.8b-model_multimodal.litertlm",
+            "qwen3.5-4b-model_multimodal.litertlm"
+        )
+    }
 
     private val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+
+    private fun modelStorageDir(): File {
+        return context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+    }
 
     /**
      * Returns the local file path where the model should be stored.
      * Use externalFilesDir (Downloads) which is app-specific but accessible by DownloadManager.
      */
     fun getModelFile(model: LiteRtModelConfig = getSelectedModel()): File {
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        val dir = modelStorageDir()
         if (!dir.exists()) dir.mkdirs()
         return File(dir, model.fileName)
     }
@@ -48,9 +60,31 @@ class ModelDownloadManager(
      * Estimates if there is enough disk space for the model.
      */
     fun hasEnoughSpace(model: LiteRtModelConfig = getSelectedModel()): Boolean {
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        val dir = modelStorageDir()
         val availableBytes = dir.usableSpace
         return availableBytes > model.requiredFreeSpaceBytes
+    }
+
+    /**
+     * Removes stale model files managed by the app while preserving the active one.
+     */
+    fun cleanupUnusedModelFiles(keepModel: LiteRtModelConfig = getSelectedModel()) {
+        val dir = modelStorageDir()
+        if (!dir.exists()) return
+
+        val managedFileNames = LiteRtModelCatalog.models.mapTo(mutableSetOf<String>()) { it.fileName }.apply {
+            addAll(LEGACY_MODEL_FILE_NAMES)
+        }
+
+        dir.listFiles()
+            ?.filter { file -> file.isFile && file.name in managedFileNames && file.name != keepModel.fileName }
+            ?.forEach { file ->
+                if (file.delete()) {
+                    AppLog.i(TAG, "Removed unused model file ${file.name}")
+                } else {
+                    AppLog.w(TAG, "Failed to remove unused model file ${file.name}")
+                }
+            }
     }
 
     /**
