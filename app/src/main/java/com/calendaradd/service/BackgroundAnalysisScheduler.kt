@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private const val ANALYSIS_INPUT_DIR = "background-analysis-inputs"
+private const val MODEL_TAG_PREFIX = "calendaradd-model:"
 
 enum class AnalysisInputType {
     TEXT,
@@ -56,6 +57,22 @@ class BackgroundAnalysisScheduler(private val context: Context) {
         }
     }
 
+    suspend fun getPendingModels(): Set<LiteRtModelConfig> = withContext(Dispatchers.IO) {
+        workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+            .asSequence()
+            .filter { info ->
+                info.state == WorkInfo.State.ENQUEUED ||
+                    info.state == WorkInfo.State.RUNNING ||
+                    info.state == WorkInfo.State.BLOCKED
+            }
+            .mapNotNull { info ->
+                val modelId = info.tags.firstOrNull { it.startsWith(MODEL_TAG_PREFIX) }
+                    ?.removePrefix(MODEL_TAG_PREFIX)
+                LiteRtModelCatalog.models.firstOrNull { it.id == modelId }
+            }
+            .toSet()
+    }
+
     private fun enqueueWork(inputType: AnalysisInputType, inputFile: File, model: LiteRtModelConfig): UUID {
         val request = OneTimeWorkRequestBuilder<BackgroundAnalysisWorker>()
             .setInputData(
@@ -66,6 +83,7 @@ class BackgroundAnalysisScheduler(private val context: Context) {
                     .build()
             )
             .addTag(WORK_TAG)
+            .addTag("$MODEL_TAG_PREFIX${model.id}")
             .build()
 
         workManager.enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)

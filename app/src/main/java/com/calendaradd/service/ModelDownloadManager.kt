@@ -68,16 +68,17 @@ class ModelDownloadManager(
     /**
      * Removes stale model files managed by the app while preserving the active one.
      */
-    fun cleanupUnusedModelFiles(keepModel: LiteRtModelConfig = getSelectedModel()) {
+    fun cleanupUnusedModelFiles(keepModels: Collection<LiteRtModelConfig> = listOf(getSelectedModel())) {
         val dir = modelStorageDir()
         if (!dir.exists()) return
+        val keepFileNames = keepModels.mapTo(mutableSetOf()) { it.fileName }
 
         val managedFileNames = LiteRtModelCatalog.models.mapTo(mutableSetOf<String>()) { it.fileName }.apply {
             addAll(LEGACY_MODEL_FILE_NAMES)
         }
 
         dir.listFiles()
-            ?.filter { file -> file.isFile && file.name in managedFileNames && file.name != keepModel.fileName }
+            ?.filter { file -> file.isFile && file.name in managedFileNames && file.name !in keepFileNames }
             ?.forEach { file ->
                 if (file.delete()) {
                     AppLog.i(TAG, "Removed unused model file ${file.name}")

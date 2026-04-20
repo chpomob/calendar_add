@@ -106,7 +106,8 @@ class HomeViewModel(
                         is DownloadStatus.Success -> {
                             isDownloadingModel = false
                             _downloadProgress.value = 100
-                            modelDownloadManager.cleanupUnusedModelFiles(currentModel)
+                            val keepModels = backgroundAnalysisScheduler.getPendingModels() + currentModel
+                            modelDownloadManager.cleanupUnusedModelFiles(keepModels)
                             _isModelReady.value = true
                             _uiState.value = HomeUiState.Idle
                         }

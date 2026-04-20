@@ -61,6 +61,7 @@ class BackgroundAnalysisWorker(
 
         val preferencesManager = PreferencesManager(applicationContext)
         val modelDownloadManager = ModelDownloadManager(applicationContext, preferencesManager)
+        val backgroundAnalysisScheduler = BackgroundAnalysisScheduler(applicationContext)
         val gemmaLlmService = GemmaLlmService(applicationContext)
         val textAnalysisService = TextAnalysisService(gemmaLlmService)
         val calendarUseCase = CalendarUseCase(
@@ -96,7 +97,8 @@ class BackgroundAnalysisWorker(
                 modelPath = modelDownloadManager.getModelFile(modelConfig).absolutePath,
                 modelConfig = modelConfig
             )
-            modelDownloadManager.cleanupUnusedModelFiles(modelConfig)
+            val keepModels = backgroundAnalysisScheduler.getPendingModels() + modelConfig
+            modelDownloadManager.cleanupUnusedModelFiles(keepModels)
 
             val traceId = "bg-${System.currentTimeMillis().toString(16)}"
             val inputContext = InputContext(traceId = traceId)

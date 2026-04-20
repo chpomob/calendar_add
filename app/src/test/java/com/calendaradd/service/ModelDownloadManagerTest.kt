@@ -46,11 +46,28 @@ class ModelDownloadManagerTest {
         val legacyFile = File(modelDir, "qwen3.5-4b-model_multimodal.litertlm").apply { writeText("delete") }
         val unrelatedFile = File(modelDir, "notes.txt").apply { writeText("keep") }
 
-        manager.cleanupUnusedModelFiles(keepModel)
+        manager.cleanupUnusedModelFiles(listOf(keepModel))
 
         assertTrue(keepFile.exists())
         assertFalse(currentOtherFile.exists())
         assertFalse(legacyFile.exists())
         assertTrue(unrelatedFile.exists())
+    }
+
+    @Test
+    fun `cleanupUnusedModelFiles should keep every queued model file`() {
+        val currentModel = LiteRtModelCatalog.find("gemma-4-e2b")
+        val queuedModel = LiteRtModelCatalog.find("gemma-4-e4b")
+        val otherModel = LiteRtModelCatalog.find("gemma-3n-e2b")
+
+        val currentFile = File(modelDir, currentModel.fileName).apply { writeText("keep") }
+        val queuedFile = File(modelDir, queuedModel.fileName).apply { writeText("keep") }
+        val otherFile = File(modelDir, otherModel.fileName).apply { writeText("delete") }
+
+        manager.cleanupUnusedModelFiles(listOf(currentModel, queuedModel))
+
+        assertTrue(currentFile.exists())
+        assertTrue(queuedFile.exists())
+        assertFalse(otherFile.exists())
     }
 }

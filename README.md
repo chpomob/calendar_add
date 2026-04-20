@@ -35,7 +35,7 @@ Configured in [LiteRtModelCatalog.kt](app/src/main/java/com/calendaradd/service/
 | Qwen 3.5 0.8B LiteRT | Text, Image | CPU-only profile, no audio, experimental, conservative token cap |
 
 Models are downloaded by the app into its app-specific downloads directory through `DownloadManager`.
-After a successful model switch, the app removes older app-managed model files and keeps only the active one.
+After a successful model switch, the app removes older app-managed model files while preserving any model still needed by queued background analysis jobs.
 Slow analysis jobs are executed through WorkManager in the foreground with a visible Android notification.
 
 ## Requirements
