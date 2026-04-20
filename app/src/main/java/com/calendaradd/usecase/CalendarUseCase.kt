@@ -90,8 +90,15 @@ class CalendarUseCase(
                 TAG,
                 "[${context.traceId}] Saving ${validAnalyses.size} extracted event(s) source=$sourceType autoSync=${preferredCalendarId != null}"
             )
-            val savedEvents = validAnalyses.map { analysis ->
-                val event = analysis.toEvent(sourceType, ::parseIso8601)
+            val savedEvents = validAnalyses.mapNotNull { analysis ->
+                val event = analysis.toEventOrNull(sourceType, ::parseIso8601)
+                if (event == null) {
+                    AppLog.w(
+                        TAG,
+                        "[${context.traceId}] Skipping extracted event without parseable start time title=${analysis.title.ifBlank { "<untitled>" }}"
+                    )
+                    return@mapNotNull null
+                }
                 val internalId = eventDatabase.eventDao().insert(event)
                 val savedEvent = event.copy(id = internalId)
 
@@ -107,6 +114,11 @@ class CalendarUseCase(
                 }
 
                 savedEvent
+            }
+
+            if (savedEvents.isEmpty()) {
+                AppLog.w(TAG, "[${context.traceId}] No extracted events had a valid start time source=$sourceType")
+                return EventResult.Failure("Could not extract a valid event date and time from the $sourceType input.")
             }
 
             AppLog.i(TAG, "[${context.traceId}] Saved ${savedEvents.size} event(s) source=$sourceType")
@@ -166,12 +178,11 @@ class CalendarUseCase(
     fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
 }
 
-private fun EventExtraction.toEvent(
+private fun EventExtraction.toEventOrNull(
     sourceType: String,
     parseIso8601: (String?) -> Long?
-): Event {
-    val now = System.currentTimeMillis()
-    val startTimeMillis = parseIso8601(startTime) ?: now
+): Event? {
+    val startTimeMillis = parseIso8601(startTime) ?: return null
     val parsedEndTime = parseIso8601(endTime)
     val endTimeMillis = if (parsedEndTime != null && parsedEndTime > startTimeMillis) {
         parsedEndTime

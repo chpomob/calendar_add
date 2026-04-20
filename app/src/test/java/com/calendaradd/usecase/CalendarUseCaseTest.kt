@@ -98,4 +98,58 @@ class CalendarUseCaseTest {
         assertEquals("Dentist", result.events[1].title)
         coVerify(exactly = 2) { eventDao.insert(any()) }
     }
+
+    @Test
+    fun `createEventFromText should fail when extracted date is invalid`() = runBlocking {
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            EventExtraction(
+                title = "Board meeting",
+                description = "Quarterly review",
+                startTime = "next Blursday after lunch",
+                endTime = "",
+                location = "HQ",
+                attendees = emptyList()
+            )
+        )
+
+        val result = useCase.createEventFromText("Board meeting next Blursday after lunch")
+
+        assertTrue(result is EventResult.Failure)
+        assertEquals(
+            "Could not extract a valid event date and time from the text input.",
+            (result as EventResult.Failure).message
+        )
+        coVerify(exactly = 0) { eventDao.insert(any()) }
+    }
+
+    @Test
+    fun `createEventFromText should skip invalid extracted events when others are valid`() = runBlocking {
+        coEvery { eventDao.insert(any()) } returns 1L
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            EventExtraction(
+                title = "Broken event",
+                description = "",
+                startTime = "someday soon",
+                endTime = "",
+                location = "",
+                attendees = emptyList()
+            ),
+            EventExtraction(
+                title = "Valid lunch",
+                description = "",
+                startTime = "2026-04-22T12:00:00",
+                endTime = "",
+                location = "",
+                attendees = emptyList()
+            )
+        )
+
+        val result = useCase.createEventFromText("One broken date and one valid lunch")
+
+        assertTrue(result is EventResult.Success)
+        result as EventResult.Success
+        assertEquals(1, result.events.size)
+        assertEquals("Valid lunch", result.events.single().title)
+        coVerify(exactly = 1) { eventDao.insert(any()) }
+    }
 }
