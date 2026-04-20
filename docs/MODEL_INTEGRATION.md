@@ -30,8 +30,8 @@ Relevant code:
 | Gemma 4 E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
 | Gemma 3n E2B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
 | Gemma 3n E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
-| Qwen 3.5 0.8B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental |
-| Qwen 3.5 4B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental |
+| Qwen 3.5 0.8B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental, capped tokens |
+| Qwen 3.5 4B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental, capped tokens |
 
 ## Download And Storage
 
@@ -63,6 +63,8 @@ After the selected model initializes successfully, the app removes older app-man
   - audio: disabled
 
 This is why Qwen models now load correctly in the app: they are initialized with the CPU-only multimodal profile instead of the Gemma-oriented backend path.
+
+For Qwen models, the app also sets conservative `maxNumTokens` values during engine creation to reduce compiled-model memory pressure on Android devices.
 
 ## Input Support
 

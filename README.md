@@ -30,8 +30,8 @@ Configured in [LiteRtModelCatalog.kt](app/src/main/java/com/calendaradd/service/
 | Gemma 4 E4B | Text, Image, Audio | Larger Gemma 4 variant |
 | Gemma 3n E2B | Text, Image, Audio | Strong multimodal candidate |
 | Gemma 3n E4B | Text, Image, Audio | Larger Gemma 3n variant |
-| Qwen 3.5 0.8B LiteRT | Text, Image | CPU-only profile, no audio, experimental |
-| Qwen 3.5 4B LiteRT | Text, Image | CPU-only profile, no audio, experimental |
+| Qwen 3.5 0.8B LiteRT | Text, Image | CPU-only profile, no audio, experimental, conservative token cap |
+| Qwen 3.5 4B LiteRT | Text, Image | CPU-only profile, no audio, experimental, conservative token cap |
 
 Models are downloaded by the app into its app-specific downloads directory through `DownloadManager`.
 After a successful model switch, the app removes older app-managed model files and keeps only the active one.

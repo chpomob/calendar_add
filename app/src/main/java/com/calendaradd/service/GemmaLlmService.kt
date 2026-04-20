@@ -85,6 +85,7 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                         backend = profile.textBackend,
                         visionBackend = profile.visionBackend,
                         audioBackend = profile.audioBackend,
+                        maxNumTokens = modelConfig?.maxNumTokens,
                         cacheDir = cacheDirPath
                     )
                     initializedEngine = createEngine(config).apply {

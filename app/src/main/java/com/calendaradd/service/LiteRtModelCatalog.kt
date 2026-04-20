@@ -21,7 +21,8 @@ data class LiteRtModelConfig(
     val fileName: String,
     val sizeBytes: Long,
     val capabilities: Set<ModelCapability>,
-    val executionProfile: ModelExecutionProfile
+    val executionProfile: ModelExecutionProfile,
+    val maxNumTokens: Int? = null
 ) {
     val supportsText: Boolean get() = capabilities.contains(ModelCapability.TEXT)
     val supportsImage: Boolean get() = capabilities.contains(ModelCapability.IMAGE)
@@ -103,13 +104,14 @@ object LiteRtModelCatalog {
             id = "qwen-3_5-0_8b",
             displayName = "Qwen 3.5 0.8B LiteRT",
             shortName = "Qwen 3.5 0.8B",
-            description = "Small multimodal community conversion. Supports text and image, but not audio. Experimental in this app.",
-            source = "Yoursmiling / community conversion",
-            downloadUrl = "https://huggingface.co/Yoursmiling/Qwen3.5-0.8B-LiteRT/resolve/main/model_multimodal.litertlm",
-            fileName = "qwen3.5-0.8b-20260404-model_multimodal.litertlm",
-            sizeBytes = decimalMb(1102.38),
+            description = "Small multimodal Qwen bundle designed for LiteRT-LM apps. Supports text and image, but not audio. Experimental in this app.",
+            source = "g-ntovas / LiteRT-LM Android-oriented conversion",
+            downloadUrl = "https://huggingface.co/g-ntovas/Qwen3.5-0.8B-4K-LiteRT/resolve/main/qwen35_mm_q8_ekv4096.litertlm",
+            fileName = "qwen35_mm_q8_ekv4096.litertlm",
+            sizeBytes = decimalGb(1.14),
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE),
-            executionProfile = ModelExecutionProfile.CPU_ONLY_MULTIMODAL
+            executionProfile = ModelExecutionProfile.CPU_ONLY_MULTIMODAL,
+            maxNumTokens = 1024
         ),
         LiteRtModelConfig(
             id = "qwen-3_5-4b",
@@ -121,7 +123,8 @@ object LiteRtModelCatalog {
             fileName = "qwen3.5-4b-20260404-model_multimodal.litertlm",
             sizeBytes = decimalMb(5019.62),
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE),
-            executionProfile = ModelExecutionProfile.CPU_ONLY_MULTIMODAL
+            executionProfile = ModelExecutionProfile.CPU_ONLY_MULTIMODAL,
+            maxNumTokens = 512
         )
     )
 

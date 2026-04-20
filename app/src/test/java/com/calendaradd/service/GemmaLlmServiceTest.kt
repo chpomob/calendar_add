@@ -81,6 +81,7 @@ class GemmaLlmServiceTest {
         assertEquals(Backend.CPU::class.java.name, config.backend::class.java.name)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
         assertEquals(null, config.audioBackend)
+        assertEquals(512, config.maxNumTokens)
     }
 
     @Test
