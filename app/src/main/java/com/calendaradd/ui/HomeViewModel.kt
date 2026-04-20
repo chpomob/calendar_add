@@ -5,8 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.calendaradd.service.*
 import com.calendaradd.usecase.CalendarUseCase
-import com.calendaradd.usecase.EventResult
-import com.calendaradd.usecase.InputContext
 import com.calendaradd.util.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +25,6 @@ class HomeViewModel(
         private const val TAG = "HomeViewModel"
     }
     private var isDownloadingModel = false
-    private var isInitializingModel = false
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -56,7 +53,7 @@ class HomeViewModel(
                 _selectedModel.value = currentModel
                 _isModelReady.value = false
                 _downloadProgress.value = null
-                if (_uiState.value !is HomeUiState.Loading) {
+                if (_uiState.value !is HomeUiState.Loading || isDownloadingModel) {
                     _uiState.value = HomeUiState.Idle
                 }
             }
@@ -78,34 +75,8 @@ class HomeViewModel(
             if (_uiState.value is HomeUiState.Queued) {
                 _uiState.value = HomeUiState.Idle
             }
-            initializeModel()
-        }
-    }
-
-    private fun initializeModel() {
-        if (_isModelReady.value || isInitializingModel) return
-        val currentModel = _selectedModel.value
-        isInitializingModel = true
-        viewModelScope.launch {
-            try {
-                _uiState.value = HomeUiState.Loading("Initializing ${currentModel.shortName}...")
-                gemmaLlmService.initialize(
-                    modelPath = modelDownloadManager.getModelFile(currentModel).absolutePath,
-                    modelConfig = currentModel
-                )
-                modelDownloadManager.cleanupUnusedModelFiles(currentModel)
-                _isModelReady.value = true
-                _uiState.value = HomeUiState.Idle
-            } catch (e: Exception) {
-                val backendInfo = gemmaLlmService.lastBackendUsed ?: "none"
-                val failureInfo = gemmaLlmService.lastInitializationFailure
-                val details = failureInfo ?: (e.message ?: "Unknown initialization error")
-                _uiState.value = HomeUiState.Error(
-                    "Init failed for ${currentModel.shortName} (active backend: $backendInfo). $details"
-                )
-            } finally {
-                isInitializingModel = false
-            }
+            _isModelReady.value = true
+            _uiState.value = HomeUiState.Idle
         }
     }
 
@@ -135,7 +106,9 @@ class HomeViewModel(
                         is DownloadStatus.Success -> {
                             isDownloadingModel = false
                             _downloadProgress.value = 100
-                            initializeModel()
+                            modelDownloadManager.cleanupUnusedModelFiles(currentModel)
+                            _isModelReady.value = true
+                            _uiState.value = HomeUiState.Idle
                         }
                         is DownloadStatus.Failed -> {
                             isDownloadingModel = false
@@ -210,10 +183,6 @@ class HomeViewModel(
             _downloadProgress.value = null
         }
         _uiState.value = HomeUiState.Idle
-    }
-
-    private fun newTraceId(prefix: String): String {
-        return "$prefix-${System.currentTimeMillis().toString(16)}"
     }
 }
 
