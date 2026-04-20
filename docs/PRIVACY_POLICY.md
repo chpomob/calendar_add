@@ -60,6 +60,8 @@ The app stores data locally on the device, including:
 - downloaded AI model files
 - temporary cached analysis input files during processing
 
+The app's own preference file is not opted into Android cloud backup or device-transfer backup rules.
+
 ## Calendar Integration
 
 If you grant calendar permission and enable sync, the app can:

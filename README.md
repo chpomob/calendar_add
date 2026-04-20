@@ -89,6 +89,7 @@ docs/
 - Qwen models do not support audio in this app and remain experimental.
 - Large local models can still be slow, but analysis can now continue in the background with a notification.
 - Extracted events are only saved when the model returns a parseable start date/time; malformed dates are rejected instead of defaulting to the current time.
+- App preferences stay local to the device and are not included in Android cloud backup rules.
 
 ## Documentation
 

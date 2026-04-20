@@ -97,7 +97,8 @@ fun PrivacyPolicyScreen(
                 body = listOf(
                     "Event extraction input is intended to be processed locally after model download",
                     "Created events are stored in local app storage",
-                    "Temporary analysis files may be created in app cache during background jobs"
+                    "Temporary analysis files may be created in app cache during background jobs",
+                    "App preferences are kept local and are not opted into Android cloud backup"
                 )
             )
 
