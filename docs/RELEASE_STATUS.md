@@ -30,6 +30,7 @@ Verified on the current codebase:
 - Extraction can parse and persist multiple events from one response
 - Extraction failures no longer create empty placeholder events
 - Invalid extracted dates are rejected instead of silently defaulting to the current time
+- Background analysis results keep separate notifications instead of overwriting each other
 - Request tracing/logging is present across the extraction pipeline
 
 ## Still Missing Or Incomplete

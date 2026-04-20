@@ -26,11 +26,12 @@ import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.AppLog
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 private const val ANALYSIS_CHANNEL_ID = "analysis_jobs"
 private const val ANALYSIS_CHANNEL_NAME = "Background analysis"
 private const val FOREGROUND_NOTIFICATION_ID = 1301
-private const val RESULT_NOTIFICATION_ID = 1302
+private const val RESULT_NOTIFICATION_ID_BASE = 1302
 
 class BackgroundAnalysisWorker(
     appContext: Context,
@@ -186,27 +187,28 @@ class BackgroundAnalysisWorker(
     }
 
     private fun notifyResult(title: String, message: String, destinationRoute: String) {
+        val resultNotificationId = resultNotificationIdFor(id)
         val notification = NotificationCompat.Builder(applicationContext, ANALYSIS_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setAutoCancel(true)
-            .setContentIntent(createLaunchIntent(destinationRoute))
+            .setContentIntent(createLaunchIntent(destinationRoute, resultNotificationId))
             .build()
 
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(RESULT_NOTIFICATION_ID, notification)
+        manager.notify(resultNotificationId, notification)
     }
 
-    private fun createLaunchIntent(destinationRoute: String): PendingIntent? {
+    private fun createLaunchIntent(destinationRoute: String, requestCode: Int): PendingIntent? {
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(MainActivity.EXTRA_OPEN_ROUTE, destinationRoute)
         }
         return PendingIntent.getActivity(
             applicationContext,
-            0,
+            requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -223,6 +225,11 @@ class BackgroundAnalysisWorker(
         )
         manager.createNotificationChannel(channel)
     }
+}
+
+internal fun resultNotificationIdFor(workId: UUID): Int {
+    val boundedOffset = (workId.hashCode().toLong() and 0x7fffffffL) % 1_000_000L
+    return RESULT_NOTIFICATION_ID_BASE + boundedOffset.toInt()
 }
 
 private fun File.deleteQuietly() {

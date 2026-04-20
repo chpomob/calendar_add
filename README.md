@@ -36,7 +36,7 @@ Configured in [LiteRtModelCatalog.kt](app/src/main/java/com/calendaradd/service/
 
 Models are downloaded by the app into its app-specific downloads directory through `DownloadManager`.
 After a successful model switch, the app removes older app-managed model files while preserving any model still needed by queued background analysis jobs.
-Slow analysis jobs are executed through WorkManager in the foreground with a visible Android notification.
+Slow analysis jobs are executed through WorkManager in the foreground with visible Android notifications, and each finished job keeps its own result notification.
 
 ## Requirements
 
