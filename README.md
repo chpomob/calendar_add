@@ -9,7 +9,7 @@ The app currently uses LiteRT-LM models downloaded at runtime. After the model d
 - Buildable and testable on `main`
 - Runtime model download on first use
 - Model selection in Settings
-- Text input, image picker, and Android share-intent import are wired
+- Text input, direct camera capture, image picker, and Android share-intent import are wired
 - Multiple events can be extracted from one input and saved in one pass
 - Long-running analysis is queued into a foreground background worker with notifications
 - Optional sync to the device calendar
@@ -77,7 +77,7 @@ docs/
 
 1. Open the app and download a model.
 2. Optionally switch models in Settings.
-3. Paste text, pick an image, or share content into the app.
+3. Paste text, take a photo, pick an image, or share content into the app.
 4. Review the created events in the event list.
 5. Optionally sync events to the system calendar.
 

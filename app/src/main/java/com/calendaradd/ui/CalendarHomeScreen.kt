@@ -2,6 +2,7 @@ package com.calendaradd.ui
 
 import android.graphics.Bitmap
 import android.Manifest
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,6 +24,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.calendaradd.navigation.Screen
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
@@ -29,6 +32,7 @@ import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
+import java.io.File
 import kotlinx.coroutines.launch
 
 /**
@@ -59,6 +63,46 @@ fun CalendarHomeScreen(
     val selectedModel by viewModel.selectedModel.collectAsState()
     
     var inputValue by remember { mutableStateOf("") }
+    var pendingCameraImagePath by rememberSaveable { mutableStateOf<String?>(null) }
+
+    fun clearPendingCameraFile() {
+        pendingCameraImagePath?.let { path ->
+            runCatching { File(path).takeIf { it.exists() }?.delete() }
+        }
+        pendingCameraImagePath = null
+    }
+
+    fun processImageUri(uri: Uri, source: String) {
+        AppLog.i(tag, "$source selected uri=$uri")
+        try {
+            val bitmap = ModelImageLoader.loadForInference(context.contentResolver, uri)
+            if (bitmap != null) {
+                AppLog.i(tag, "$source decoded bitmap=${bitmap.width}x${bitmap.height}")
+                viewModel.processImage(bitmap)
+            } else {
+                AppLog.w(tag, "$source failed to decode uri=$uri")
+                scope.launch {
+                    snackbarHostState.showSnackbar("Unable to load that image for analysis.")
+                }
+            }
+        } catch (e: OutOfMemoryError) {
+            AppLog.e(tag, "$source ran out of memory uri=$uri", e)
+            scope.launch {
+                snackbarHostState.showSnackbar("That image is too large to analyze safely.")
+            }
+        }
+    }
+
+    fun createCameraCaptureUri(): Uri {
+        val imageDir = File(context.cacheDir, "captured-images").apply { mkdirs() }
+        val imageFile = File.createTempFile("capture_", ".jpg", imageDir)
+        pendingCameraImagePath = imageFile.absolutePath
+        return FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            imageFile
+        )
+    }
 
     // Permission Launchers
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
@@ -96,24 +140,36 @@ fun CalendarHomeScreen(
         ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            AppLog.i(tag, "Image picker selected uri=$it")
-            try {
-                val bitmap = ModelImageLoader.loadForInference(context.contentResolver, it)
-                if (bitmap != null) {
-                    AppLog.i(tag, "Image picker decoded bitmap=${bitmap.width}x${bitmap.height}")
-                    viewModel.processImage(bitmap)
-                } else {
-                    AppLog.w(tag, "Image picker failed to decode uri=$it")
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Unable to load that image for analysis.")
-                    }
-                }
-            } catch (e: OutOfMemoryError) {
-                AppLog.e(tag, "Image picker ran out of memory uri=$it", e)
-                scope.launch {
-                    snackbarHostState.showSnackbar("That image is too large to analyze safely.")
-                }
-            }
+            processImageUri(it, "Image picker")
+        }
+    }
+
+    val cameraCaptureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { isSuccess ->
+        val imagePath = pendingCameraImagePath
+        if (isSuccess && imagePath != null) {
+            processImageUri(Uri.fromFile(File(imagePath)), "Camera capture")
+        } else if (!isSuccess) {
+            AppLog.i(tag, "Camera capture cancelled")
+        }
+        clearPendingCameraFile()
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val captureUri = createCameraCaptureUri()
+            cameraCaptureLauncher.launch(captureUri)
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Camera permission denied.") }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            clearPendingCameraFile()
         }
     }
 
@@ -328,6 +384,14 @@ fun CalendarHomeScreen(
                                         snackbarHostState.showSnackbar("${selectedModel.displayName} does not support audio.")
                                     }
                                 }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ActionCard(
+                            icon = Icons.Default.PhotoCamera,
+                            label = "Camera",
+                            onClick = {
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                             },
                             modifier = Modifier.weight(1f)
                         )
