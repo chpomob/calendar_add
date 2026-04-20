@@ -116,7 +116,7 @@ fun PrivacyPolicyScreen(
                 title = "Important note",
                 body = listOf(
                     "This in-app summary does not replace the final public privacy policy required for store release.",
-                    "Before publication, replace the draft contact information in the repository privacy policy with a real support or privacy contact."
+                    "Privacy contact: chpomob@gmail.com"
                 )
             )
 

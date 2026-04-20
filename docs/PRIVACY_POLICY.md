@@ -92,9 +92,7 @@ The app is not specifically directed to children.
 
 ## Contact
 
-Replace this section before publication with a real support or privacy contact address.
-
-- Contact email: `replace-with-real-contact@example.com`
+- Contact email: `chpomob@gmail.com`
 
 ## Changes To This Policy
 

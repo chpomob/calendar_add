@@ -8,6 +8,7 @@ This document is a release-prep scaffold based on the current codebase state.
 - Application ID: `com.calendaradd`
 - Version code: `3`
 - Version name: `1.0.0`
+- Contact email: `chpomob@gmail.com`
 
 ## Suggested Store Copy
 
@@ -51,6 +52,7 @@ The repository now contains:
 
 - `docs/PRIVACY_POLICY.md`
 - `docs/DATA_SAFETY.md`
+- `docs/STORE_LISTING.md`
 
 There is also an in-app `Privacy & data` screen reachable from Settings. It is a user-facing summary, not a substitute for the final hosted privacy policy URL required by Play.
 
