@@ -12,6 +12,7 @@ The app currently uses LiteRT-LM models downloaded at runtime. After the model d
 - Text input, direct camera capture, image picker, and Android share-intent import are wired
 - Multiple events can be extracted from one input and saved in one pass
 - Long-running analysis is queued into a foreground background worker with notifications
+- Shared text, image, and audio imports try to queue directly into background analysis without opening the main UI when the model is already available
 - Optional sync to the device calendar
 
 Current gaps:
