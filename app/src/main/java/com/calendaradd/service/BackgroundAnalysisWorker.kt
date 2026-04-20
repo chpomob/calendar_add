@@ -16,6 +16,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.calendaradd.MainActivity
+import com.calendaradd.navigation.Screen
 import com.calendaradd.R
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.EventDatabase
@@ -74,12 +75,20 @@ class BackgroundAnalysisWorker(
             setForeground(createForegroundInfo("Initializing ${modelConfig.shortName}..."))
 
             if (!inputFile.exists()) {
-                notifyResult("Analysis failed", "The queued input file is no longer available.")
+                notifyResult(
+                    "Analysis failed",
+                    "The queued input file is no longer available.",
+                    Screen.Home.route
+                )
                 return Result.failure(workDataOf(KEY_ERROR to "Queued input file is missing."))
             }
 
             if (!modelDownloadManager.isModelDownloaded(modelConfig)) {
-                notifyResult("Model missing", "${modelConfig.shortName} is not downloaded anymore.")
+                notifyResult(
+                    "Model missing",
+                    "${modelConfig.shortName} is not downloaded anymore.",
+                    Screen.Home.route
+                )
                 return Result.failure(workDataOf(KEY_ERROR to "Selected model is no longer downloaded."))
             }
 
@@ -116,7 +125,12 @@ class BackgroundAnalysisWorker(
                     } else {
                         "Created ${result.events.size} events. First: ${result.event.title}"
                     }
-                    notifyResult("Analysis complete", message)
+                    val destinationRoute = if (result.events.size == 1) {
+                        "${Screen.EventDetail.route}/${result.event.id}"
+                    } else {
+                        Screen.EventList.route
+                    }
+                    notifyResult("Analysis complete", message, destinationRoute)
                     Result.success(
                         workDataOf(
                             KEY_CREATED_COUNT to result.events.size,
@@ -125,13 +139,13 @@ class BackgroundAnalysisWorker(
                     )
                 }
                 is EventResult.Failure -> {
-                    notifyResult("Analysis failed", result.message)
+                    notifyResult("Analysis failed", result.message, Screen.Home.route)
                     Result.failure(workDataOf(KEY_ERROR to result.message))
                 }
             }
         } catch (e: Exception) {
             AppLog.e(TAG, "Background analysis crashed for ${modelConfig.displayName}", e)
-            notifyResult("Analysis failed", e.message ?: "Unexpected background analysis error.")
+            notifyResult("Analysis failed", e.message ?: "Unexpected background analysis error.", Screen.Home.route)
             return Result.failure(workDataOf(KEY_ERROR to (e.message ?: "Unexpected background analysis error.")))
         } finally {
             gemmaLlmService.close()
@@ -140,7 +154,7 @@ class BackgroundAnalysisWorker(
     }
 
     private fun failureResult(message: String): Result {
-        notifyResult("Analysis failed", message)
+        notifyResult("Analysis failed", message, Screen.Home.route)
         return Result.failure(workDataOf(KEY_ERROR to message))
     }
 
@@ -169,23 +183,24 @@ class BackgroundAnalysisWorker(
         }
     }
 
-    private fun notifyResult(title: String, message: String) {
+    private fun notifyResult(title: String, message: String, destinationRoute: String) {
         val notification = NotificationCompat.Builder(applicationContext, ANALYSIS_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setAutoCancel(true)
-            .setContentIntent(createLaunchIntent())
+            .setContentIntent(createLaunchIntent(destinationRoute))
             .build()
 
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(RESULT_NOTIFICATION_ID, notification)
     }
 
-    private fun createLaunchIntent(): PendingIntent? {
+    private fun createLaunchIntent(destinationRoute: String): PendingIntent? {
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_OPEN_ROUTE, destinationRoute)
         }
         return PendingIntent.getActivity(
             applicationContext,

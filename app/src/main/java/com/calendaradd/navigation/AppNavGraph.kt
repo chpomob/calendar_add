@@ -2,6 +2,7 @@ package com.calendaradd.navigation
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -31,8 +32,19 @@ fun AppNavGraph(
     startDestination: String = Screen.Home.route,
     sharedText: String? = null,
     sharedImage: Bitmap? = null,
-    sharedAudio: ByteArray? = null
+    sharedAudio: ByteArray? = null,
+    openRoute: String? = null,
+    onResetOpenRoute: () -> Unit = {}
 ) {
+    LaunchedEffect(openRoute) {
+        if (!openRoute.isNullOrBlank()) {
+            navController.navigate(openRoute) {
+                launchSingleTop = true
+            }
+            onResetOpenRoute()
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = startDestination

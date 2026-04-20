@@ -28,6 +28,7 @@ import com.calendaradd.util.AppLog
 class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
+        const val EXTRA_OPEN_ROUTE = "open_route"
     }
 
     private lateinit var eventDatabase: EventDatabase
@@ -42,11 +43,16 @@ class MainActivity : ComponentActivity() {
     private val sharedText = mutableStateOf<String?>(null)
     private val sharedImage = mutableStateOf<Bitmap?>(null)
     private val sharedAudio = mutableStateOf<ByteArray?>(null)
+    private val pendingOpenRoute = mutableStateOf<String?>(null)
 
     fun resetSharedContent() {
         sharedText.value = null
         sharedImage.value = null
         sharedAudio.value = null
+    }
+
+    fun resetPendingOpenRoute() {
+        pendingOpenRoute.value = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -94,7 +100,9 @@ class MainActivity : ComponentActivity() {
                     // Pass shared content to UI if needed
                     sharedText = sharedText.value,
                     sharedImage = sharedImage.value,
-                    sharedAudio = sharedAudio.value
+                    sharedAudio = sharedAudio.value,
+                    openRoute = pendingOpenRoute.value,
+                    onResetOpenRoute = ::resetPendingOpenRoute
                 )
             }
         }
@@ -107,6 +115,10 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         AppLog.i(TAG, "handleIntent action=${intent?.action} type=${intent?.type}")
+        intent?.getStringExtra(EXTRA_OPEN_ROUTE)?.let { route ->
+            AppLog.i(TAG, "Received open route $route")
+            pendingOpenRoute.value = route
+        }
         if (intent?.action == Intent.ACTION_SEND) {
             resetSharedContent()
             when {
