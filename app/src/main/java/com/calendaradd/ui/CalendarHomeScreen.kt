@@ -6,9 +6,12 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -18,7 +21,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -223,9 +228,23 @@ fun CalendarHomeScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Calendar Add (Recovery)") },
+                title = {
+                    Column {
+                        Text("Calendar Add")
+                        Text(
+                            "Offline capture for messy real-life plans",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
+                ),
                 actions = {
                     IconButton(onClick = {
                         navController.navigate(Screen.Settings.route)
@@ -236,130 +255,173 @@ fun CalendarHomeScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = { navController.navigate(Screen.EventList.route) },
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "View Events")
-            }
+                icon = {
+                    Icon(Icons.AutoMirrored.Filled.List, contentDescription = null)
+                },
+                text = { Text("Events") },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.background,
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                            MaterialTheme.colorScheme.background
+                        )
+                    )
+                )
+                .padding(padding)
+        ) {
             if (!isModelReady) {
-                // Download Model Screen
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(24.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.CloudDownload,
-                        contentDescription = null,
-                        modifier = Modifier.size(80.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                    HeroPanel(
+                        title = "Make a calendar from the chaos.",
+                        subtitle = "Run extraction on your phone, keep your schedule private, and let the heavy lifting happen in the background.",
+                        modelLabel = selectedModel.shortName,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(Modifier.height(24.dp))
-                    Text(
-                        "AI Model Required",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "To extract events locally and protect your privacy, a one-time download of ${selectedModel.shortName} (${selectedModel.sizeLabel}) is required.",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(32.dp))
-                    Button(
-                        onClick = { viewModel.downloadModel() },
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        enabled = uiState !is HomeUiState.Loading
+                    Spacer(Modifier.height(20.dp))
+                    HomeSectionCard(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            when {
-                                downloadProgress != null -> "Downloading ${selectedModel.shortName}"
-                                uiState is HomeUiState.Error -> "Retry Download"
-                                else -> "Download ${selectedModel.shortName} (${selectedModel.sizeLabel})"
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = CircleShape,
+                                modifier = Modifier.size(52.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
                             }
-                        )
-                    }
-
-                    if (downloadProgress != null) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Download ${selectedModel.shortName}",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    "${selectedModel.sizeLabel} • ${selectedModel.capabilitySummary}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            "${selectedModel.shortName} download progress: ${downloadProgress}%",
+                            "A one-time on-device model download is required before the app can analyze text, photos, or audio.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(Modifier.height(18.dp))
+                        Button(
+                            onClick = { viewModel.downloadModel() },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            enabled = uiState !is HomeUiState.Loading,
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Text(
+                                when {
+                                    downloadProgress != null -> "Downloading ${selectedModel.shortName}"
+                                    uiState is HomeUiState.Error -> "Retry Download"
+                                    else -> "Download ${selectedModel.shortName}"
+                                }
+                            )
+                        }
+
+                        if (downloadProgress != null) {
+                            Spacer(Modifier.height(16.dp))
+                            LinearProgressIndicator(
+                                progress = { (downloadProgress ?: 0) / 100f },
+                                modifier = Modifier.fillMaxWidth().height(10.dp),
+                                color = MaterialTheme.colorScheme.tertiary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "${selectedModel.shortName} download progress: ${downloadProgress}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
                     if (sharedText != null || sharedImage != null || sharedAudio != null) {
                         Spacer(Modifier.height(16.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            Text(
-                                "Shared content is queued and will be processed after the model is ready.",
-                                modifier = Modifier.padding(12.dp),
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
+                        NoticeCard("Shared content is waiting and will start as soon as the model is ready.")
                     }
                 }
             } else {
-                // Main Content
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp)
+                        .padding(horizontal = 16.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Smart Event Creator",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
+                    Spacer(Modifier.height(8.dp))
+                    HeroPanel(
+                        title = "Capture a flyer, a screenshot, or a thought.",
+                        subtitle = "Calendar Add turns rough inputs into structured events and keeps long analysis running in the background.",
+                        modelLabel = selectedModel.shortName,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Text(
-                        text = "Model: ${selectedModel.displayName} • ${selectedModel.capabilitySummary}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
                     if (uiState is HomeUiState.Queued) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            Text(
-                                (uiState as HomeUiState.Queued).message,
-                                modifier = Modifier.padding(12.dp),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
+                        NoticeCard((uiState as HomeUiState.Queued).message)
                     }
 
-                    // Text Input Card
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                    HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Describe it",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Paste a message, a copied invitation, or loose notes. The model can split one input into multiple events.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Column {
                             OutlinedTextField(
                                 value = inputValue,
                                 onValueChange = { inputValue = it },
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 300.dp),
-                                label = { Text("Event details...") },
-                                placeholder = { Text("e.g., Lunch with Maria at 1pm tomorrow") },
-                                maxLines = 10
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 140.dp, max = 320.dp),
+                                label = { Text("Event details") },
+                                placeholder = { Text("Lunch with Maria at 1pm tomorrow, then parent-teacher meeting at 6pm") },
+                                maxLines = 10,
+                                shape = RoundedCornerShape(20.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(
                                 onClick = { viewModel.processText(inputValue) },
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = isModelReady && inputValue.isNotBlank()
+                                enabled = isModelReady && inputValue.isNotBlank(),
+                                shape = RoundedCornerShape(18.dp)
                             ) {
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null)
                                 Spacer(Modifier.width(8.dp))
@@ -368,40 +430,92 @@ fun CalendarHomeScreen(
                         }
                     }
 
-                    // Quick Actions
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ActionCard(
-                            icon = Icons.Default.Mic,
-                            label = if (selectedModel.supportsAudio) "Voice" else "Voice off",
-                            onClick = {
-                                if (selectedModel.supportsAudio) {
-                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                } else {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("${selectedModel.displayName} does not support audio.")
+                    HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Quick capture",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Use the fastest input method for the moment, and let the app finish the job in the background.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            ActionCard(
+                                icon = Icons.Default.PhotoCamera,
+                                label = "Camera",
+                                caption = "Shoot a poster",
+                                accent = MaterialTheme.colorScheme.tertiaryContainer,
+                                onClick = {
+                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ActionCard(
+                                icon = Icons.Default.Image,
+                                label = "Image",
+                                caption = "Pick from files",
+                                accent = MaterialTheme.colorScheme.primaryContainer,
+                                onClick = {
+                                    imagePickerLauncher.launch("image/*")
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            ActionCard(
+                                icon = Icons.Default.Mic,
+                                label = if (selectedModel.supportsAudio) "Voice" else "Voice off",
+                                caption = if (selectedModel.supportsAudio) "Audio workflow" else "Current model has no audio",
+                                accent = MaterialTheme.colorScheme.secondaryContainer,
+                                onClick = {
+                                    if (selectedModel.supportsAudio) {
+                                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    } else {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("${selectedModel.displayName} does not support audio.")
+                                        }
                                     }
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ActionCard(
+                                icon = Icons.AutoMirrored.Filled.List,
+                                label = "Events",
+                                caption = "Review imports",
+                                accent = MaterialTheme.colorScheme.surfaceVariant,
+                                onClick = {
+                                    navController.navigate(Screen.EventList.route)
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            "Current model",
+                            style = MaterialTheme.typography.titleMedium
                         )
+                        Spacer(Modifier.height(8.dp))
                         ActionCard(
-                            icon = Icons.Default.PhotoCamera,
-                            label = "Camera",
+                            icon = Icons.Default.Tune,
+                            label = selectedModel.displayName,
+                            caption = selectedModel.capabilitySummary,
+                            accent = MaterialTheme.colorScheme.primaryContainer,
                             onClick = {
-                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                navController.navigate(Screen.Settings.route)
                             },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ActionCard(
-                            icon = Icons.Default.Image,
-                            label = "Image",
-                            onClick = {
-                                imagePickerLauncher.launch("image/*")
-                            },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -503,20 +617,163 @@ fun CalendarHomeScreen(
 
 @Composable
 fun ActionCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
+    caption: String,
+    accent: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     OutlinedCard(
         onClick = onClick,
-        modifier = modifier.height(80.dp)
+        modifier = modifier.height(112.dp),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+        )
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(icon, contentDescription = null)
-                Text(label, style = MaterialTheme.typography.labelSmall)
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                color = accent,
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.size(46.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(label, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    caption,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeSectionCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    ElevatedCard(
+        modifier = modifier,
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun HeroPanel(
+    title: String,
+    subtitle: String,
+    modelLabel: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(32.dp),
+        color = Color.Transparent
+    ) {
+        Box(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.tertiary
+                        )
+                    )
+                )
+                .padding(22.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CapabilityChip(label = modelLabel)
+                    CapabilityChip(label = "Background ready")
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.88f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapabilityChip(label: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shape = RoundedCornerShape(999.dp)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium
+        )
+    }
+}
+
+@Composable
+private fun NoticeCard(message: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.NotificationsActive, contentDescription = null)
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }

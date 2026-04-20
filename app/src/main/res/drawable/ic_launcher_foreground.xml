@@ -4,16 +4,31 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Calendar Shape -->
     <path
-        android:fillColor="#6200EE"
-        android:pathData="M25,30 h58 v53 h-58 z" />
-    <!-- Calendar Top -->
+        android:fillColor="#F8F2E9"
+        android:pathData="M22,26h64a4,4 0,0 1,4 4v52a4,4 0,0 1,-4 4H22a4,4 0,0 1,-4 -4V30a4,4 0,0 1,4 -4z" />
     <path
-        android:fillColor="#3700B3"
-        android:pathData="M25,30 h58 v12 h-58 z" />
-    <!-- Plus Sign (White) -->
+        android:fillColor="#E3744F"
+        android:pathData="M22,26h64a4,4 0,0 1,4 4v14H18V30a4,4 0,0 1,4 -4z" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M50,55 h8 v2 h-8 z M53,52 h2 v8 h-2 z" />
+        android:fillColor="#183249"
+        android:pathData="M31,18h6v18h-6z" />
+    <path
+        android:fillColor="#183249"
+        android:pathData="M71,18h6v18h-6z" />
+    <path
+        android:fillColor="#E6EFEF"
+        android:pathData="M28,52h20v6H28z" />
+    <path
+        android:fillColor="#E6EFEF"
+        android:pathData="M28,63h14v6H28z" />
+    <path
+        android:fillColor="#E6EFEF"
+        android:pathData="M28,74h20v6H28z" />
+    <path
+        android:fillColor="#183249"
+        android:pathData="M63,51h6v10h10v6H69v10h-6V67H53v-6h10z" />
+    <path
+        android:fillColor="#F0C46A"
+        android:pathData="M77,30l1.8,4.8 4.7,1.7 -4.7,1.7L77,43l-1.7,-4.8 -4.8,-1.7 4.8,-1.7z" />
 </vector>

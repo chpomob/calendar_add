@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import com.calendaradd.navigation.AppNavGraph
 import com.calendaradd.service.*
+import com.calendaradd.ui.theme.CalendarAddTheme
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.EventDatabase
 import com.calendaradd.usecase.PreferencesManager
@@ -80,30 +81,32 @@ class MainActivity : ComponentActivity() {
         setContent {
             val navController = rememberNavController()
 
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                AppNavGraph(
-                    navController = navController,
-                    onImportEvent = { input, sourceType ->
-                        // Handled by ViewModels
-                    },
-                    linkPreviewService = LinkPreviewService(),
-                    calendarUseCase = calendarUseCase,
-                    gemmaLlmService = gemmaLlmService,
-                    modelDownloadManager = modelDownloadManager,
-                    backgroundAnalysisScheduler = backgroundAnalysisScheduler,
-                    preferencesManager = preferencesManager,
-                    onResetSharedContent = ::resetSharedContent,
-                    fileImportHandler = FileImportHandler,
-                    // Pass shared content to UI if needed
-                    sharedText = sharedText.value,
-                    sharedImage = sharedImage.value,
-                    sharedAudio = sharedAudio.value,
-                    openRoute = pendingOpenRoute.value,
-                    onResetOpenRoute = ::resetPendingOpenRoute
-                )
+            CalendarAddTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    AppNavGraph(
+                        navController = navController,
+                        onImportEvent = { input, sourceType ->
+                            // Handled by ViewModels
+                        },
+                        linkPreviewService = LinkPreviewService(),
+                        calendarUseCase = calendarUseCase,
+                        gemmaLlmService = gemmaLlmService,
+                        modelDownloadManager = modelDownloadManager,
+                        backgroundAnalysisScheduler = backgroundAnalysisScheduler,
+                        preferencesManager = preferencesManager,
+                        onResetSharedContent = ::resetSharedContent,
+                        fileImportHandler = FileImportHandler,
+                        // Pass shared content to UI if needed
+                        sharedText = sharedText.value,
+                        sharedImage = sharedImage.value,
+                        sharedAudio = sharedAudio.value,
+                        openRoute = pendingOpenRoute.value,
+                        onResetOpenRoute = ::resetPendingOpenRoute
+                    )
+                }
             }
         }
     }
