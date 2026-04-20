@@ -4,6 +4,8 @@
 
 - `compileSdk = 35`
 - `targetSdk = 35`
+- `versionCode = 3`
+- `versionName = "1.0.0"`
 - Release minify and shrink are enabled
 - Release Android App Bundle builds successfully
 - Release signing is wired through local `keystore.properties`
@@ -30,12 +32,11 @@ Use `keystore.properties.example` as the template.
 ## Recommended Next Steps
 
 1. Back up the release keystore safely. Losing it means losing the signing identity for future updates unless you rotate through Play processes.
-2. Replace `versionName = "1.0-RECOVERY"` with a production version.
-3. Prepare Play Console assets and declarations:
+2. Prepare Play Console assets and declarations:
    - privacy policy
    - data safety form
    - screenshots and listing copy
-4. Build and verify:
+3. Build and verify:
    - `./gradlew clean test`
    - `./gradlew bundleRelease`
 
