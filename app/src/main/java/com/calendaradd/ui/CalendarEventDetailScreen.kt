@@ -77,10 +77,16 @@ fun CalendarEventDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(e.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Description: ${e.description}", style = MaterialTheme.typography.bodyMedium)
                 Text("Start: ${e.startTime.toDisplayDateTime()}", style = MaterialTheme.typography.bodyMedium)
                 Text("End: ${e.endTime.toDisplayDateTime()}", style = MaterialTheme.typography.bodyMedium)
-                Text("Location: ${e.location}", style = MaterialTheme.typography.bodyMedium)
+
+                if (e.description.isNotBlank()) {
+                    Text("Description: ${e.description}", style = MaterialTheme.typography.bodyMedium)
+                }
+
+                if (e.location.isNotBlank()) {
+                    Text("Location: ${e.location}", style = MaterialTheme.typography.bodyMedium)
+                }
 
                 Button(
                     onClick = {
