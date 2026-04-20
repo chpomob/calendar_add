@@ -30,8 +30,8 @@ Relevant code:
 | Gemma 4 E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
 | Gemma 3n E2B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
 | Gemma 3n E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
-| Qwen 3.5 0.8B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal |
-| Qwen 3.5 4B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal |
+| Qwen 3.5 0.8B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental |
+| Qwen 3.5 4B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental |
 
 ## Download And Storage
 

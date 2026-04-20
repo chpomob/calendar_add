@@ -81,8 +81,12 @@ class HomeViewModel(
                 _isModelReady.value = true
                 _uiState.value = HomeUiState.Idle
             } catch (e: Exception) {
-                val backendInfo = gemmaLlmService.lastBackendUsed ?: "None"
-                _uiState.value = HomeUiState.Error("Init failed (Backend: $backendInfo): ${e.message}")
+                val backendInfo = gemmaLlmService.lastBackendUsed ?: "none"
+                val failureInfo = gemmaLlmService.lastInitializationFailure
+                val details = failureInfo ?: (e.message ?: "Unknown initialization error")
+                _uiState.value = HomeUiState.Error(
+                    "Init failed for ${currentModel.shortName} (active backend: $backendInfo). $details"
+                )
             } finally {
                 isInitializingModel = false
             }

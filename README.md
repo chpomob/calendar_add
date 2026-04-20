@@ -30,8 +30,8 @@ Configured in [LiteRtModelCatalog.kt](app/src/main/java/com/calendaradd/service/
 | Gemma 4 E4B | Text, Image, Audio | Larger Gemma 4 variant |
 | Gemma 3n E2B | Text, Image, Audio | Strong multimodal candidate |
 | Gemma 3n E4B | Text, Image, Audio | Larger Gemma 3n variant |
-| Qwen 3.5 0.8B LiteRT | Text, Image | CPU-only profile, no audio |
-| Qwen 3.5 4B LiteRT | Text, Image | CPU-only profile, no audio |
+| Qwen 3.5 0.8B LiteRT | Text, Image | CPU-only profile, no audio, experimental |
+| Qwen 3.5 4B LiteRT | Text, Image | CPU-only profile, no audio, experimental |
 
 Models are downloaded by the app into its app-specific downloads directory through `DownloadManager`.
 
@@ -82,7 +82,7 @@ docs/
 ## Notes
 
 - The app is local-first, but the one-time model download requires network access.
-- Qwen models do not support audio in this app.
+- Qwen models do not support audio in this app and remain experimental.
 - Large local models can be slow; inference currently runs in-app, not as a background worker.
 
 ## Documentation

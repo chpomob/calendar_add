@@ -42,6 +42,9 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     var lastBackendUsed: String? = null
         private set
 
+    var lastInitializationFailure: String? = null
+        private set
+
     protected open fun createEngine(config: EngineConfig): Engine = Engine(config)
 
     protected open fun createConversation(engine: Engine): Conversation =
@@ -60,16 +63,19 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                 engine = null
                 activeBackendLabel = null
                 activeModelPath = null
+                lastInitializationFailure = null
             }
 
             val cacheDirPath = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
             val backends = backendProfilesFor(modelConfig)
 
             var lastError: Exception? = null
+            val attemptedBackends = mutableListOf<String>()
 
             for (profile in backends) {
                 var initializedEngine: Engine? = null
                 try {
+                    attemptedBackends += profile.label
                     AppLog.i(
                         TAG,
                         "Initializing LiteRT-LM engine backend=${profile.label} model=${modelConfig?.displayName ?: "unknown"}"
@@ -88,6 +94,7 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                     activeBackendLabel = profile.label
                     activeModelPath = modelPath
                     lastBackendUsed = profile.label
+                    lastInitializationFailure = null
                     AppLog.i(TAG, "LiteRT-LM engine ready backend=${profile.label}")
                     return@withContext
                 } catch (e: Exception) {
@@ -97,6 +104,19 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                 }
             }
 
+            lastInitializationFailure = buildString {
+                append("attempted=")
+                append(attemptedBackends.joinToString(", "))
+                if (lastError != null) {
+                    append(" error=")
+                    append(lastError::class.java.simpleName)
+                    val message = lastError.message?.trim()
+                    if (!message.isNullOrEmpty()) {
+                        append(": ")
+                        append(message)
+                    }
+                }
+            }
             throw lastError ?: RuntimeException("Failed to initialize engine with any backend")
         }
     }

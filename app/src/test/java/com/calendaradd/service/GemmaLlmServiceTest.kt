@@ -82,4 +82,28 @@ class GemmaLlmServiceTest {
         assertEquals(Backend.CPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
         assertEquals(null, config.audioBackend)
     }
+
+    @Test
+    fun `initialize should record attempted backend summary on failure`() = runBlocking {
+        service = object : GemmaLlmService(context) {
+            override fun createEngine(config: EngineConfig): Engine {
+                throw IllegalStateException("synthetic failure")
+            }
+        }
+
+        try {
+            service.initialize(
+                modelPath = "/tmp/fake-qwen-model.litertlm",
+                modelConfig = LiteRtModelCatalog.find("qwen-3_5-0_8b")
+            )
+        } catch (_: IllegalStateException) {
+            // expected
+        }
+
+        val failure = service.lastInitializationFailure
+        assertEquals(
+            "attempted=CPU-only multimodal error=IllegalStateException: synthetic failure",
+            failure
+        )
+    }
 }
