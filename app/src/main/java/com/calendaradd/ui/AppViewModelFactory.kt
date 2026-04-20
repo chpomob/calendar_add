@@ -10,6 +10,7 @@ class AppViewModelFactory(
     private val calendarUseCase: CalendarUseCase,
     private val gemmaLlmService: GemmaLlmService? = null,
     private val modelDownloadManager: ModelDownloadManager? = null,
+    private val backgroundAnalysisScheduler: BackgroundAnalysisScheduler? = null,
     private val preferencesManager: PreferencesManager? = null,
     private val eventId: Long? = null
 ) : ViewModelProvider.Factory {
@@ -17,7 +18,12 @@ class AppViewModelFactory(
         return when {
             modelClass.isAssignableFrom(HomeViewModel::class.java) -> {
                 @Suppress("UNCHECKED_CAST")
-                HomeViewModel(calendarUseCase, gemmaLlmService!!, modelDownloadManager!!) as T
+                HomeViewModel(
+                    calendarUseCase,
+                    gemmaLlmService!!,
+                    modelDownloadManager!!,
+                    backgroundAnalysisScheduler!!
+                ) as T
             }
             modelClass.isAssignableFrom(SettingsViewModel::class.java) -> {
                 @Suppress("UNCHECKED_CAST")

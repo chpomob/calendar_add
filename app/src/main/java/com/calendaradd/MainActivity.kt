@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var calendarUseCase: CalendarUseCase
     private lateinit var gemmaLlmService: GemmaLlmService
     private lateinit var modelDownloadManager: ModelDownloadManager
+    private lateinit var backgroundAnalysisScheduler: BackgroundAnalysisScheduler
     private lateinit var systemCalendarService: SystemCalendarService
     private lateinit var preferencesManager: PreferencesManager
 
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
         gemmaLlmService = GemmaLlmService(this)
         preferencesManager = PreferencesManager(this)
         modelDownloadManager = ModelDownloadManager(this, preferencesManager)
+        backgroundAnalysisScheduler = BackgroundAnalysisScheduler(this)
         systemCalendarService = SystemCalendarService(this)
 
         val textAnalysisService = TextAnalysisService(gemmaLlmService)
@@ -85,6 +87,7 @@ class MainActivity : ComponentActivity() {
                     calendarUseCase = calendarUseCase,
                     gemmaLlmService = gemmaLlmService,
                     modelDownloadManager = modelDownloadManager,
+                    backgroundAnalysisScheduler = backgroundAnalysisScheduler,
                     preferencesManager = preferencesManager,
                     onResetSharedContent = ::resetSharedContent,
                     fileImportHandler = FileImportHandler,

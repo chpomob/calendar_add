@@ -24,6 +24,7 @@ fun AppNavGraph(
     calendarUseCase: CalendarUseCase,
     gemmaLlmService: GemmaLlmService,
     modelDownloadManager: ModelDownloadManager,
+    backgroundAnalysisScheduler: BackgroundAnalysisScheduler,
     preferencesManager: PreferencesManager,
     onResetSharedContent: () -> Unit,
     fileImportHandler: FileImportHandler = FileImportHandler,
@@ -41,7 +42,8 @@ fun AppNavGraph(
                 factory = AppViewModelFactory(
                     calendarUseCase = calendarUseCase,
                     gemmaLlmService = gemmaLlmService,
-                    modelDownloadManager = modelDownloadManager
+                    modelDownloadManager = modelDownloadManager,
+                    backgroundAnalysisScheduler = backgroundAnalysisScheduler
                 )
             )
             

@@ -20,7 +20,8 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     private val calendarUseCase: CalendarUseCase,
     private val gemmaLlmService: GemmaLlmService,
-    private val modelDownloadManager: ModelDownloadManager
+    private val modelDownloadManager: ModelDownloadManager,
+    private val backgroundAnalysisScheduler: BackgroundAnalysisScheduler
 ) : ViewModel() {
     companion object {
         private const val TAG = "HomeViewModel"
@@ -45,25 +46,39 @@ class HomeViewModel(
     }
 
     fun refreshModelState() {
-        val currentModel = modelDownloadManager.getSelectedModel()
-        val hasModelChanged = currentModel.id != _selectedModel.value.id
+        viewModelScope.launch {
+            val currentModel = modelDownloadManager.getSelectedModel()
+            val hasModelChanged = currentModel.id != _selectedModel.value.id
 
-        if (hasModelChanged) {
-            AppLog.i(TAG, "Switching selected model to ${currentModel.displayName}")
-            gemmaLlmService.close()
-            _selectedModel.value = currentModel
-            _isModelReady.value = false
-            _downloadProgress.value = null
-            if (_uiState.value !is HomeUiState.Loading) {
+            if (hasModelChanged) {
+                AppLog.i(TAG, "Switching selected model to ${currentModel.displayName}")
+                gemmaLlmService.close()
+                _selectedModel.value = currentModel
+                _isModelReady.value = false
+                _downloadProgress.value = null
+                if (_uiState.value !is HomeUiState.Loading) {
+                    _uiState.value = HomeUiState.Idle
+                }
+            }
+
+            if (!modelDownloadManager.isModelDownloaded(currentModel)) {
+                _isModelReady.value = false
+                _uiState.value = HomeUiState.ModelMissing
+                return@launch
+            }
+
+            if (backgroundAnalysisScheduler.hasPendingWork()) {
+                _isModelReady.value = true
+                _uiState.value = HomeUiState.Queued(
+                    "Analysis is still running in the background. You can leave the app and watch the notification."
+                )
+                return@launch
+            }
+
+            if (_uiState.value is HomeUiState.Queued) {
                 _uiState.value = HomeUiState.Idle
             }
-        }
-
-        if (modelDownloadManager.isModelDownloaded(currentModel)) {
             initializeModel()
-        } else {
-            _isModelReady.value = false
-            _uiState.value = HomeUiState.ModelMissing
         }
     }
 
@@ -140,23 +155,15 @@ class HomeViewModel(
         if (input.isBlank() || !_isModelReady.value) return
         val currentModel = _selectedModel.value
 
-        viewModelScope.launch {
-            val context = InputContext(traceId = newTraceId("text"))
-            AppLog.i(TAG, "[${context.traceId}] Starting text analysis chars=${input.length}")
-            _uiState.value = HomeUiState.Loading("Analyzing text with ${currentModel.shortName}...")
-            when (val result = calendarUseCase.createEventFromText(input, context)) {
-                is EventResult.Success -> {
-                    AppLog.i(TAG, "[${context.traceId}] Text analysis created ${result.events.size} event(s)")
-                    _uiState.value = HomeUiState.Success(
-                        createdCount = result.events.size,
-                        firstEventTitle = result.event.title
-                    )
-                }
-                is EventResult.Failure -> {
-                    AppLog.w(TAG, "[${context.traceId}] Text analysis failed: ${result.message}")
-                    _uiState.value = HomeUiState.Error(result.message)
-                }
-            }
+        try {
+            val workId = backgroundAnalysisScheduler.enqueueText(input, currentModel)
+            gemmaLlmService.close()
+            AppLog.i(TAG, "Queued background text analysis workId=$workId model=${currentModel.shortName}")
+            _uiState.value = HomeUiState.Queued(
+                "Text analysis was queued in the background. You can leave the app and wait for the notification."
+            )
+        } catch (e: Exception) {
+            _uiState.value = HomeUiState.Error("Failed to queue background text analysis: ${e.message}")
         }
     }
 
@@ -167,23 +174,15 @@ class HomeViewModel(
             _uiState.value = HomeUiState.Error("${currentModel.displayName} does not support image input.")
             return
         }
-        viewModelScope.launch {
-            val context = InputContext(traceId = newTraceId("img"))
-            AppLog.i(TAG, "[${context.traceId}] Starting image analysis bitmap=${bitmap.width}x${bitmap.height}")
-            _uiState.value = HomeUiState.Loading("Analyzing image with ${currentModel.shortName}...")
-            when (val result = calendarUseCase.createEventFromImage(bitmap, context)) {
-                is EventResult.Success -> {
-                    AppLog.i(TAG, "[${context.traceId}] Image analysis created ${result.events.size} event(s)")
-                    _uiState.value = HomeUiState.Success(
-                        createdCount = result.events.size,
-                        firstEventTitle = result.event.title
-                    )
-                }
-                is EventResult.Failure -> {
-                    AppLog.w(TAG, "[${context.traceId}] Image analysis failed: ${result.message}")
-                    _uiState.value = HomeUiState.Error(result.message)
-                }
-            }
+        try {
+            val workId = backgroundAnalysisScheduler.enqueueImage(bitmap, currentModel)
+            gemmaLlmService.close()
+            AppLog.i(TAG, "Queued background image analysis workId=$workId model=${currentModel.shortName}")
+            _uiState.value = HomeUiState.Queued(
+                "Image analysis was queued in the background. You can leave the app and wait for the notification."
+            )
+        } catch (e: Exception) {
+            _uiState.value = HomeUiState.Error("Failed to queue background image analysis: ${e.message}")
         }
     }
 
@@ -194,23 +193,15 @@ class HomeViewModel(
             _uiState.value = HomeUiState.Error("${currentModel.displayName} does not support audio input.")
             return
         }
-        viewModelScope.launch {
-            val context = InputContext(traceId = newTraceId("audio"))
-            AppLog.i(TAG, "[${context.traceId}] Starting audio analysis bytes=${audioData.size}")
-            _uiState.value = HomeUiState.Loading("Analyzing audio with ${currentModel.shortName}...")
-            when (val result = calendarUseCase.createEventFromAudio(audioData, context)) {
-                is EventResult.Success -> {
-                    AppLog.i(TAG, "[${context.traceId}] Audio analysis created ${result.events.size} event(s)")
-                    _uiState.value = HomeUiState.Success(
-                        createdCount = result.events.size,
-                        firstEventTitle = result.event.title
-                    )
-                }
-                is EventResult.Failure -> {
-                    AppLog.w(TAG, "[${context.traceId}] Audio analysis failed: ${result.message}")
-                    _uiState.value = HomeUiState.Error(result.message)
-                }
-            }
+        try {
+            val workId = backgroundAnalysisScheduler.enqueueAudio(audioData, currentModel)
+            gemmaLlmService.close()
+            AppLog.i(TAG, "Queued background audio analysis workId=$workId model=${currentModel.shortName}")
+            _uiState.value = HomeUiState.Queued(
+                "Audio analysis was queued in the background. You can leave the app and wait for the notification."
+            )
+        } catch (e: Exception) {
+            _uiState.value = HomeUiState.Error("Failed to queue background audio analysis: ${e.message}")
         }
     }
 
@@ -230,6 +221,7 @@ sealed class HomeUiState {
     object Idle : HomeUiState()
     object ModelMissing : HomeUiState()
     data class Loading(val message: String) : HomeUiState()
+    data class Queued(val message: String) : HomeUiState()
     data class Success(val createdCount: Int, val firstEventTitle: String) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }

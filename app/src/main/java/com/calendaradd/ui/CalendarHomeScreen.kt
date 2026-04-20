@@ -2,6 +2,7 @@ package com.calendaradd.ui
 
 import android.graphics.Bitmap
 import android.Manifest
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -81,6 +82,16 @@ fun CalendarHomeScreen(
         }
     }
 
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Notification permission is recommended for background analysis updates.")
+            }
+        }
+    }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
@@ -110,6 +121,9 @@ fun CalendarHomeScreen(
     LaunchedEffect(Unit) {
         if (!context.hasCalendarPermissions()) {
             calendarPermissionLauncher.launch(calendarPermissions)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
@@ -261,6 +275,18 @@ fun CalendarHomeScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (uiState is HomeUiState.Queued) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Text(
+                                (uiState as HomeUiState.Queued).message,
+                                modifier = Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
 
                     // Text Input Card
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -387,6 +413,19 @@ fun CalendarHomeScreen(
                     onDismissRequest = { viewModel.resetState() },
                     title = { Text("Error") },
                     text = { Text((uiState as HomeUiState.Error).message) },
+                    confirmButton = {
+                        Button(onClick = { viewModel.resetState() }) {
+                            Text("OK")
+                        }
+                    }
+                )
+            }
+
+            if (uiState is HomeUiState.Queued) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.resetState() },
+                    title = { Text("Running In Background") },
+                    text = { Text((uiState as HomeUiState.Queued).message) },
                     confirmButton = {
                         Button(onClick = { viewModel.resetState() }) {
                             Text("OK")

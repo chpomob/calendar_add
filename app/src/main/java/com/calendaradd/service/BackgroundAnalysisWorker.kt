@@ -1,0 +1,215 @@
+package com.calendaradd.service
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.graphics.BitmapFactory
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.work.CoroutineWorker
+import androidx.work.ForegroundInfo
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+import androidx.work.workDataOf
+import com.calendaradd.MainActivity
+import com.calendaradd.R
+import com.calendaradd.usecase.CalendarUseCase
+import com.calendaradd.usecase.EventDatabase
+import com.calendaradd.usecase.EventResult
+import com.calendaradd.usecase.InputContext
+import com.calendaradd.usecase.PreferencesManager
+import com.calendaradd.util.AppLog
+import java.io.File
+import java.nio.charset.StandardCharsets
+
+private const val ANALYSIS_CHANNEL_ID = "analysis_jobs"
+private const val ANALYSIS_CHANNEL_NAME = "Background analysis"
+private const val FOREGROUND_NOTIFICATION_ID = 1301
+private const val RESULT_NOTIFICATION_ID = 1302
+
+class BackgroundAnalysisWorker(
+    appContext: Context,
+    workerParams: WorkerParameters
+) : CoroutineWorker(appContext, workerParams) {
+
+    companion object {
+        private const val TAG = "BackgroundAnalysisWorker"
+        private const val KEY_CREATED_COUNT = "created_count"
+        private const val KEY_FIRST_TITLE = "first_title"
+        private const val KEY_ERROR = "error"
+    }
+
+    override suspend fun doWork(): Result {
+        val inputTypeName = inputData.getString(BackgroundAnalysisScheduler.KEY_INPUT_TYPE)
+        val inputPath = inputData.getString(BackgroundAnalysisScheduler.KEY_INPUT_PATH)
+        val modelId = inputData.getString(BackgroundAnalysisScheduler.KEY_MODEL_ID)
+
+        if (inputTypeName.isNullOrBlank() || inputPath.isNullOrBlank() || modelId.isNullOrBlank()) {
+            return Result.failure(workDataOf(KEY_ERROR to "Missing background analysis parameters."))
+        }
+
+        val inputType = runCatching { AnalysisInputType.valueOf(inputTypeName) }.getOrElse {
+            return Result.failure(workDataOf(KEY_ERROR to "Unsupported background analysis type."))
+        }
+        val inputFile = File(inputPath)
+        val modelConfig = LiteRtModelCatalog.find(modelId)
+
+        val preferencesManager = PreferencesManager(applicationContext)
+        val modelDownloadManager = ModelDownloadManager(applicationContext, preferencesManager)
+        val gemmaLlmService = GemmaLlmService(applicationContext)
+        val textAnalysisService = TextAnalysisService(gemmaLlmService)
+        val calendarUseCase = CalendarUseCase(
+            textAnalysisService = textAnalysisService,
+            eventDatabase = EventDatabase.getDatabase(applicationContext),
+            systemCalendarService = SystemCalendarService(applicationContext),
+            preferencesManager = preferencesManager
+        )
+
+        try {
+            ensureNotificationChannel()
+            setForeground(createForegroundInfo("Initializing ${modelConfig.shortName}..."))
+
+            if (!inputFile.exists()) {
+                notifyResult("Analysis failed", "The queued input file is no longer available.")
+                return Result.failure(workDataOf(KEY_ERROR to "Queued input file is missing."))
+            }
+
+            if (!modelDownloadManager.isModelDownloaded(modelConfig)) {
+                notifyResult("Model missing", "${modelConfig.shortName} is not downloaded anymore.")
+                return Result.failure(workDataOf(KEY_ERROR to "Selected model is no longer downloaded."))
+            }
+
+            gemmaLlmService.initialize(
+                modelPath = modelDownloadManager.getModelFile(modelConfig).absolutePath,
+                modelConfig = modelConfig
+            )
+            modelDownloadManager.cleanupUnusedModelFiles(modelConfig)
+
+            val traceId = "bg-${System.currentTimeMillis().toString(16)}"
+            val inputContext = InputContext(traceId = traceId)
+            val result = when (inputType) {
+                AnalysisInputType.TEXT -> {
+                    setForeground(createForegroundInfo("Analyzing text with ${modelConfig.shortName}..."))
+                    val text = inputFile.readText(StandardCharsets.UTF_8)
+                    calendarUseCase.createEventFromText(text, inputContext)
+                }
+                AnalysisInputType.IMAGE -> {
+                    setForeground(createForegroundInfo("Analyzing image with ${modelConfig.shortName}..."))
+                    val bitmap = BitmapFactory.decodeFile(inputFile.absolutePath)
+                        ?: return failureResult("Unable to decode the queued image.")
+                    calendarUseCase.createEventFromImage(bitmap, inputContext)
+                }
+                AnalysisInputType.AUDIO -> {
+                    setForeground(createForegroundInfo("Analyzing audio with ${modelConfig.shortName}..."))
+                    calendarUseCase.createEventFromAudio(inputFile.readBytes(), inputContext)
+                }
+            }
+
+            return when (result) {
+                is EventResult.Success -> {
+                    val message = if (result.events.size == 1) {
+                        "Created event: ${result.event.title}"
+                    } else {
+                        "Created ${result.events.size} events. First: ${result.event.title}"
+                    }
+                    notifyResult("Analysis complete", message)
+                    Result.success(
+                        workDataOf(
+                            KEY_CREATED_COUNT to result.events.size,
+                            KEY_FIRST_TITLE to result.event.title
+                        )
+                    )
+                }
+                is EventResult.Failure -> {
+                    notifyResult("Analysis failed", result.message)
+                    Result.failure(workDataOf(KEY_ERROR to result.message))
+                }
+            }
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Background analysis crashed for ${modelConfig.displayName}", e)
+            notifyResult("Analysis failed", e.message ?: "Unexpected background analysis error.")
+            return Result.failure(workDataOf(KEY_ERROR to (e.message ?: "Unexpected background analysis error.")))
+        } finally {
+            gemmaLlmService.close()
+            inputFile.deleteQuietly()
+        }
+    }
+
+    private fun failureResult(message: String): Result {
+        notifyResult("Analysis failed", message)
+        return Result.failure(workDataOf(KEY_ERROR to message))
+    }
+
+    private fun createForegroundInfo(message: String): ForegroundInfo {
+        val notification = NotificationCompat.Builder(applicationContext, ANALYSIS_CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("Calendar Add analysis")
+            .setContentText(message)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .addAction(
+                0,
+                "Cancel",
+                WorkManager.getInstance(applicationContext).createCancelPendingIntent(id)
+            )
+            .build()
+
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(
+                FOREGROUND_NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            ForegroundInfo(FOREGROUND_NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun notifyResult(title: String, message: String) {
+        val notification = NotificationCompat.Builder(applicationContext, ANALYSIS_CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setAutoCancel(true)
+            .setContentIntent(createLaunchIntent())
+            .build()
+
+        val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(RESULT_NOTIFICATION_ID, notification)
+    }
+
+    private fun createLaunchIntent(): PendingIntent? {
+        val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            applicationContext,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun ensureNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
+        val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channel = NotificationChannel(
+            ANALYSIS_CHANNEL_ID,
+            ANALYSIS_CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_LOW
+        )
+        manager.createNotificationChannel(channel)
+    }
+}
+
+private fun File.deleteQuietly() {
+    if (exists()) {
+        delete()
+    }
+}

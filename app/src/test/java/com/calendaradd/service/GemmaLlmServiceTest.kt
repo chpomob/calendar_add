@@ -74,14 +74,14 @@ class GemmaLlmServiceTest {
 
         service.initialize(
             modelPath = "/tmp/fake-qwen-model.litertlm",
-            modelConfig = LiteRtModelCatalog.find("qwen-3_5-4b")
+            modelConfig = LiteRtModelCatalog.find("qwen-3_5-0_8b")
         )
 
         val config = requireNotNull(capturedConfig)
         assertEquals(Backend.CPU::class.java.name, config.backend::class.java.name)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
         assertEquals(null, config.audioBackend)
-        assertEquals(512, config.maxNumTokens)
+        assertEquals(1024, config.maxNumTokens)
     }
 
     @Test

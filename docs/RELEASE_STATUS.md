@@ -18,6 +18,7 @@ Verified on the current codebase:
 - Image analysis flow from picker/share input
 - Shared audio-byte analysis pipeline
 - Multi-event extraction and persistence
+- Background analysis through a foreground worker notification flow
 - Local Room persistence
 - Optional sync to the Android system calendar
 - Settings for model choice and calendar target
@@ -34,7 +35,6 @@ Verified on the current codebase:
 
 - No extraction fallback when the selected model is absent
 - No finished in-app voice recording flow
-- No background worker/foreground-service inference flow yet
 - Event list is basic: no search, filter, or delete UI
 - Event detail is read-only apart from sync-to-calendar
 - No on-device runtime verification for every model/backend combination

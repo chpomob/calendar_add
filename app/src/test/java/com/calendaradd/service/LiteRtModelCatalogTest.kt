@@ -30,7 +30,7 @@ class LiteRtModelCatalogTest {
 
     @Test
     fun `Qwen models do not advertise audio support`() {
-        val qwen = LiteRtModelCatalog.find("qwen-3_5-4b")
+        val qwen = LiteRtModelCatalog.find("qwen-3_5-0_8b")
 
         assertTrue(qwen.supportsText)
         assertTrue(qwen.supportsImage)
@@ -38,11 +38,9 @@ class LiteRtModelCatalogTest {
     }
 
     @Test
-    fun `Qwen models use conservative token caps`() {
-        val qwenSmall = LiteRtModelCatalog.find("qwen-3_5-0_8b")
-        val qwenLarge = LiteRtModelCatalog.find("qwen-3_5-4b")
+    fun `Qwen model uses conservative token cap`() {
+        val qwen = LiteRtModelCatalog.find("qwen-3_5-0_8b")
 
-        assertEquals(1024, qwenSmall.maxNumTokens)
-        assertEquals(512, qwenLarge.maxNumTokens)
+        assertEquals(1024, qwen.maxNumTokens)
     }
 }

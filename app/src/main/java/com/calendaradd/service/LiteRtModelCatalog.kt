@@ -112,19 +112,6 @@ object LiteRtModelCatalog {
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE),
             executionProfile = ModelExecutionProfile.CPU_ONLY_MULTIMODAL,
             maxNumTokens = 1024
-        ),
-        LiteRtModelConfig(
-            id = "qwen-3_5-4b",
-            displayName = "Qwen 3.5 4B LiteRT",
-            shortName = "Qwen 3.5 4B",
-            description = "Larger multimodal community conversion. Supports text and image, but not audio. Experimental in this app.",
-            source = "Yoursmiling / community conversion",
-            downloadUrl = "https://huggingface.co/Yoursmiling/Qwen3.5-4B-LiteRT/resolve/main/model_multimodal.litertlm",
-            fileName = "qwen3.5-4b-20260404-model_multimodal.litertlm",
-            sizeBytes = decimalMb(5019.62),
-            capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE),
-            executionProfile = ModelExecutionProfile.CPU_ONLY_MULTIMODAL,
-            maxNumTokens = 512
         )
     )
 

@@ -31,7 +31,6 @@ Relevant code:
 | Gemma 3n E2B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
 | Gemma 3n E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
 | Qwen 3.5 0.8B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental, capped tokens |
-| Qwen 3.5 4B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental, capped tokens |
 
 ## Download And Storage
 
@@ -72,6 +71,7 @@ For Qwen models, the app also sets conservative `maxNumTokens` values during eng
 - Image input is available from the home screen and Android share intents
 - Audio bytes can be accepted from Android share intents
 - In-app voice recording UI is still unfinished
+- Slow analysis jobs are executed through a foreground WorkManager worker with a notification
 
 ## Event Extraction Contract
 
