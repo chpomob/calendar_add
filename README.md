@@ -78,6 +78,7 @@ docs/
 
 1. Open the app and download a model.
 2. Optionally switch models in Settings.
+   New model choices apply to the next analysis job; the app no longer eagerly initializes LiteRT-LM on the home screen.
 3. Paste text, take a photo, pick an image, or share content into the app.
 4. Review the created events in the event list.
 5. Optionally sync events to the system calendar.

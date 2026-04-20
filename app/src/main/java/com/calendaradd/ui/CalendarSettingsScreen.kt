@@ -117,7 +117,7 @@ fun CalendarSettingsScreen(
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     Text(
-                        "Tap a model below to switch. The app will reinitialize on return to Home.",
+                        "Tap a model below to switch. The next analysis job will use the chosen model after it is downloaded.",
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
