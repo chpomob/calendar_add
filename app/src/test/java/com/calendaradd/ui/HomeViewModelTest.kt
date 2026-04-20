@@ -5,6 +5,7 @@ import com.calendaradd.service.DownloadStatus
 import com.calendaradd.service.GemmaLlmService
 import com.calendaradd.service.LiteRtModelCatalog
 import com.calendaradd.service.ModelDownloadManager
+import com.calendaradd.service.PendingWorkStatus
 import com.calendaradd.usecase.CalendarUseCase
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -53,7 +54,10 @@ class HomeViewModelTest {
         val model = LiteRtModelCatalog.find(LiteRtModelCatalog.DEFAULT_MODEL_ID)
         every { modelDownloadManager.getSelectedModel() } returns model
         every { modelDownloadManager.isModelDownloaded(model) } returns true
-        coEvery { backgroundAnalysisScheduler.hasPendingWork() } returns false
+        coEvery { backgroundAnalysisScheduler.reconcilePendingWork() } returns PendingWorkStatus(
+            hasPendingWork = false,
+            clearedStaleWork = false
+        )
 
         val viewModel = HomeViewModel(
             calendarUseCase = calendarUseCase,
@@ -80,7 +84,10 @@ class HomeViewModelTest {
         every { modelDownloadManager.startDownload(currentModel) } returns 42L
         every { modelDownloadManager.trackProgress(42L) } returns flowOf(DownloadStatus.Success)
         every { modelDownloadManager.cleanupUnusedModelFiles(any()) } returns Unit
-        coEvery { backgroundAnalysisScheduler.hasPendingWork() } returns false
+        coEvery { backgroundAnalysisScheduler.reconcilePendingWork() } returns PendingWorkStatus(
+            hasPendingWork = false,
+            clearedStaleWork = false
+        )
         coEvery { backgroundAnalysisScheduler.getPendingModels() } returns setOf(queuedModel)
 
         val viewModel = HomeViewModel(

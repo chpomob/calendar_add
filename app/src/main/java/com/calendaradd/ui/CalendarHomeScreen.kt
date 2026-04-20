@@ -2,8 +2,10 @@ package com.calendaradd.ui
 
 import android.graphics.Bitmap
 import android.Manifest
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -30,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.core.app.NotificationManagerCompat
 import com.calendaradd.navigation.Screen
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
@@ -69,12 +72,17 @@ fun CalendarHomeScreen(
     
     var inputValue by remember { mutableStateOf("") }
     var pendingCameraImagePath by rememberSaveable { mutableStateOf<String?>(null) }
+    var notificationsEnabled by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
 
     fun clearPendingCameraFile() {
         pendingCameraImagePath?.let { path ->
             runCatching { File(path).takeIf { it.exists() }?.delete() }
         }
         pendingCameraImagePath = null
+    }
+
+    fun refreshNotificationState() {
+        notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
     fun processImageUri(uri: Uri, source: String) {
@@ -145,6 +153,7 @@ fun CalendarHomeScreen(
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        refreshNotificationState()
         if (!isGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             scope.launch {
                 snackbarHostState.showSnackbar("Notification permission is recommended for background analysis updates.")
@@ -199,6 +208,7 @@ fun CalendarHomeScreen(
 
     // Check permissions on launch
     LaunchedEffect(Unit) {
+        refreshNotificationState()
         if (!context.hasCalendarPermissions()) {
             calendarPermissionLauncher.launch(calendarPermissions)
         }
@@ -210,6 +220,7 @@ fun CalendarHomeScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                refreshNotificationState()
                 viewModel.refreshModelState()
             }
         }
@@ -390,6 +401,11 @@ fun CalendarHomeScreen(
                         Spacer(Modifier.height(16.dp))
                         NoticeCard("Shared content is waiting and will start as soon as the model is ready.")
                     }
+
+                    if (!notificationsEnabled) {
+                        Spacer(Modifier.height(16.dp))
+                        NoticeCard("Android notifications are disabled for Calendar Add, so background progress and completion alerts may stay silent.")
+                    }
                 }
             } else {
                 Column(
@@ -409,6 +425,10 @@ fun CalendarHomeScreen(
 
                     if (uiState is HomeUiState.Queued) {
                         NoticeCard((uiState as HomeUiState.Queued).message)
+                    }
+
+                    if (!notificationsEnabled) {
+                        NoticeCard("Android notifications are disabled, so background analysis may run without a visible notification. Re-enable them in app notification settings.")
                     }
 
                     HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
@@ -622,10 +642,35 @@ fun CalendarHomeScreen(
                 AlertDialog(
                     onDismissRequest = { viewModel.resetState() },
                     title = { Text("Running In Background") },
-                    text = { Text((uiState as HomeUiState.Queued).message) },
+                    text = {
+                        Text(
+                            buildString {
+                                append((uiState as HomeUiState.Queued).message)
+                                if (!notificationsEnabled) {
+                                    append("\n\nNotifications are currently disabled for Calendar Add, so progress and completion alerts may not appear until you re-enable them in Android settings.")
+                                }
+                            }
+                        )
+                    },
                     confirmButton = {
                         Button(onClick = { viewModel.resetState() }) {
                             Text("OK")
+                        }
+                    },
+                    dismissButton = {
+                        if (!notificationsEnabled) {
+                            TextButton(
+                                onClick = {
+                                    viewModel.resetState()
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                        }
+                                    )
+                                }
+                            ) {
+                                Text("Notification Settings")
+                            }
                         }
                     }
                 )

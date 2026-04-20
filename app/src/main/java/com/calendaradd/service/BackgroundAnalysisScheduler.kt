@@ -7,6 +7,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.calendaradd.util.AppLog
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
@@ -16,6 +17,7 @@ import kotlinx.coroutines.withContext
 
 private const val ANALYSIS_INPUT_DIR = "background-analysis-inputs"
 private const val MODEL_TAG_PREFIX = "calendaradd-model:"
+private const val INPUT_TAG_PREFIX = "calendaradd-input:"
 
 enum class AnalysisInputType {
     TEXT,
@@ -23,8 +25,17 @@ enum class AnalysisInputType {
     AUDIO
 }
 
-class BackgroundAnalysisScheduler(private val context: Context) {
+data class PendingWorkStatus(
+    val hasPendingWork: Boolean,
+    val clearedStaleWork: Boolean
+)
+
+class BackgroundAnalysisScheduler(
+    context: Context,
+    private val workManager: WorkManager = WorkManager.getInstance(context.applicationContext)
+) {
     companion object {
+        private const val TAG = "BackgroundAnalysisScheduler"
         const val UNIQUE_WORK_NAME = "calendaradd-background-analysis"
         const val WORK_TAG = "calendaradd-background-analysis"
 
@@ -34,7 +45,6 @@ class BackgroundAnalysisScheduler(private val context: Context) {
     }
 
     private val appContext = context.applicationContext
-    private val workManager = WorkManager.getInstance(appContext)
 
     fun enqueueText(input: String, model: LiteRtModelConfig): UUID {
         val inputFile = persistText(input)
@@ -51,26 +61,56 @@ class BackgroundAnalysisScheduler(private val context: Context) {
         return enqueueWork(AnalysisInputType.AUDIO, inputFile, model)
     }
 
-    suspend fun hasPendingWork(): Boolean = withContext(Dispatchers.IO) {
-        workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get().any { info ->
-            info.state == WorkInfo.State.ENQUEUED || info.state == WorkInfo.State.RUNNING || info.state == WorkInfo.State.BLOCKED
-        }
+    suspend fun hasPendingWork(): Boolean {
+        return reconcilePendingWork().hasPendingWork
     }
 
     suspend fun getPendingModels(): Set<LiteRtModelConfig> = withContext(Dispatchers.IO) {
-        workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+        getPendingInfos()
             .asSequence()
-            .filter { info ->
-                info.state == WorkInfo.State.ENQUEUED ||
-                    info.state == WorkInfo.State.RUNNING ||
-                    info.state == WorkInfo.State.BLOCKED
-            }
             .mapNotNull { info ->
                 val modelId = info.tags.firstOrNull { it.startsWith(MODEL_TAG_PREFIX) }
                     ?.removePrefix(MODEL_TAG_PREFIX)
                 LiteRtModelCatalog.models.firstOrNull { it.id == modelId }
             }
             .toSet()
+    }
+
+    suspend fun reconcilePendingWork(): PendingWorkStatus = withContext(Dispatchers.IO) {
+        val pendingInfos = getPendingInfos()
+        if (pendingInfos.isEmpty()) {
+            return@withContext PendingWorkStatus(
+                hasPendingWork = false,
+                clearedStaleWork = false
+            )
+        }
+
+        val staleReasons = pendingInfos.mapNotNull { info ->
+            when (val inputPath = extractInputPath(info)) {
+                null -> "legacy-or-invalid-metadata:${info.id}"
+                else -> if (!File(inputPath).exists()) {
+                    "missing-input:${info.id}"
+                } else {
+                    null
+                }
+            }
+        }
+
+        if (staleReasons.isNotEmpty()) {
+            AppLog.w(TAG, "Clearing stale background analysis chain reasons=${staleReasons.joinToString()}")
+            workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
+            workManager.pruneWork()
+            clearPersistedInputs()
+            return@withContext PendingWorkStatus(
+                hasPendingWork = false,
+                clearedStaleWork = true
+            )
+        }
+
+        PendingWorkStatus(
+            hasPendingWork = true,
+            clearedStaleWork = false
+        )
     }
 
     private fun enqueueWork(inputType: AnalysisInputType, inputFile: File, model: LiteRtModelConfig): UUID {
@@ -84,6 +124,7 @@ class BackgroundAnalysisScheduler(private val context: Context) {
             )
             .addTag(WORK_TAG)
             .addTag("$MODEL_TAG_PREFIX${model.id}")
+            .addTag("$INPUT_TAG_PREFIX${inputFile.absolutePath}")
             .build()
 
         workManager.enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
@@ -113,7 +154,32 @@ class BackgroundAnalysisScheduler(private val context: Context) {
     }
 
     private fun createInputFile(prefix: String, suffix: String): File {
-        val dir = File(appContext.cacheDir, ANALYSIS_INPUT_DIR).apply { mkdirs() }
+        val dir = inputStorageDir().apply { mkdirs() }
         return File.createTempFile(prefix, suffix, dir)
+    }
+
+    private fun inputStorageDir(): File {
+        return File(appContext.noBackupFilesDir, ANALYSIS_INPUT_DIR)
+    }
+
+    private fun clearPersistedInputs() {
+        inputStorageDir().listFiles()?.forEach { file ->
+            if (file.isFile && !file.delete()) {
+                AppLog.w(TAG, "Failed to delete stale queued input ${file.absolutePath}")
+            }
+        }
+    }
+
+    private fun getPendingInfos(): List<WorkInfo> {
+        return workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get().filter { info ->
+            info.state == WorkInfo.State.ENQUEUED ||
+                info.state == WorkInfo.State.RUNNING ||
+                info.state == WorkInfo.State.BLOCKED
+        }
+    }
+
+    private fun extractInputPath(info: WorkInfo): String? {
+        return info.tags.firstOrNull { it.startsWith(INPUT_TAG_PREFIX) }
+            ?.removePrefix(INPUT_TAG_PREFIX)
     }
 }

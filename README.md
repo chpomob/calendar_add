@@ -37,6 +37,7 @@ Configured in [LiteRtModelCatalog.kt](app/src/main/java/com/calendaradd/service/
 Models are downloaded by the app into its app-specific downloads directory through `DownloadManager`.
 After a successful model switch, the app removes older app-managed model files while preserving any model still needed by queued background analysis jobs.
 Slow analysis jobs are executed through WorkManager in the foreground with visible Android notifications, and each finished job keeps its own result notification.
+Queued background inputs are stored in app-private no-backup storage so they survive normal app restarts and device reboots more reliably than cache-based temp files.
 
 ## Requirements
 
@@ -90,6 +91,7 @@ docs/
 - Large local models can still be slow, but analysis can now continue in the background with a notification.
 - Extracted events are only saved when the model returns a parseable start date/time; malformed dates are rejected instead of defaulting to the current time.
 - App preferences stay local to the device and are not included in Android cloud backup rules.
+- If Android notifications are disabled for the app, the home screen now warns that background analysis may run silently.
 
 ## Documentation
 

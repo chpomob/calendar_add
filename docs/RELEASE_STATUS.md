@@ -31,6 +31,7 @@ Verified on the current codebase:
 - Extraction failures no longer create empty placeholder events
 - Invalid extracted dates are rejected instead of silently defaulting to the current time
 - Background analysis results keep separate notifications instead of overwriting each other
+- Stale WorkManager background chains are repaired on startup/enqueue, and queued inputs are no longer stored only in cache
 - Event detail now hides empty metadata fields instead of showing blank labels
 - Request tracing/logging is present across the extraction pipeline
 

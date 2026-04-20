@@ -44,6 +44,7 @@ class HomeViewModel(
 
     fun refreshModelState() {
         viewModelScope.launch {
+            val pendingStatus = backgroundAnalysisScheduler.reconcilePendingWork()
             val currentModel = modelDownloadManager.getSelectedModel()
             val hasModelChanged = currentModel.id != _selectedModel.value.id
 
@@ -64,7 +65,7 @@ class HomeViewModel(
                 return@launch
             }
 
-            if (backgroundAnalysisScheduler.hasPendingWork()) {
+            if (pendingStatus.hasPendingWork) {
                 _isModelReady.value = true
                 _uiState.value = HomeUiState.Queued(
                     "Analysis is still running in the background. You can leave the app and watch the notification."
@@ -129,15 +130,22 @@ class HomeViewModel(
         if (input.isBlank() || !_isModelReady.value) return
         val currentModel = _selectedModel.value
 
-        try {
-            val workId = backgroundAnalysisScheduler.enqueueText(input, currentModel)
-            gemmaLlmService.close()
-            AppLog.i(TAG, "Queued background text analysis workId=$workId model=${currentModel.shortName}")
-            _uiState.value = HomeUiState.Queued(
-                "Text analysis was queued in the background. You can leave the app and wait for the notification."
-            )
-        } catch (e: Exception) {
-            _uiState.value = HomeUiState.Error("Failed to queue background text analysis: ${e.message}")
+        viewModelScope.launch {
+            try {
+                val pendingStatus = backgroundAnalysisScheduler.reconcilePendingWork()
+                val workId = backgroundAnalysisScheduler.enqueueText(input, currentModel)
+                gemmaLlmService.close()
+                AppLog.i(TAG, "Queued background text analysis workId=$workId model=${currentModel.shortName}")
+                _uiState.value = HomeUiState.Queued(
+                    if (pendingStatus.clearedStaleWork) {
+                        "A stale background job was cleared and your text analysis was queued again. You can leave the app and wait for the notification."
+                    } else {
+                        "Text analysis was queued in the background. You can leave the app and wait for the notification."
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = HomeUiState.Error("Failed to queue background text analysis: ${e.message}")
+            }
         }
     }
 
@@ -148,15 +156,22 @@ class HomeViewModel(
             _uiState.value = HomeUiState.Error("${currentModel.displayName} does not support image input.")
             return
         }
-        try {
-            val workId = backgroundAnalysisScheduler.enqueueImage(bitmap, currentModel)
-            gemmaLlmService.close()
-            AppLog.i(TAG, "Queued background image analysis workId=$workId model=${currentModel.shortName}")
-            _uiState.value = HomeUiState.Queued(
-                "Image analysis was queued in the background. You can leave the app and wait for the notification."
-            )
-        } catch (e: Exception) {
-            _uiState.value = HomeUiState.Error("Failed to queue background image analysis: ${e.message}")
+        viewModelScope.launch {
+            try {
+                val pendingStatus = backgroundAnalysisScheduler.reconcilePendingWork()
+                val workId = backgroundAnalysisScheduler.enqueueImage(bitmap, currentModel)
+                gemmaLlmService.close()
+                AppLog.i(TAG, "Queued background image analysis workId=$workId model=${currentModel.shortName}")
+                _uiState.value = HomeUiState.Queued(
+                    if (pendingStatus.clearedStaleWork) {
+                        "A stale background job was cleared and your image analysis was queued again. You can leave the app and wait for the notification."
+                    } else {
+                        "Image analysis was queued in the background. You can leave the app and wait for the notification."
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = HomeUiState.Error("Failed to queue background image analysis: ${e.message}")
+            }
         }
     }
 
@@ -167,15 +182,22 @@ class HomeViewModel(
             _uiState.value = HomeUiState.Error("${currentModel.displayName} does not support audio input.")
             return
         }
-        try {
-            val workId = backgroundAnalysisScheduler.enqueueAudio(audioData, currentModel)
-            gemmaLlmService.close()
-            AppLog.i(TAG, "Queued background audio analysis workId=$workId model=${currentModel.shortName}")
-            _uiState.value = HomeUiState.Queued(
-                "Audio analysis was queued in the background. You can leave the app and wait for the notification."
-            )
-        } catch (e: Exception) {
-            _uiState.value = HomeUiState.Error("Failed to queue background audio analysis: ${e.message}")
+        viewModelScope.launch {
+            try {
+                val pendingStatus = backgroundAnalysisScheduler.reconcilePendingWork()
+                val workId = backgroundAnalysisScheduler.enqueueAudio(audioData, currentModel)
+                gemmaLlmService.close()
+                AppLog.i(TAG, "Queued background audio analysis workId=$workId model=${currentModel.shortName}")
+                _uiState.value = HomeUiState.Queued(
+                    if (pendingStatus.clearedStaleWork) {
+                        "A stale background job was cleared and your audio analysis was queued again. You can leave the app and wait for the notification."
+                    } else {
+                        "Audio analysis was queued in the background. You can leave the app and wait for the notification."
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = HomeUiState.Error("Failed to queue background audio analysis: ${e.message}")
+            }
         }
     }
 
