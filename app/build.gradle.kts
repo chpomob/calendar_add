@@ -5,6 +5,16 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+import java.util.Properties
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+
+if (hasReleaseKeystore) {
+    keystorePropertiesFile.inputStream().use(keystoreProperties::load)
+}
+
 android {
     namespace = "com.calendaradd"
     compileSdk = 35
@@ -22,10 +32,30 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(requireNotNull(keystoreProperties.getProperty("storeFile")) {
+                    "Missing storeFile in keystore.properties"
+                })
+                storePassword = requireNotNull(keystoreProperties.getProperty("storePassword")) {
+                    "Missing storePassword in keystore.properties"
+                }
+                keyAlias = requireNotNull(keystoreProperties.getProperty("keyAlias")) {
+                    "Missing keyAlias in keystore.properties"
+                }
+                keyPassword = requireNotNull(keystoreProperties.getProperty("keyPassword")) {
+                    "Missing keyPassword in keystore.properties"
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

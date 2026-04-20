@@ -6,6 +6,7 @@
 - `targetSdk = 35`
 - Release minify and shrink are enabled
 - Release Android App Bundle builds successfully
+- Release signing is wired through local `keystore.properties`
 
 Current output after `./gradlew bundleRelease`:
 
@@ -15,19 +16,26 @@ Current output after `./gradlew bundleRelease`:
 
 The project can now produce a release bundle artifact suitable for the next distribution steps.
 
-At the moment, the bundle is generated with the default local release setup. For production distribution, use a dedicated release keystore and stable release versioning.
+Gradle now reads release signing values from a local `keystore.properties` file when it exists.
+
+Expected keys:
+
+- `storeFile`
+- `storePassword`
+- `keyAlias`
+- `keyPassword`
+
+Use `keystore.properties.example` as the template.
 
 ## Recommended Next Steps
 
-1. Create a dedicated release keystore.
-2. Copy `keystore.properties.example` to `keystore.properties` and fill in the real values locally.
-3. Wire explicit release signing in Gradle.
-4. Replace `versionName = "1.0-RECOVERY"` with a production version.
-5. Prepare Play Console assets and declarations:
+1. Back up the release keystore safely. Losing it means losing the signing identity for future updates unless you rotate through Play processes.
+2. Replace `versionName = "1.0-RECOVERY"` with a production version.
+3. Prepare Play Console assets and declarations:
    - privacy policy
    - data safety form
    - screenshots and listing copy
-6. Build and verify:
+4. Build and verify:
    - `./gradlew clean test`
    - `./gradlew bundleRelease`
 
