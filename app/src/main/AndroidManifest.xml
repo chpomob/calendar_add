@@ -11,12 +11,6 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     
-    <!-- Audio permission -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-feature
-        android:name="android.hardware.microphone"
-        android:required="false" />
-    
     <!-- Camera permission -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature

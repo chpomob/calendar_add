@@ -121,13 +121,24 @@ fun CalendarHomeScreen(
         }
     }
 
-    val audioPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            scope.launch { snackbarHostState.showSnackbar("Voice capture ready!") }
-        } else {
-            scope.launch { snackbarHostState.showSnackbar("Audio permission denied.") }
+    fun processAudioUri(uri: Uri, source: String) {
+        AppLog.i(tag, "$source selected uri=$uri")
+        try {
+            val audioBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (audioBytes != null) {
+                AppLog.i(tag, "$source loaded audio bytes=${audioBytes.size}")
+                viewModel.processAudio(audioBytes)
+            } else {
+                AppLog.w(tag, "$source failed to read uri=$uri")
+                scope.launch {
+                    snackbarHostState.showSnackbar("Unable to read that audio file for analysis.")
+                }
+            }
+        } catch (e: Exception) {
+            AppLog.e(tag, "$source failed uri=$uri", e)
+            scope.launch {
+                snackbarHostState.showSnackbar("Unable to read that audio file for analysis.")
+            }
         }
     }
 
@@ -146,6 +157,14 @@ fun CalendarHomeScreen(
     ) { uri ->
         uri?.let {
             processImageUri(it, "Image picker")
+        }
+    }
+
+    val audioPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            processAudioUri(it, "Audio picker")
         }
     }
 
@@ -474,12 +493,12 @@ fun CalendarHomeScreen(
                         ) {
                             ActionCard(
                                 icon = Icons.Default.Mic,
-                                label = if (selectedModel.supportsAudio) "Voice" else "Voice off",
-                                caption = if (selectedModel.supportsAudio) "Audio workflow" else "Current model has no audio",
+                                label = if (selectedModel.supportsAudio) "Audio" else "Audio off",
+                                caption = if (selectedModel.supportsAudio) "Pick a recording" else "Current model has no audio",
                                 accent = MaterialTheme.colorScheme.secondaryContainer,
                                 onClick = {
                                     if (selectedModel.supportsAudio) {
-                                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        audioPickerLauncher.launch("audio/*")
                                     } else {
                                         scope.launch {
                                             snackbarHostState.showSnackbar("${selectedModel.displayName} does not support audio.")
