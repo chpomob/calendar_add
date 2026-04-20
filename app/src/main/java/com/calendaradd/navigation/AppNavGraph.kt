@@ -103,6 +103,10 @@ fun AppNavGraph(
                 viewModel = settingsViewModel
             )
         }
+
+        composable(Screen.Privacy.route) {
+            PrivacyPolicyScreen(navController = navController)
+        }
     }
 }
 
@@ -111,4 +115,5 @@ sealed class Screen(val route: String) {
     object EventList : Screen("eventlist")
     object EventDetail : Screen("eventdetail")
     object Settings : Screen("settings")
+    object Privacy : Screen("privacy")
 }

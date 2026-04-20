@@ -45,6 +45,15 @@ Core behavior:
 - contact email
 - privacy policy URL
 
+## Repository Scaffolding
+
+The repository now contains:
+
+- `docs/PRIVACY_POLICY.md`
+- `docs/DATA_SAFETY.md`
+
+There is also an in-app `Privacy & data` screen reachable from Settings. It is a user-facing summary, not a substitute for the final hosted privacy policy URL required by Play.
+
 ## Permission And Feature Notes
 
 From the current manifest:

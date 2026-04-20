@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.calendaradd.navigation.Screen
 import com.calendaradd.service.LiteRtModelConfig
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
@@ -210,6 +211,18 @@ fun CalendarSettingsScreen(
                         supportingContent = { Text("1.0.0 (LiteRT-LM Edition)") },
                         leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
                     )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    ListItem(
+                        headlineContent = { Text("Privacy & data") },
+                        supportingContent = {
+                            Text("Review what the app accesses, stores, and keeps on device")
+                        },
+                        leadingContent = { Icon(Icons.Default.Lock, contentDescription = null) },
+                        modifier = Modifier.clickable {
+                            navController.navigate(Screen.Privacy.route)
+                        }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     ListItem(
                         headlineContent = { Text("AI Model") },
                         supportingContent = {
