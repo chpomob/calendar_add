@@ -16,7 +16,7 @@ Verified on the current codebase:
 - Runtime download of selectable LiteRT-LM models
 - Text analysis flow from the home screen
 - Image analysis flow from picker/share input
-- Live microphone capture, audio-file import, and shared audio-byte analysis pipeline
+- Press-and-hold live microphone capture with a 30-second limit, audio-file import, and shared audio-byte analysis pipeline
 - Multi-event extraction and persistence
 - Background analysis through a foreground worker notification flow
 - Local Room persistence
@@ -38,7 +38,7 @@ Verified on the current codebase:
 ## Still Missing Or Incomplete
 
 - No extraction fallback when the selected model is absent
-- No waveform/live recording UI polish yet beyond start/stop voice capture
+- No waveform/live recording UI polish yet beyond press-and-hold voice capture
 - Event list is basic: no search, filter, or delete UI
 - Event detail is read-only apart from sync-to-calendar
 - No on-device runtime verification for every model/backend combination

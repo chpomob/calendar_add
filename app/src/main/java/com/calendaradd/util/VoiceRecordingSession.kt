@@ -12,7 +12,8 @@ private const val RECORDING_EXTENSION = ".m4a"
 
 class VoiceRecordingSession private constructor(
     private val recorder: MediaRecorder,
-    val outputFile: File
+    val outputFile: File,
+    private val startedAtElapsedRealtime: Long
 ) {
     companion object {
         fun start(context: Context): VoiceRecordingSession {
@@ -35,7 +36,11 @@ class VoiceRecordingSession private constructor(
                     prepare()
                     start()
                 }
-                return VoiceRecordingSession(recorder, outputFile)
+                return VoiceRecordingSession(
+                    recorder = recorder,
+                    outputFile = outputFile,
+                    startedAtElapsedRealtime = SystemClock.elapsedRealtime()
+                )
             } catch (error: Exception) {
                 runCatching { recorder.reset() }
                 runCatching { recorder.release() }
@@ -49,6 +54,8 @@ class VoiceRecordingSession private constructor(
             return File(dir, "voice_${SystemClock.elapsedRealtime()}$RECORDING_EXTENSION")
         }
     }
+
+    fun elapsedMillis(): Long = SystemClock.elapsedRealtime() - startedAtElapsedRealtime
 
     fun stopAndReadBytes(): ByteArray {
         return try {

@@ -12,13 +12,13 @@ The app currently uses LiteRT-LM models downloaded at runtime. After the model d
 - Text input, direct camera capture, image picker, and Android share-intent import are wired
 - Multiple events can be extracted from one input and saved in one pass
 - Long-running analysis is queued into a foreground background worker with notifications
+- Press-and-hold microphone capture with a 30-second limit, audio-file import, and shared audio analysis are wired
 - Shared text, image, and audio imports try to queue directly into background analysis without opening the main UI when the model is already available
 - Optional sync to the device calendar
 
 Current gaps:
 
 - No extraction fallback path when no model is installed
-- Live microphone capture, audio-file import, and shared audio can be analyzed
 - Event list/detail screens are basic: no search, edit, or delete UI yet
 - In-app completion handling still relies mainly on notifications rather than rich live progress UI
 
@@ -89,6 +89,7 @@ docs/
 - The app is local-first, but the one-time model download requires network access.
 - Qwen models do not support audio in this app and remain experimental.
 - Large local models can still be slow, but analysis can now continue in the background with a notification.
+- Live microphone capture uses a press-and-hold interaction and stops automatically after 30 seconds.
 - Extracted events are only saved when the model returns a parseable start date/time; malformed dates are rejected instead of defaulting to the current time.
 - App preferences stay local to the device and are not included in Android cloud backup rules.
 - If Android notifications are disabled for the app, the home screen now warns that background analysis may run silently.

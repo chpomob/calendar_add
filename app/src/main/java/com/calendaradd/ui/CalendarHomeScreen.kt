@@ -3,6 +3,7 @@ package com.calendaradd.ui
 import android.graphics.Bitmap
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -10,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.calendaradd.navigation.Screen
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
@@ -42,7 +46,12 @@ import com.calendaradd.util.VoiceRecordingSession
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
 import java.io.File
+import kotlin.math.max
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val MAX_VOICE_RECORDING_MS = 30_000L
+private const val VOICE_RECORDING_PROGRESS_TICK_MS = 250L
 
 /**
  * Main home screen for the calendar app.
@@ -75,6 +84,7 @@ fun CalendarHomeScreen(
     var pendingCameraImagePath by rememberSaveable { mutableStateOf<String?>(null) }
     var notificationsEnabled by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
     var activeVoiceRecording by remember { mutableStateOf<VoiceRecordingSession?>(null) }
+    var voiceRecordingElapsedMs by remember { mutableStateOf(0L) }
 
     fun clearPendingCameraFile() {
         pendingCameraImagePath?.let { path ->
@@ -87,6 +97,13 @@ fun CalendarHomeScreen(
         notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
+    fun hasAudioPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     fun startVoiceRecording() {
         if (!selectedModel.supportsAudio) {
             scope.launch {
@@ -94,14 +111,18 @@ fun CalendarHomeScreen(
             }
             return
         }
+        if (activeVoiceRecording != null) {
+            return
+        }
 
         runCatching {
             VoiceRecordingSession.start(context)
         }.onSuccess { session ->
             activeVoiceRecording = session
+            voiceRecordingElapsedMs = 0L
             AppLog.i(tag, "Voice recording started file=${session.outputFile.absolutePath}")
             scope.launch {
-                snackbarHostState.showSnackbar("Recording... tap Voice again to stop.")
+                snackbarHostState.showSnackbar("Recording... keep holding, or release to analyze.")
             }
         }.onFailure { error ->
             AppLog.e(tag, "Failed to start voice recording", error)
@@ -111,9 +132,10 @@ fun CalendarHomeScreen(
         }
     }
 
-    fun stopVoiceRecordingAndAnalyze() {
+    fun stopVoiceRecordingAndAnalyze(limitReached: Boolean = false) {
         val session = activeVoiceRecording ?: return
         activeVoiceRecording = null
+        voiceRecordingElapsedMs = 0L
 
         scope.launch {
             runCatching {
@@ -123,6 +145,9 @@ fun CalendarHomeScreen(
                 if (audioBytes.isEmpty()) {
                     snackbarHostState.showSnackbar("The recording was empty.")
                 } else {
+                    if (limitReached) {
+                        snackbarHostState.showSnackbar("Reached the 30-second limit. Analyzing the recording.")
+                    }
                     viewModel.processAudio(audioBytes)
                 }
             }.onFailure { error ->
@@ -212,7 +237,9 @@ fun CalendarHomeScreen(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            startVoiceRecording()
+            scope.launch {
+                snackbarHostState.showSnackbar("Microphone ready. Press and hold Voice to record.")
+            }
         } else {
             scope.launch {
                 snackbarHostState.showSnackbar("Microphone permission is required for live voice capture.")
@@ -264,6 +291,25 @@ fun CalendarHomeScreen(
             clearPendingCameraFile()
             activeVoiceRecording?.cancel()
             activeVoiceRecording = null
+            voiceRecordingElapsedMs = 0L
+        }
+    }
+
+    LaunchedEffect(activeVoiceRecording) {
+        val session = activeVoiceRecording
+        if (session == null) {
+            voiceRecordingElapsedMs = 0L
+            return@LaunchedEffect
+        }
+
+        while (activeVoiceRecording === session) {
+            val elapsed = session.elapsedMillis()
+            voiceRecordingElapsedMs = elapsed
+            if (elapsed >= MAX_VOICE_RECORDING_MS) {
+                stopVoiceRecordingAndAnalyze(limitReached = true)
+                break
+            }
+            delay(VOICE_RECORDING_PROGRESS_TICK_MS)
         }
     }
 
@@ -572,23 +618,23 @@ fun CalendarHomeScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            ActionCard(
+                            VoiceHoldActionCard(
                                 icon = Icons.Default.Mic,
                                 label = when {
                                     !selectedModel.supportsAudio -> "Audio off"
-                                    activeVoiceRecording != null -> "Stop"
+                                    activeVoiceRecording != null -> "Recording"
                                     else -> "Voice"
                                 },
                                 caption = when {
                                     !selectedModel.supportsAudio -> "Current model has no audio"
-                                    activeVoiceRecording != null -> "Finish recording"
-                                    else -> "Record now"
+                                    activeVoiceRecording != null -> "Release to analyze • ${formatVoiceDuration(voiceRecordingElapsedMs)} / 00:30"
+                                    else -> "Press and hold"
                                 },
                                 accent = MaterialTheme.colorScheme.secondaryContainer,
-                                onClick = {
+                                onHoldStart = {
                                     if (selectedModel.supportsAudio) {
-                                        if (activeVoiceRecording != null) {
-                                            stopVoiceRecordingAndAnalyze()
+                                        if (hasAudioPermission()) {
+                                            startVoiceRecording()
                                         } else {
                                             audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                         }
@@ -598,6 +644,7 @@ fun CalendarHomeScreen(
                                         }
                                     }
                                 },
+                                onHoldEnd = { stopVoiceRecordingAndAnalyze() },
                                 modifier = Modifier.weight(1f)
                             )
                             ActionCard(
@@ -824,6 +871,70 @@ fun ActionCard(
 }
 
 @Composable
+fun VoiceHoldActionCard(
+    icon: ImageVector,
+    label: String,
+    caption: String,
+    accent: Color,
+    onHoldStart: () -> Unit,
+    onHoldEnd: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedCard(
+        modifier = modifier
+            .height(112.dp)
+            .pointerInput(onHoldStart, onHoldEnd) {
+                detectTapGestures(
+                    onPress = {
+                        onHoldStart()
+                        tryAwaitRelease()
+                        onHoldEnd()
+                    }
+                )
+            },
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                color = accent,
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.size(46.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(label, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    caption,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun HomeSectionCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
@@ -906,6 +1017,11 @@ private fun CapabilityChip(label: String) {
             style = MaterialTheme.typography.labelMedium
         )
     }
+}
+
+private fun formatVoiceDuration(elapsedMs: Long): String {
+    val totalSeconds = max(0, (elapsedMs / 1000L).toInt()).coerceAtMost(30)
+    return "00:${totalSeconds.toString().padStart(2, '0')}"
 }
 
 @Composable
