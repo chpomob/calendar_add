@@ -7,6 +7,9 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -18,6 +21,7 @@ class TextAnalysisService(
 ) {
     companion object {
         private const val TAG = "TextAnalysisService"
+        private val promptDateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
     }
 
     /**
@@ -29,8 +33,9 @@ class TextAnalysisService(
     ): List<EventExtraction> = withContext(Dispatchers.IO) {
         AppLog.i(TAG, "[${context.traceId}] Analyzing text chars=${input.length}")
         val promptText = buildString {
-            appendLine("Current context: ${context.timestamp} (UTC/Local depending on timezone), Timezone: ${context.timezone}, Language: ${context.language}")
-            appendLine("Reference date: ${java.time.Instant.ofEpochMilli(context.timestamp).atZone(java.time.ZoneId.of(context.timezone))}")
+            append(buildReferencePrompt(context))
+            appendLine("Input type: text")
+            appendLine("Extract calendar events from this user text.")
             appendLine("User input: $input")
         }
         val jsonString = gemmaLlmService.extractEventJson(text = promptText)
@@ -49,8 +54,10 @@ class TextAnalysisService(
             "[${context.traceId}] Analyzing image bitmap=${bitmap.width}x${bitmap.height} config=${bitmap.config ?: "null"}"
         )
         val promptText = buildString {
-            appendLine("Current context: ${context.timestamp}, Reference date: ${java.time.Instant.ofEpochMilli(context.timestamp).atZone(java.time.ZoneId.of(context.timezone))}")
-            appendLine("Extract event from this image.")
+            append(buildReferencePrompt(context))
+            appendLine("Input type: image")
+            appendLine("Extract calendar events from this image.")
+            appendLine("If the image contains relative date or time phrases, resolve them using the reference local datetime above.")
         }
         val jsonString = gemmaLlmService.extractEventJson(text = promptText, image = bitmap)
         parseJsonToExtractions(jsonString, context.traceId)
@@ -65,11 +72,28 @@ class TextAnalysisService(
     ): List<EventExtraction> = withContext(Dispatchers.IO) {
         AppLog.i(TAG, "[${context.traceId}] Analyzing audio bytes=${audioData.size}")
         val promptText = buildString {
-            appendLine("Current context: ${context.timestamp}, Reference date: ${java.time.Instant.ofEpochMilli(context.timestamp).atZone(java.time.ZoneId.of(context.timezone))}")
-            appendLine("Extract event from this audio recording.")
+            append(buildReferencePrompt(context))
+            appendLine("Input type: audio")
+            appendLine("Extract calendar events from this audio recording.")
+            appendLine("If the speaker says relative dates or times, resolve them using the reference local datetime above.")
         }
         val jsonString = gemmaLlmService.extractEventJson(text = promptText, audio = audioData)
         parseJsonToExtractions(jsonString, context.traceId)
+    }
+
+    private fun buildReferencePrompt(context: InputContext): String {
+        val zonedReference = Instant.ofEpochMilli(context.timestamp).atZone(ZoneId.of(context.timezone))
+        return buildString {
+            appendLine("Reference local datetime: ${promptDateTimeFormatter.format(zonedReference)}")
+            appendLine("Reference timezone: ${context.timezone}")
+            appendLine("Reference day of week: ${zonedReference.dayOfWeek}")
+            appendLine("User language: ${context.language}")
+            appendLine(
+                "Resolve relative date and time phrases such as today, tomorrow, tonight, this evening, " +
+                    "next Friday, this weekend, and in two days against the reference local datetime."
+            )
+            appendLine("Return absolute ISO-8601 values in startTime and endTime. Never leave relative words in the JSON output.")
+        }
     }
 
     private fun parseJsonToExtractions(jsonString: String?, traceId: String): List<EventExtraction> {

@@ -1,12 +1,16 @@
 package com.calendaradd.service
 
+import com.calendaradd.usecase.InputContext
 import io.mockk.coEvery
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 class TextAnalysisServiceTest {
 
@@ -131,6 +135,42 @@ class TextAnalysisServiceTest {
         assertEquals(2, result.size)
         assertEquals("Lunch", result[0].title)
         assertEquals("Dentist", result[1].title)
+    }
+
+    @Test
+    fun `analyzeText should include explicit relative date instructions in prompt`() = runBlocking {
+        val capturedPrompt = slot<String>()
+        val referenceTimestamp = ZonedDateTime.of(2026, 4, 21, 9, 30, 0, 0, ZoneId.of("Europe/Paris"))
+            .toInstant()
+            .toEpochMilli()
+
+        coEvery { gemmaLlmService.extractEventJson(capture(capturedPrompt), null, null) } returns """{"events": []}"""
+
+        textAnalysisService.analyzeText(
+            input = "Meeting tomorrow at 10",
+            context = InputContext(
+                timestamp = referenceTimestamp,
+                timezone = "Europe/Paris",
+                language = "en"
+            )
+        )
+
+        assertTrue(capturedPrompt.captured.contains("Reference local datetime: 2026-04-21T09:30:00+02:00"))
+        assertTrue(capturedPrompt.captured.contains("Resolve relative date and time phrases such as today, tomorrow"))
+        assertTrue(capturedPrompt.captured.contains("Return absolute ISO-8601 values in startTime and endTime"))
+    }
+
+    @Test
+    fun `analyzeAudio should tell the model to resolve spoken relative dates`() = runBlocking {
+        val capturedPrompt = slot<String>()
+        val audioData = byteArrayOf(1, 2, 3)
+
+        coEvery { gemmaLlmService.extractEventJson(capture(capturedPrompt), null, audioData) } returns """{"events": []}"""
+
+        textAnalysisService.analyzeAudio(audioData)
+
+        assertTrue(capturedPrompt.captured.contains("Input type: audio"))
+        assertTrue(capturedPrompt.captured.contains("If the speaker says relative dates or times, resolve them using the reference local datetime above."))
     }
 
     @Test
