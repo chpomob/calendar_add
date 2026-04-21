@@ -75,6 +75,7 @@ fun PrivacyPolicyScreen(
                 body = listOf(
                     "Text you paste or share into the app",
                     "Images you capture, select, or share",
+                    "Microphone audio when you use live voice capture",
                     "Audio you share into the app",
                     "Your device calendar if you enable sync",
                     "Notifications for background processing updates",

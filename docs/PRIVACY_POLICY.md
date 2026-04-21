@@ -14,6 +14,7 @@ Depending on which features you use, the app may access:
 
 - text you paste or share into the app
 - images you select, capture, or share into the app
+- microphone audio when you use live voice capture
 - audio you share into the app
 - your device calendar, if you enable calendar sync
 - app notifications, to show progress and completion for background analysis

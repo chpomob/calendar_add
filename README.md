@@ -18,7 +18,7 @@ The app currently uses LiteRT-LM models downloaded at runtime. After the model d
 Current gaps:
 
 - No extraction fallback path when no model is installed
-- Direct microphone capture is not finished yet, but audio files and shared audio can be analyzed
+- Live microphone capture, audio-file import, and shared audio can be analyzed
 - Event list/detail screens are basic: no search, edit, or delete UI yet
 - In-app completion handling still relies mainly on notifications rather than rich live progress UI
 

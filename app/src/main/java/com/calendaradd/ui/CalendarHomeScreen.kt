@@ -38,6 +38,7 @@ import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
+import com.calendaradd.util.VoiceRecordingSession
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
 import java.io.File
@@ -73,6 +74,7 @@ fun CalendarHomeScreen(
     var inputValue by remember { mutableStateOf("") }
     var pendingCameraImagePath by rememberSaveable { mutableStateOf<String?>(null) }
     var notificationsEnabled by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+    var activeVoiceRecording by remember { mutableStateOf<VoiceRecordingSession?>(null) }
 
     fun clearPendingCameraFile() {
         pendingCameraImagePath?.let { path ->
@@ -83,6 +85,51 @@ fun CalendarHomeScreen(
 
     fun refreshNotificationState() {
         notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+    fun startVoiceRecording() {
+        if (!selectedModel.supportsAudio) {
+            scope.launch {
+                snackbarHostState.showSnackbar("${selectedModel.displayName} does not support audio.")
+            }
+            return
+        }
+
+        runCatching {
+            VoiceRecordingSession.start(context)
+        }.onSuccess { session ->
+            activeVoiceRecording = session
+            AppLog.i(tag, "Voice recording started file=${session.outputFile.absolutePath}")
+            scope.launch {
+                snackbarHostState.showSnackbar("Recording... tap Voice again to stop.")
+            }
+        }.onFailure { error ->
+            AppLog.e(tag, "Failed to start voice recording", error)
+            scope.launch {
+                snackbarHostState.showSnackbar("Unable to start recording: ${error.message ?: "unknown error"}")
+            }
+        }
+    }
+
+    fun stopVoiceRecordingAndAnalyze() {
+        val session = activeVoiceRecording ?: return
+        activeVoiceRecording = null
+
+        scope.launch {
+            runCatching {
+                session.stopAndReadBytes()
+            }.onSuccess { audioBytes ->
+                AppLog.i(tag, "Voice recording stopped bytes=${audioBytes.size}")
+                if (audioBytes.isEmpty()) {
+                    snackbarHostState.showSnackbar("The recording was empty.")
+                } else {
+                    viewModel.processAudio(audioBytes)
+                }
+            }.onFailure { error ->
+                AppLog.e(tag, "Failed to finalize voice recording", error)
+                snackbarHostState.showSnackbar("Unable to finish recording: ${error.message ?: "unknown error"}")
+            }
+        }
     }
 
     fun processImageUri(uri: Uri, source: String) {
@@ -161,6 +208,18 @@ fun CalendarHomeScreen(
         }
     }
 
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            startVoiceRecording()
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar("Microphone permission is required for live voice capture.")
+            }
+        }
+    }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
@@ -203,6 +262,8 @@ fun CalendarHomeScreen(
     DisposableEffect(Unit) {
         onDispose {
             clearPendingCameraFile()
+            activeVoiceRecording?.cancel()
+            activeVoiceRecording = null
         }
     }
 
@@ -513,9 +574,37 @@ fun CalendarHomeScreen(
                         ) {
                             ActionCard(
                                 icon = Icons.Default.Mic,
-                                label = if (selectedModel.supportsAudio) "Audio" else "Audio off",
-                                caption = if (selectedModel.supportsAudio) "Pick a recording" else "Current model has no audio",
+                                label = when {
+                                    !selectedModel.supportsAudio -> "Audio off"
+                                    activeVoiceRecording != null -> "Stop"
+                                    else -> "Voice"
+                                },
+                                caption = when {
+                                    !selectedModel.supportsAudio -> "Current model has no audio"
+                                    activeVoiceRecording != null -> "Finish recording"
+                                    else -> "Record now"
+                                },
                                 accent = MaterialTheme.colorScheme.secondaryContainer,
+                                onClick = {
+                                    if (selectedModel.supportsAudio) {
+                                        if (activeVoiceRecording != null) {
+                                            stopVoiceRecordingAndAnalyze()
+                                        } else {
+                                            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        }
+                                    } else {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("${selectedModel.displayName} does not support audio.")
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ActionCard(
+                                icon = Icons.Default.LibraryMusic,
+                                label = "Audio File",
+                                caption = "Pick a recording",
+                                accent = MaterialTheme.colorScheme.surfaceVariant,
                                 onClick = {
                                     if (selectedModel.supportsAudio) {
                                         audioPickerLauncher.launch("audio/*")
@@ -527,17 +616,18 @@ fun CalendarHomeScreen(
                                 },
                                 modifier = Modifier.weight(1f)
                             )
-                            ActionCard(
-                                icon = Icons.AutoMirrored.Filled.List,
-                                label = "Events",
-                                caption = "Review imports",
-                                accent = MaterialTheme.colorScheme.surfaceVariant,
-                                onClick = {
-                                    navController.navigate(Screen.EventList.route)
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
                         }
+                        Spacer(Modifier.height(10.dp))
+                        ActionCard(
+                            icon = Icons.AutoMirrored.Filled.List,
+                            label = "Events",
+                            caption = "Review imports",
+                            accent = MaterialTheme.colorScheme.surfaceVariant,
+                            onClick = {
+                                navController.navigate(Screen.EventList.route)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
 
                     HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
