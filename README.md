@@ -92,6 +92,7 @@ docs/
 - Live microphone capture uses a press-and-hold interaction and stops automatically after 30 seconds.
 - Extracted events are only saved when the model returns a parseable start date/time; malformed dates are rejected instead of defaulting to the current time.
 - Prompting now supplies an explicit local reference datetime and timezone so relative phrases such as `tomorrow` or `next Friday` are resolved more reliably.
+- Settings now include an opt-in failure diagnostics toggle that can reopen the app with the raw model JSON when background extraction fails.
 - App preferences stay local to the device and are not included in Android cloud backup rules.
 - If Android notifications are disabled for the app, the home screen now warns that background analysis may run silently.
 

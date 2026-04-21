@@ -30,6 +30,8 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         const val EXTRA_OPEN_ROUTE = "open_route"
+        const val EXTRA_DEBUG_FAILURE_TITLE = "debug_failure_title"
+        const val EXTRA_DEBUG_FAILURE_BODY = "debug_failure_body"
     }
 
     private lateinit var eventDatabase: EventDatabase
@@ -45,6 +47,8 @@ class MainActivity : ComponentActivity() {
     private val sharedImage = mutableStateOf<Bitmap?>(null)
     private val sharedAudio = mutableStateOf<ByteArray?>(null)
     private val pendingOpenRoute = mutableStateOf<String?>(null)
+    private val pendingDebugFailureTitle = mutableStateOf<String?>(null)
+    private val pendingDebugFailureBody = mutableStateOf<String?>(null)
 
     fun resetSharedContent() {
         sharedText.value = null
@@ -54,6 +58,11 @@ class MainActivity : ComponentActivity() {
 
     fun resetPendingOpenRoute() {
         pendingOpenRoute.value = null
+    }
+
+    fun resetPendingDebugFailure() {
+        pendingDebugFailureTitle.value = null
+        pendingDebugFailureBody.value = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -104,7 +113,10 @@ class MainActivity : ComponentActivity() {
                         sharedImage = sharedImage.value,
                         sharedAudio = sharedAudio.value,
                         openRoute = pendingOpenRoute.value,
-                        onResetOpenRoute = ::resetPendingOpenRoute
+                        onResetOpenRoute = ::resetPendingOpenRoute,
+                        debugFailureTitle = pendingDebugFailureTitle.value,
+                        debugFailureBody = pendingDebugFailureBody.value,
+                        onResetDebugFailure = ::resetPendingDebugFailure
                     )
                 }
             }
@@ -121,6 +133,16 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra(EXTRA_OPEN_ROUTE)?.let { route ->
             AppLog.i(TAG, "Received open route $route")
             pendingOpenRoute.value = route
+        }
+        val debugTitle = intent?.getStringExtra(EXTRA_DEBUG_FAILURE_TITLE)
+        val debugBody = intent?.getStringExtra(EXTRA_DEBUG_FAILURE_BODY)
+        if (!debugBody.isNullOrBlank()) {
+            AppLog.i(TAG, "Received debug failure payload chars=${debugBody.length}")
+            pendingDebugFailureTitle.value = debugTitle ?: "Failure Debug JSON"
+            pendingDebugFailureBody.value = debugBody
+            if (pendingOpenRoute.value.isNullOrBlank()) {
+                pendingOpenRoute.value = "home"
+            }
         }
         if (intent?.action == Intent.ACTION_SEND) {
             resetSharedContent()

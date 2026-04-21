@@ -72,7 +72,14 @@ class CalendarUseCase(
         val validAnalyses = analyses.filter { it.hasMeaningfulContent() }
         if (validAnalyses.isEmpty()) {
             AppLog.w(TAG, "[${context.traceId}] No valid events extracted from $sourceType input")
-            return EventResult.Failure("Could not extract enough event details from the $sourceType input.")
+            return EventResult.Failure(
+                message = "Could not extract enough event details from the $sourceType input.",
+                debug = buildFailureDebug(
+                    message = "No usable event details were extracted from the $sourceType input.",
+                    sourceType = sourceType,
+                    context = context
+                )
+            )
         }
 
         return try {
@@ -118,15 +125,63 @@ class CalendarUseCase(
 
             if (savedEvents.isEmpty()) {
                 AppLog.w(TAG, "[${context.traceId}] No extracted events had a valid start time source=$sourceType")
-                return EventResult.Failure("Could not extract a valid event date and time from the $sourceType input.")
+                return EventResult.Failure(
+                    message = "Could not extract a valid event date and time from the $sourceType input.",
+                    debug = buildFailureDebug(
+                        message = "The model response did not contain any event with a parseable absolute start time.",
+                        sourceType = sourceType,
+                        context = context
+                    )
+                )
             }
 
             AppLog.i(TAG, "[${context.traceId}] Saved ${savedEvents.size} event(s) source=$sourceType")
             EventResult.Success(savedEvents)
         } catch (e: Exception) {
             AppLog.e(TAG, "[${context.traceId}] Failed to persist extracted events source=$sourceType", e)
-            EventResult.Failure("Database error: ${e.message}")
+            EventResult.Failure(
+                message = "Database error: ${e.message}",
+                debug = buildFailureDebug(
+                    message = "Persistence failed after model extraction.",
+                    sourceType = sourceType,
+                    context = context
+                )
+            )
         }
+    }
+
+    private fun buildFailureDebug(
+        message: String,
+        sourceType: String,
+        context: InputContext
+    ): AnalysisFailureDebug? {
+        if (!preferencesManager.isFailureJsonDebugEnabled) {
+            textAnalysisService.consumeLastDebugSnapshot()
+            return null
+        }
+
+        val snapshot = textAnalysisService.consumeLastDebugSnapshot()
+        val response = snapshot?.cleanedResponse
+            ?.takeIf { it.isNotBlank() }
+            ?: snapshot?.rawResponse?.takeIf { it.isNotBlank() }
+            ?: "<no model response available>"
+
+        val body = buildString {
+            appendLine("Source: $sourceType")
+            appendLine("Trace: ${snapshot?.traceId ?: context.traceId}")
+            appendLine("Failure: $message")
+            snapshot?.issue?.let { issue ->
+                appendLine("Model issue: $issue")
+            }
+            appendLine()
+            appendLine("Model response:")
+            append(response)
+        }.trim().take(12_000)
+
+        return AnalysisFailureDebug(
+            title = "Failure Debug JSON",
+            body = body
+        )
     }
 
     fun syncEventToSystem(event: Event, calendarId: Long): Long? {
@@ -209,5 +264,8 @@ sealed class EventResult {
     data class Success(val events: List<Event>) : EventResult() {
         val event: Event get() = events.first()
     }
-    data class Failure(val message: String) : EventResult()
+    data class Failure(
+        val message: String,
+        val debug: AnalysisFailureDebug? = null
+    ) : EventResult()
 }

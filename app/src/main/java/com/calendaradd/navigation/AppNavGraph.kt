@@ -34,7 +34,10 @@ fun AppNavGraph(
     sharedImage: Bitmap? = null,
     sharedAudio: ByteArray? = null,
     openRoute: String? = null,
-    onResetOpenRoute: () -> Unit = {}
+    onResetOpenRoute: () -> Unit = {},
+    debugFailureTitle: String? = null,
+    debugFailureBody: String? = null,
+    onResetDebugFailure: () -> Unit = {}
 ) {
     LaunchedEffect(openRoute) {
         if (!openRoute.isNullOrBlank()) {
@@ -67,7 +70,10 @@ fun AppNavGraph(
                 sharedText = sharedText,
                 sharedImage = sharedImage,
                 sharedAudio = sharedAudio,
-                onResetSharedContent = onResetSharedContent
+                onResetSharedContent = onResetSharedContent,
+                debugFailureTitle = debugFailureTitle,
+                debugFailureBody = debugFailureBody,
+                onResetDebugFailure = onResetDebugFailure
             )
         }
 

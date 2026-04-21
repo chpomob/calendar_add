@@ -24,6 +24,9 @@ class TextAnalysisService(
         private val promptDateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
     }
 
+    private val debugSnapshotLock = Any()
+    private var lastDebugSnapshot: AnalysisDebugSnapshot? = null
+
     /**
      * Analyzes text input and extracts event information.
      */
@@ -31,6 +34,7 @@ class TextAnalysisService(
         input: String,
         context: InputContext = InputContext()
     ): List<EventExtraction> = withContext(Dispatchers.IO) {
+        clearDebugSnapshot()
         AppLog.i(TAG, "[${context.traceId}] Analyzing text chars=${input.length}")
         val promptText = buildString {
             append(buildReferencePrompt(context))
@@ -49,6 +53,7 @@ class TextAnalysisService(
         bitmap: Bitmap,
         context: InputContext = InputContext()
     ): List<EventExtraction> = withContext(Dispatchers.IO) {
+        clearDebugSnapshot()
         AppLog.i(
             TAG,
             "[${context.traceId}] Analyzing image bitmap=${bitmap.width}x${bitmap.height} config=${bitmap.config ?: "null"}"
@@ -70,6 +75,7 @@ class TextAnalysisService(
         audioData: ByteArray,
         context: InputContext = InputContext()
     ): List<EventExtraction> = withContext(Dispatchers.IO) {
+        clearDebugSnapshot()
         AppLog.i(TAG, "[${context.traceId}] Analyzing audio bytes=${audioData.size}")
         val promptText = buildString {
             append(buildReferencePrompt(context))
@@ -79,6 +85,12 @@ class TextAnalysisService(
         }
         val jsonString = gemmaLlmService.extractEventJson(text = promptText, audio = audioData)
         parseJsonToExtractions(jsonString, context.traceId)
+    }
+
+    fun consumeLastDebugSnapshot(): AnalysisDebugSnapshot? {
+        return synchronized(debugSnapshotLock) {
+            lastDebugSnapshot.also { lastDebugSnapshot = null }
+        }
     }
 
     private fun buildReferencePrompt(context: InputContext): String {
@@ -99,22 +111,39 @@ class TextAnalysisService(
     private fun parseJsonToExtractions(jsonString: String?, traceId: String): List<EventExtraction> {
         if (jsonString == null) {
             AppLog.w(TAG, "[$traceId] LLM returned no response")
+            setDebugSnapshot(
+                AnalysisDebugSnapshot(
+                    traceId = traceId,
+                    rawResponse = null,
+                    cleanedResponse = null,
+                    issue = "The model returned no response."
+                )
+            )
             return emptyList()
         }
-        
+
+        val cleaned = jsonString.trim()
+            .removePrefix("```json")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+        val jsonPayload = cleaned.extractJsonPayload()
+
         return try {
-            val cleaned = jsonString.trim()
-                .removePrefix("```json")
-                .removePrefix("```")
-                .removeSuffix("```")
-                .trim()
-            val jsonPayload = cleaned.extractJsonPayload()
             val element = JsonParser.parseString(jsonPayload)
             val rawEvents = element.asEventObjects()
                 .map(::parseEventObject)
                 .filter { it.hasMeaningfulContent() }
 
             val mergedEvents = mergeRelatedEvents(rawEvents)
+            setDebugSnapshot(
+                AnalysisDebugSnapshot(
+                    traceId = traceId,
+                    rawResponse = jsonString,
+                    cleanedResponse = jsonPayload,
+                    issue = if (mergedEvents.isEmpty()) "The model response did not contain any usable events." else null
+                )
+            )
             AppLog.i(
                 TAG,
                 "[$traceId] Parsed response chars=${jsonString.length} rawEvents=${rawEvents.size} mergedEvents=${mergedEvents.size}"
@@ -122,7 +151,27 @@ class TextAnalysisService(
             mergedEvents
         } catch (e: Exception) {
             AppLog.e(TAG, "[$traceId] Failed to parse LLM response chars=${jsonString.length}", e)
+            setDebugSnapshot(
+                AnalysisDebugSnapshot(
+                    traceId = traceId,
+                    rawResponse = jsonString,
+                    cleanedResponse = jsonPayload,
+                    issue = "Failed to parse the model response as event JSON: ${e.message ?: e::class.java.simpleName}"
+                )
+            )
             emptyList()
+        }
+    }
+
+    private fun clearDebugSnapshot() {
+        synchronized(debugSnapshotLock) {
+            lastDebugSnapshot = null
+        }
+    }
+
+    private fun setDebugSnapshot(snapshot: AnalysisDebugSnapshot) {
+        synchronized(debugSnapshotLock) {
+            lastDebugSnapshot = snapshot
         }
     }
 
@@ -201,6 +250,18 @@ class TextAnalysisService(
         }
     }
 }
+
+data class AnalysisDebugSnapshot(
+    val traceId: String,
+    val rawResponse: String?,
+    val cleanedResponse: String?,
+    val issue: String?
+)
+
+data class AnalysisFailureDebug(
+    val title: String,
+    val body: String
+)
 
 /**
  * Data class for event extraction results.

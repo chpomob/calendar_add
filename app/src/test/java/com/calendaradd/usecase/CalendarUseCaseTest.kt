@@ -1,6 +1,7 @@
 package com.calendaradd.usecase
 
 import android.graphics.Bitmap
+import com.calendaradd.service.AnalysisDebugSnapshot
 import com.calendaradd.service.EventExtraction
 import com.calendaradd.service.SystemCalendarService
 import com.calendaradd.service.TextAnalysisService
@@ -34,6 +35,8 @@ class CalendarUseCaseTest {
         every { eventDatabase.eventDao() } returns eventDao
         every { preferencesManager.isAutoAddEnabled } returns false
         every { preferencesManager.targetCalendarId } returns -1L
+        every { preferencesManager.isFailureJsonDebugEnabled } returns false
+        every { textAnalysisService.consumeLastDebugSnapshot() } returns null
 
         useCase = CalendarUseCase(
             textAnalysisService = textAnalysisService,
@@ -120,6 +123,40 @@ class CalendarUseCaseTest {
             (result as EventResult.Failure).message
         )
         coVerify(exactly = 0) { eventDao.insert(any()) }
+    }
+
+    @Test
+    fun `createEventFromText should attach debug response when enabled and extracted date is invalid`() = runBlocking {
+        every { preferencesManager.isFailureJsonDebugEnabled } returns true
+        every {
+            textAnalysisService.consumeLastDebugSnapshot()
+        } returns AnalysisDebugSnapshot(
+            traceId = "req-debug",
+            rawResponse = """{"events":[{"title":"Board meeting","startTime":"tomorrow afternoon"}]}""",
+            cleanedResponse = """{"events":[{"title":"Board meeting","startTime":"tomorrow afternoon"}]}""",
+            issue = "The model returned a relative date instead of an absolute timestamp."
+        )
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            EventExtraction(
+                title = "Board meeting",
+                description = "Quarterly review",
+                startTime = "tomorrow afternoon",
+                endTime = "",
+                location = "HQ",
+                attendees = emptyList()
+            )
+        )
+
+        val result = useCase.createEventFromText("Board meeting tomorrow afternoon")
+
+        assertTrue(result is EventResult.Failure)
+        result as EventResult.Failure
+        assertEquals(
+            "Could not extract a valid event date and time from the text input.",
+            result.message
+        )
+        assertTrue(result.debug?.body?.contains("Model response:") == true)
+        assertTrue(result.debug?.body?.contains("tomorrow afternoon") == true)
     }
 
     @Test

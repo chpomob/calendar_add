@@ -39,6 +39,7 @@ fun CalendarSettingsScreen(
     val availableModels by viewModel.availableModels.collectAsState()
     val availableCalendars by viewModel.availableCalendars.collectAsState()
     val isAutoAddEnabled by viewModel.isAutoAddEnabled.collectAsState()
+    val isFailureJsonDebugEnabled by viewModel.isFailureJsonDebugEnabled.collectAsState()
     val selectedModelId by viewModel.selectedModelId.collectAsState()
     val selectedCalendarId by viewModel.selectedCalendarId.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -195,6 +196,30 @@ fun CalendarSettingsScreen(
                         }
                     )
                 }
+            }
+
+            Text(
+                "Diagnostics",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Card {
+                ListItem(
+                    headlineContent = { Text("Show raw model JSON on failure") },
+                    supportingContent = {
+                        Text(
+                            "When enabled, failed background analyses can open a debug dialog with the raw model response. Keep this off for normal use."
+                        )
+                    },
+                    leadingContent = { Icon(Icons.Default.BugReport, contentDescription = null) },
+                    trailingContent = {
+                        Switch(
+                            checked = isFailureJsonDebugEnabled,
+                            onCheckedChange = { viewModel.setFailureJsonDebugEnabled(it) }
+                        )
+                    }
+                )
             }
 
             // About Section

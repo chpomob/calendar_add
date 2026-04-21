@@ -6,6 +6,8 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -171,6 +173,32 @@ class TextAnalysisServiceTest {
 
         assertTrue(capturedPrompt.captured.contains("Input type: audio"))
         assertTrue(capturedPrompt.captured.contains("If the speaker says relative dates or times, resolve them using the reference local datetime above."))
+    }
+
+    @Test
+    fun `analyzeText should preserve debug snapshot when json parsing fails`() = runBlocking {
+        coEvery { gemmaLlmService.extractEventJson(any(), null, null) } returns "{"
+
+        val result = textAnalysisService.analyzeText("Tomorrow at 10")
+        val debugSnapshot = textAnalysisService.consumeLastDebugSnapshot()
+
+        assertTrue(result.isEmpty())
+        assertNotNull(debugSnapshot)
+        assertEquals("{", debugSnapshot?.rawResponse)
+        assertTrue(debugSnapshot?.issue?.contains("Failed to parse") == true)
+        assertNull(textAnalysisService.consumeLastDebugSnapshot())
+    }
+
+    @Test
+    fun `analyzeText should preserve debug snapshot when model returns no events`() = runBlocking {
+        coEvery { gemmaLlmService.extractEventJson(any(), null, null) } returns """{"events": []}"""
+
+        val result = textAnalysisService.analyzeText("Nothing here")
+        val debugSnapshot = textAnalysisService.consumeLastDebugSnapshot()
+
+        assertTrue(result.isEmpty())
+        assertEquals("""{"events": []}""", debugSnapshot?.cleanedResponse)
+        assertEquals("The model response did not contain any usable events.", debugSnapshot?.issue)
     }
 
     @Test

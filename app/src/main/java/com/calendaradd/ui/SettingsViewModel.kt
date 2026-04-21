@@ -31,6 +31,9 @@ class SettingsViewModel(
     private val _selectedCalendarId = MutableStateFlow(preferencesManager.targetCalendarId)
     val selectedCalendarId: StateFlow<Long> = _selectedCalendarId.asStateFlow()
 
+    private val _isFailureJsonDebugEnabled = MutableStateFlow(preferencesManager.isFailureJsonDebugEnabled)
+    val isFailureJsonDebugEnabled: StateFlow<Boolean> = _isFailureJsonDebugEnabled.asStateFlow()
+
     init {
         loadCalendars()
     }
@@ -67,5 +70,10 @@ class SettingsViewModel(
         preferencesManager.targetCalendarId = calendarId
         preferencesManager.targetCalendarName = calendarName
         _selectedCalendarId.value = calendarId
+    }
+
+    fun setFailureJsonDebugEnabled(enabled: Boolean) {
+        preferencesManager.isFailureJsonDebugEnabled = enabled
+        _isFailureJsonDebugEnabled.value = enabled
     }
 }

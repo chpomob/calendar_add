@@ -142,7 +142,12 @@ class BackgroundAnalysisWorker(
                     )
                 }
                 is EventResult.Failure -> {
-                    notifyResult("Analysis failed", result.message, Screen.Home.route)
+                    notifyResult(
+                        title = "Analysis failed",
+                        message = result.message,
+                        destinationRoute = Screen.Home.route,
+                        debug = result.debug
+                    )
                     Result.failure(workDataOf(KEY_ERROR to result.message))
                 }
             }
@@ -186,25 +191,43 @@ class BackgroundAnalysisWorker(
         }
     }
 
-    private fun notifyResult(title: String, message: String, destinationRoute: String) {
+    private fun notifyResult(
+        title: String,
+        message: String,
+        destinationRoute: String,
+        debug: AnalysisFailureDebug? = null
+    ) {
         val resultNotificationId = resultNotificationIdFor(id)
+        val displayMessage = if (debug != null) {
+            "$message\n\nDebug JSON available. Tap to inspect."
+        } else {
+            message
+        }
         val notification = NotificationCompat.Builder(applicationContext, ANALYSIS_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
-            .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentText(displayMessage)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(displayMessage))
             .setAutoCancel(true)
-            .setContentIntent(createLaunchIntent(destinationRoute, resultNotificationId))
+            .setContentIntent(createLaunchIntent(destinationRoute, resultNotificationId, debug))
             .build()
 
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(resultNotificationId, notification)
     }
 
-    private fun createLaunchIntent(destinationRoute: String, requestCode: Int): PendingIntent? {
+    private fun createLaunchIntent(
+        destinationRoute: String,
+        requestCode: Int,
+        debug: AnalysisFailureDebug?
+    ): PendingIntent? {
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(MainActivity.EXTRA_OPEN_ROUTE, destinationRoute)
+            debug?.let {
+                putExtra(MainActivity.EXTRA_DEBUG_FAILURE_TITLE, it.title)
+                putExtra(MainActivity.EXTRA_DEBUG_FAILURE_BODY, it.body)
+            }
         }
         return PendingIntent.getActivity(
             applicationContext,

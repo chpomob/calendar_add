@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -68,6 +69,9 @@ fun CalendarHomeScreen(
     sharedText: String? = null,
     sharedImage: Bitmap? = null,
     sharedAudio: ByteArray? = null,
+    debugFailureTitle: String? = null,
+    debugFailureBody: String? = null,
+    onResetDebugFailure: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val tag = "CalendarHomeScreen"
@@ -770,6 +774,30 @@ fun CalendarHomeScreen(
                     confirmButton = {
                         Button(onClick = { viewModel.resetState() }) {
                             Text("OK")
+                        }
+                    }
+                )
+            }
+
+            if (!debugFailureBody.isNullOrBlank()) {
+                AlertDialog(
+                    onDismissRequest = onResetDebugFailure,
+                    title = { Text(debugFailureTitle ?: "Failure Debug JSON") },
+                    text = {
+                        SelectionContainer {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 360.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text(debugFailureBody)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = onResetDebugFailure) {
+                            Text("Close")
                         }
                     }
                 )
