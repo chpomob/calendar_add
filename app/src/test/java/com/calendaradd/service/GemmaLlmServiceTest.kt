@@ -1,6 +1,7 @@
 package com.calendaradd.service
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Engine
@@ -26,6 +27,9 @@ class GemmaLlmServiceTest {
     fun setup() {
         context = mockk(relaxed = true)
         every { context.cacheDir } returns File("build/tmp/gemma-service-test-cache")
+        every { context.applicationInfo } returns ApplicationInfo().apply {
+            nativeLibraryDir = "/tmp/calendar-add-native-libs"
+        }
         engine = mockk(relaxed = true)
 
         service = object : GemmaLlmService(context) {
@@ -65,6 +69,15 @@ class GemmaLlmServiceTest {
         assertEquals(Backend.NPU::class.java.name, config.backend::class.java.name)
         assertEquals(Backend.NPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
         assertEquals(Backend.NPU::class.java.name, requireNotNull(config.audioBackend)::class.java.name)
+        assertEquals("/tmp/calendar-add-native-libs", (config.backend as Backend.NPU).nativeLibraryDir)
+        assertEquals(
+            "/tmp/calendar-add-native-libs",
+            (requireNotNull(config.visionBackend) as Backend.NPU).nativeLibraryDir
+        )
+        assertEquals(
+            "/tmp/calendar-add-native-libs",
+            (requireNotNull(config.audioBackend) as Backend.NPU).nativeLibraryDir
+        )
     }
 
     @Test
@@ -87,10 +100,35 @@ class GemmaLlmServiceTest {
         assertEquals(Backend.NPU::class.java.name, capturedConfigs[0].backend::class.java.name)
         assertEquals(Backend.NPU::class.java.name, requireNotNull(capturedConfigs[0].visionBackend)::class.java.name)
         assertEquals(Backend.NPU::class.java.name, requireNotNull(capturedConfigs[0].audioBackend)::class.java.name)
+        assertEquals("/tmp/calendar-add-native-libs", (capturedConfigs[0].backend as Backend.NPU).nativeLibraryDir)
         assertEquals(Backend.NPU::class.java.name, capturedConfigs[1].backend::class.java.name)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(capturedConfigs[1].visionBackend)::class.java.name)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(capturedConfigs[1].audioBackend)::class.java.name)
+        assertEquals("/tmp/calendar-add-native-libs", (capturedConfigs[1].backend as Backend.NPU).nativeLibraryDir)
         assertEquals("NPU(text)+CPU(vision/audio)", service.lastBackendUsed)
+    }
+
+    @Test
+    fun `initialize should fall back to CPU when NPU native loading fails`() = runBlocking {
+        val capturedConfigs = mutableListOf<EngineConfig>()
+        service = object : GemmaLlmService(context) {
+            override fun createEngine(config: EngineConfig): Engine {
+                capturedConfigs += config
+                if (config.backend is Backend.NPU) {
+                    throw UnsatisfiedLinkError("synthetic NPU native load failure")
+                }
+                return engine
+            }
+        }
+        servicesToClose += service
+
+        service.initialize("/tmp/fake-model.litertlm")
+
+        assertEquals(3, capturedConfigs.size)
+        assertEquals(Backend.NPU::class.java.name, capturedConfigs[0].backend::class.java.name)
+        assertEquals(Backend.NPU::class.java.name, capturedConfigs[1].backend::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, capturedConfigs[2].backend::class.java.name)
+        assertEquals("CPU", service.lastBackendUsed)
     }
 
     @Test

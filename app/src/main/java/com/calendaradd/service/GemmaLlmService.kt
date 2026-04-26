@@ -76,9 +76,10 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                 }
 
                 val cacheDirPath = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
-                val backends = backendProfilesFor(modelConfig)
+                val npuNativeLibraryDir = context.applicationInfo.nativeLibraryDir.orEmpty()
+                val backends = backendProfilesFor(modelConfig, npuNativeLibraryDir)
 
-                var lastError: Exception? = null
+                var lastError: Throwable? = null
                 val attemptedBackends = mutableListOf<String>()
 
                 for (profile in backends) {
@@ -108,7 +109,10 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                         activeService = this@GemmaLlmService
                         AppLog.i(TAG, "LiteRT-LM engine ready backend=${profile.label}")
                         return@withContext
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
+                        if (!e.isRecoverableBackendInitializationFailure()) {
+                            throw e
+                        }
                         AppLog.w(TAG, "LiteRT-LM engine init failed backend=${profile.label}", e)
                         initializedEngine?.close()
                         lastError = e
@@ -247,6 +251,10 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     }
 }
 
+private fun Throwable.isRecoverableBackendInitializationFailure(): Boolean {
+    return this is Exception || this is LinkageError
+}
+
 private data class BackendProfile(
     val label: String,
     val textBackend: Backend,
@@ -254,7 +262,10 @@ private data class BackendProfile(
     val audioBackend: Backend?
 )
 
-private fun backendProfilesFor(modelConfig: LiteRtModelConfig?): List<BackendProfile> {
+private fun backendProfilesFor(
+    modelConfig: LiteRtModelConfig?,
+    npuNativeLibraryDir: String
+): List<BackendProfile> {
     return when (modelConfig?.executionProfile) {
         ModelExecutionProfile.CPU_ONLY_MULTIMODAL -> listOf(
             BackendProfile(
@@ -267,13 +278,13 @@ private fun backendProfilesFor(modelConfig: LiteRtModelConfig?): List<BackendPro
         else -> listOf(
             BackendProfile(
                 label = "NPU multimodal",
-                textBackend = Backend.NPU(),
-                visionBackend = if (modelConfig?.supportsImage != false) Backend.NPU() else null,
-                audioBackend = if (modelConfig?.supportsAudio != false) Backend.NPU() else null
+                textBackend = npuBackend(npuNativeLibraryDir),
+                visionBackend = if (modelConfig?.supportsImage != false) npuBackend(npuNativeLibraryDir) else null,
+                audioBackend = if (modelConfig?.supportsAudio != false) npuBackend(npuNativeLibraryDir) else null
             ),
             BackendProfile(
                 label = "NPU(text)+CPU(vision/audio)",
-                textBackend = Backend.NPU(),
+                textBackend = npuBackend(npuNativeLibraryDir),
                 visionBackend = if (modelConfig?.supportsImage != false) Backend.CPU() else null,
                 audioBackend = if (modelConfig?.supportsAudio != false) Backend.CPU() else null
             ),
@@ -286,6 +297,8 @@ private fun backendProfilesFor(modelConfig: LiteRtModelConfig?): List<BackendPro
         )
     }
 }
+
+private fun npuBackend(nativeLibraryDir: String): Backend.NPU = Backend.NPU(nativeLibraryDir)
 
 private data class PreparedImageFile(
     val file: File,
