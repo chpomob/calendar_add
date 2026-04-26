@@ -3,6 +3,7 @@ name: Android CI
 on:
   push:
     branches: [ main, develop ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, develop ]
 
@@ -40,6 +41,10 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug
 
+      - name: Build unsigned release bundle
+        if: startsWith(github.ref, 'refs/tags/')
+        run: ./gradlew bundleRelease
+
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
         with:
@@ -53,6 +58,15 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload unsigned release bundle
+        uses: actions/upload-artifact@v4
+        if: success() && startsWith(github.ref, 'refs/tags/')
+        with:
+          name: calendar-add-unsigned-release-aab-${{ github.ref_name }}
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
 
   lint:
     runs-on: ubuntu-latest
