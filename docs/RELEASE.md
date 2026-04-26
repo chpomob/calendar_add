@@ -12,6 +12,7 @@ Last updated: 2026-04-26
 - Release Android App Bundle builds successfully
 - Release signing is wired through local `keystore.properties`
 - GitHub Actions publishes a debug APK on normal pushes
+- Successful pushes to `main` update a rolling `latest-main` prerelease with the current debug APK
 - GitHub Actions publishes an unsigned release AAB for `v*` tags
 - Alpha tags like `v0.1.0-alpha.2` now draft a GitHub prerelease with attached build artifacts
 - Settings now expose an optional heavy analysis mode for staged image/audio extraction

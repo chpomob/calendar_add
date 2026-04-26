@@ -118,6 +118,17 @@ Useful extra commands:
 ./scripts/test_build.sh
 ```
 
+## GitHub Builds
+
+The repository now exposes builds in two ways:
+
+- every successful push to `main` updates a rolling prerelease named `latest-main` with the current debug APK
+- alpha tags such as `v0.1.0-alpha.2` create draft prereleases with:
+  - debug APK
+  - unsigned release AAB
+
+So testers do not have to rely only on the `Actions` artifact view anymore.
+
 ## Project Layout
 
 ```text
