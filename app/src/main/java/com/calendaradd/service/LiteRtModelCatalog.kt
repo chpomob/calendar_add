@@ -63,7 +63,7 @@ object LiteRtModelCatalog {
             sizeBytes = decimalGb(2.58),
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 768
+            maxNumTokens = 4000
         ),
         LiteRtModelConfig(
             id = "gemma-4-e4b",
@@ -76,7 +76,7 @@ object LiteRtModelCatalog {
             sizeBytes = decimalGb(3.65),
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 768
+            maxNumTokens = 4000
         ),
         LiteRtModelConfig(
             id = "gemma-3n-e2b",
@@ -89,7 +89,7 @@ object LiteRtModelCatalog {
             sizeBytes = decimalGb(3.66),
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 768
+            maxNumTokens = 4096
         ),
         LiteRtModelConfig(
             id = "gemma-3n-e4b",
@@ -102,7 +102,7 @@ object LiteRtModelCatalog {
             sizeBytes = decimalGb(4.92),
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 768
+            maxNumTokens = 4096
         ),
         LiteRtModelConfig(
             id = "qwen-3_5-0_8b",

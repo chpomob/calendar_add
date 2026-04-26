@@ -90,6 +90,20 @@ If diagnostics mode is enabled in Settings, failed background extractions can re
 
 For difficult images or audio, Settings now expose a heavy analysis mode. It keeps the expensive multimodal pass to one round, then runs extra text-only refinement passes for temporal resolution and final event composition.
 
+## LiteRT-LM Runtime Notes
+
+The current Gemma path was cross-checked against Google AI Edge Gallery. The app now sends multimodal requests in the same content order used there: image first, audio second, text last.
+
+Runtime choices:
+
+- Gemma text and vision prefer NPU when available, then fall back to mixed NPU/CPU and CPU.
+- Gemma audio uses CPU backend, matching Gallery's direct LiteRT-LM path for Gemma 3n audio.
+- Images are passed as PNG `ImageBytes` instead of temporary JPEG files.
+- In-app voice capture records 16 kHz mono PCM and sends WAV bytes to the model.
+- LiteRT-LM inference uses async callbacks so timeout/cancellation can call `cancelProcess()`.
+
+The local Gallery reference clone lives under `external/google-ai-edge-gallery/`. The `external/` directory is intentionally ignored by Git.
+
 ## Requirements
 
 - Android 8.0+ (`minSdk 26`)

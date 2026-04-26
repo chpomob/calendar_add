@@ -3,17 +3,24 @@ package com.calendaradd.service
 import android.content.Context
 import android.graphics.Bitmap
 import com.calendaradd.util.AppLog
+import com.calendaradd.util.hasWavHeader
 import com.google.ai.edge.litertlm.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileOutputStream
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 private const val GEMMA_MAX_IMAGE_DIMENSION = 1280
-private const val GEMMA_JPEG_QUALITY = 88
-private const val GEMMA_REQUEST_IMAGE_DIR = "litertlm-request-images"
+private const val GEMMA_PNG_QUALITY = 100
+private const val LITERTLM_CALLBACK_POLL_MS = 250L
 
 /**
  * Service for interacting with Gemma 4 via LiteRT-LM API.
@@ -155,6 +162,7 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
             "[$requestId] Starting request mode=$mode backend=${activeBackendLabel ?: "uninitialized"} " +
                 "promptChars=${requestText.length} image=${image.describeForLogs()} audio=${audio.describeForLogs()}"
         )
+        val requestJob = currentCoroutineContext()[Job]
 
         synchronized(mutex) {
             val currentEngine = engine ?: run {
@@ -162,33 +170,41 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                 return@withContext null
             }
             var conversation: Conversation? = null
-            var preparedImage: PreparedImageFile? = null
+            var preparedImage: PreparedImageBytes? = null
 
             try {
                 val requestContents = buildList {
-                    add(Content.Text(requestText))
                     image?.let {
-                        preparedImage = it.toModelImageFile(context.cacheDir, requestId)
+                        preparedImage = it.toModelImageBytes()
                         AppLog.i(
                             TAG,
-                            "[$requestId] Prepared image file size=${preparedImage?.sizeBytes} " +
+                            "[$requestId] Prepared PNG image bytes=${preparedImage?.sizeBytes} " +
                                 "dimensions=${preparedImage?.width}x${preparedImage?.height}"
                         )
-                        add(Content.ImageFile(requireNotNull(preparedImage).file.absolutePath))
+                        add(Content.ImageBytes(requireNotNull(preparedImage).bytes))
                     }
-                    audio?.let { add(Content.AudioBytes(it)) }
+                    audio?.let {
+                        if (!it.hasWavHeader()) {
+                            AppLog.w(TAG, "[$requestId] Audio bytes do not have a WAV header; LiteRT-LM may reject this input")
+                        }
+                        add(Content.AudioBytes(it))
+                    }
+                    add(Content.Text(requestText))
                 }
                 conversation = createConversation(currentEngine)
                 AppLog.i(TAG, "[$requestId] Conversation created backend=${activeBackendLabel ?: "unknown"} mode=$mode")
-                AppLog.i(TAG, "[$requestId] Sending message with ${requestContents.size} content blocks")
-                val response = conversation.sendMessage(Contents.of(requestContents))
-                val result = response.contents.contents
-                    .filterIsInstance<Content.Text>()
-                    .joinToString("\n") { it.text }
-                    .ifBlank { null }
+                AppLog.i(TAG, "[$requestId] Sending async message with ${requestContents.size} content blocks")
+                val result = conversation.awaitResponse(
+                    contents = Contents.of(requestContents),
+                    requestId = requestId,
+                    cancellationJob = requestJob
+                )
 
                 AppLog.i(TAG, "[$requestId] Request completed responseChars=${result?.length ?: 0}")
                 return@synchronized result
+            } catch (e: CancellationException) {
+                AppLog.w(TAG, "[$requestId] LiteRT-LM request cancelled backend=${activeBackendLabel ?: "unknown"} mode=$mode")
+                throw e
             } catch (e: IllegalStateException) {
                 AppLog.e(TAG, "[$requestId] Invalid request state before LiteRT-LM call", e)
                 return@synchronized null
@@ -204,7 +220,6 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                 return@synchronized null
             } finally {
                 conversation?.close()
-                preparedImage?.deleteQuietly(requestId)
             }
         }
     }
@@ -266,10 +281,10 @@ private fun backendProfilesFor(
         )
         else -> listOf(
             BackendProfile(
-                label = "NPU multimodal",
+                label = "NPU(text/vision)+CPU(audio)",
                 textBackend = npuBackend(npuNativeLibraryDir),
                 visionBackend = if (modelConfig?.supportsImage != false) npuBackend(npuNativeLibraryDir) else null,
-                audioBackend = if (modelConfig?.supportsAudio != false) npuBackend(npuNativeLibraryDir) else null
+                audioBackend = if (modelConfig?.supportsAudio != false) Backend.CPU() else null
             ),
             BackendProfile(
                 label = "NPU(text)+CPU(vision/audio)",
@@ -289,11 +304,11 @@ private fun backendProfilesFor(
 
 private fun npuBackend(nativeLibraryDir: String): Backend.NPU = Backend.NPU(nativeLibraryDir)
 
-private data class PreparedImageFile(
-    val file: File,
+private data class PreparedImageBytes(
+    val bytes: ByteArray,
     val width: Int,
     val height: Int,
-    val sizeBytes: Long
+    val sizeBytes: Int
 )
 
 private enum class RequestMode {
@@ -312,25 +327,23 @@ private fun requestMode(image: Bitmap?, audio: ByteArray?): RequestMode {
     }
 }
 
-private fun Bitmap.toModelImageFile(cacheDir: File, requestId: String): PreparedImageFile {
+private fun Bitmap.toModelImageBytes(): PreparedImageBytes {
     require(!isRecycled) { "Bitmap is already recycled" }
 
-    val requestDir = File(cacheDir, GEMMA_REQUEST_IMAGE_DIR).apply { mkdirs() }
     val normalizedBitmap = ensureArgb8888()
     val preparedBitmap = normalizedBitmap.scaleDownIfNeeded(GEMMA_MAX_IMAGE_DIMENSION)
-    val imageFile = File.createTempFile("litertlm-$requestId-", ".jpg", requestDir)
+    val output = ByteArrayOutputStream()
 
     return try {
-        FileOutputStream(imageFile).use { output ->
-            check(preparedBitmap.compress(Bitmap.CompressFormat.JPEG, GEMMA_JPEG_QUALITY, output)) {
-                "Bitmap compression failed"
-            }
+        check(preparedBitmap.compress(Bitmap.CompressFormat.PNG, GEMMA_PNG_QUALITY, output)) {
+            "Bitmap compression failed"
         }
-        PreparedImageFile(
-            file = imageFile,
+        val imageBytes = output.toByteArray()
+        PreparedImageBytes(
+            bytes = imageBytes,
             width = preparedBitmap.width,
             height = preparedBitmap.height,
-            sizeBytes = imageFile.length()
+            sizeBytes = imageBytes.size
         )
     } finally {
         if (preparedBitmap !== normalizedBitmap) {
@@ -356,13 +369,6 @@ private fun ByteArray?.describeForLogs(): String {
     return if (this == null) "none" else "bytes=$size"
 }
 
-private fun PreparedImageFile.deleteQuietly(requestId: String) {
-    if (!file.exists()) return
-    if (!file.delete()) {
-        AppLog.w("GemmaLlmService", "[$requestId] Failed to delete temp image file ${file.absolutePath}")
-    }
-}
-
 private fun Bitmap.scaleDownIfNeeded(maxDimension: Int): Bitmap {
     val largestSide = max(width, height)
     if (largestSide <= maxDimension) return this
@@ -371,4 +377,67 @@ private fun Bitmap.scaleDownIfNeeded(maxDimension: Int): Bitmap {
     val scaledWidth = (width * scale).roundToInt().coerceAtLeast(1)
     val scaledHeight = (height * scale).roundToInt().coerceAtLeast(1)
     return Bitmap.createScaledBitmap(this, scaledWidth, scaledHeight, true)
+}
+
+private fun Conversation.awaitResponse(
+    contents: Contents,
+    requestId: String,
+    cancellationJob: Job?
+): String? {
+    val completed = CountDownLatch(1)
+    val failure = AtomicReference<Throwable?>()
+    val response = StringBuilder()
+
+    try {
+        sendMessageAsync(
+            contents,
+            object : MessageCallback {
+                override fun onMessage(message: Message) {
+                    val chunk = message.textChunk()
+                    if (chunk.isNotBlank()) {
+                        synchronized(response) {
+                            response.append(chunk)
+                        }
+                    }
+                }
+
+                override fun onDone() {
+                    completed.countDown()
+                }
+
+                override fun onError(throwable: Throwable) {
+                    failure.set(throwable)
+                    completed.countDown()
+                }
+            },
+            emptyMap()
+        )
+
+        while (!completed.await(LITERTLM_CALLBACK_POLL_MS, TimeUnit.MILLISECONDS)) {
+            if (cancellationJob?.isActive == false) {
+                cancelProcess()
+                throw CancellationException("LiteRT-LM request $requestId was cancelled")
+            }
+        }
+    } catch (e: InterruptedException) {
+        Thread.currentThread().interrupt()
+        cancelProcess()
+        throw CancellationException("LiteRT-LM request $requestId was interrupted")
+    }
+
+    failure.get()?.let { error ->
+        if (error is Exception) throw error
+        throw RuntimeException("LiteRT-LM async callback failed", error)
+    }
+
+    return synchronized(response) {
+        response.toString().ifBlank { null }
+    }
+}
+
+private fun Message.textChunk(): String {
+    val contentText = contents.contents
+        .filterIsInstance<Content.Text>()
+        .joinToString("\n") { it.text }
+    return contentText.ifBlank { toString() }
 }

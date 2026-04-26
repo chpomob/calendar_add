@@ -65,3 +65,6 @@ keystore
 AGENTS.md
 QWEN.md
 toresume
+
+# Local reference repositories
+external/

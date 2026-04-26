@@ -1,6 +1,6 @@
 # Calendar Add AI - LiteRT-LM Model Integration
 
-Last updated: 2026-04-20
+Last updated: 2026-04-26
 
 ## Overview
 
@@ -54,23 +54,36 @@ After the selected model initializes successfully, the app removes older app-man
 
 - `ACCELERATED_GEMMA`
   - text: prefer NPU
-  - vision: CPU
+  - vision: prefer NPU
   - audio: CPU when the model supports audio
+  - fallback: NPU text with CPU vision/audio, then CPU
 - `CPU_ONLY_MULTIMODAL`
   - text: CPU
   - vision: CPU
   - audio: disabled
 
-This is why Qwen models now load correctly in the app: they are initialized with the CPU-only multimodal profile instead of the Gemma-oriented backend path.
+The Gemma profile intentionally keeps NPU for text and image processing while using CPU for audio. This matches Google AI Edge Gallery's direct LiteRT-LM integration, where audio uses CPU even when the main model backend is accelerated.
 
-For Qwen models, the app also sets conservative `maxNumTokens` values during engine creation to reduce compiled-model memory pressure on Android devices.
+For Qwen models, the app keeps a conservative `maxNumTokens` value during engine creation to reduce compiled-model memory pressure on Android devices. Gemma token caps are aligned with Gallery's model allowlist values: 4000 for Gemma 4 and 4096 for Gemma 3n.
+
+## AI Edge Gallery Parity Notes
+
+A local reference clone of Google AI Edge Gallery can be kept at `external/google-ai-edge-gallery/`. That directory is ignored by Git so it can be reused for comparison without versioning the upstream app.
+
+Current parity choices based on `LlmChatModelHelper`:
+
+- send image content as PNG `ImageBytes`
+- send audio as WAV/PCM bytes
+- order multimodal content as images, audio, then text
+- use async LiteRT-LM callbacks and cancel the conversation on coroutine cancellation
+- use NPU for the main Gemma backend when available, with CPU audio backend
 
 ## Input Support
 
 - Text input is available from the home screen
 - Image input is available from the home screen and Android share intents
 - Audio bytes can be accepted from Android share intents
-- In-app voice recording UI is still unfinished
+- In-app voice recording captures 16 kHz mono PCM and wraps it as WAV before inference
 - Slow analysis jobs are executed through a foreground WorkManager worker with a notification
 
 ## Event Extraction Contract
