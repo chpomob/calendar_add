@@ -32,6 +32,7 @@ Verified on the current codebase:
 - Invalid extracted dates are rejected instead of silently defaulting to the current time
 - Relative dates like `tomorrow` and `next Friday` are now prompted against an explicit local reference datetime and timezone
 - An optional diagnostics mode can surface the raw model JSON in the app when a background extraction fails
+- Background worker retries are now labeled, capped after repeated restarts, and result notifications use a separate channel from progress notifications
 - Background analysis results keep separate notifications instead of overwriting each other
 - Stale WorkManager background chains are repaired on startup/enqueue, and queued inputs are no longer stored only in cache
 - Event detail now hides empty metadata fields instead of showing blank labels
