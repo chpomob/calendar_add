@@ -163,6 +163,7 @@ class TextAnalysisServiceTest {
         assertTrue(capturedPrompt.captured.contains("Reference local datetime: 2026-04-21T09:30:00+02:00"))
         assertTrue(capturedPrompt.captured.contains("Resolve relative date and time phrases such as today, tomorrow"))
         assertTrue(capturedPrompt.captured.contains("Return absolute ISO-8601 values in startTime and endTime"))
+        assertTrue(capturedPrompt.captured.contains("\"startTime\": \"ISO-8601\""))
     }
 
     @Test
@@ -209,10 +210,11 @@ class TextAnalysisServiceTest {
         val heavyPreferences = mockk<PreferencesManager>()
         val heavyService = TextAnalysisService(gemmaLlmService, heavyPreferences)
         val bitmap = mockk<android.graphics.Bitmap>(relaxed = true)
+        val observationPrompt = slot<String>()
         every { heavyPreferences.isHeavyAnalysisEnabled } returns true
 
         coEvery {
-            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 1/3: multimodal image observations") }, bitmap, null)
+            gemmaLlmService.extractEventJson(capture(observationPrompt), bitmap, null)
         } returns """{"events":[{"titleCandidates":["Town hall"],"dateCandidates":["tomorrow"],"timeCandidates":["7pm"]}]}"""
         coEvery {
             gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 2/3: temporal normalization") }, null, null)
@@ -226,6 +228,8 @@ class TextAnalysisServiceTest {
         assertEquals(1, result.size)
         assertEquals("Town hall", result.first().title)
         assertEquals("Community Center", result.first().location)
+        assertTrue(observationPrompt.captured.contains("Heavy mode stage 1/3: multimodal image observations"))
+        assertTrue(!observationPrompt.captured.contains("\"startTime\": \"ISO-8601\""))
         verify(atLeast = 1) { heavyPreferences.isHeavyAnalysisEnabled }
     }
 

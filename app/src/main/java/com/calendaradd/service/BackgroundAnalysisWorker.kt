@@ -29,6 +29,8 @@ import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import kotlin.math.max
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 
 private const val ANALYSIS_CHANNEL_ID = "analysis_jobs"
 private const val ANALYSIS_CHANNEL_NAME = "Background analysis"
@@ -38,6 +40,7 @@ private const val FOREGROUND_NOTIFICATION_ID = 1301
 private const val RESULT_NOTIFICATION_ID_BASE = 1302
 private const val MAX_BACKGROUND_RUN_ATTEMPTS = 2
 private const val QUEUED_IMAGE_MAX_DIMENSION = 1280
+private const val BACKGROUND_ANALYSIS_TIMEOUT_MS = 10 * 60 * 1000L
 
 class BackgroundAnalysisWorker(
     appContext: Context,
@@ -121,28 +124,35 @@ class BackgroundAnalysisWorker(
 
             val traceId = "bg-${System.currentTimeMillis().toString(16)}"
             val inputContext = InputContext(traceId = traceId)
-            val result = when (inputType) {
-                AnalysisInputType.TEXT -> {
-                    setForeground(createForegroundInfo(buildProgressMessage("Analyzing text with ${modelConfig.shortName}...", runAttemptCount)))
-                    val text = inputFile.readText(StandardCharsets.UTF_8)
-                    calendarUseCase.createEventFromText(text, inputContext)
-                }
-                AnalysisInputType.IMAGE -> {
-                    setForeground(createForegroundInfo(buildProgressMessage("Analyzing image with ${modelConfig.shortName}...", runAttemptCount)))
-                    val bitmap = decodeQueuedImage(inputFile)
-                        ?: return failureResult("Unable to decode the queued image.")
-                    try {
-                        calendarUseCase.createEventFromImage(bitmap, inputContext)
-                    } finally {
-                        if (!bitmap.isRecycled) {
-                            bitmap.recycle()
+            val result = try {
+                withTimeout(BACKGROUND_ANALYSIS_TIMEOUT_MS) {
+                    when (inputType) {
+                        AnalysisInputType.TEXT -> {
+                            setForeground(createForegroundInfo(buildProgressMessage("Analyzing text with ${modelConfig.shortName}...", runAttemptCount)))
+                            val text = inputFile.readText(StandardCharsets.UTF_8)
+                            calendarUseCase.createEventFromText(text, inputContext)
+                        }
+                        AnalysisInputType.IMAGE -> {
+                            setForeground(createForegroundInfo(buildProgressMessage("Analyzing image with ${modelConfig.shortName}...", runAttemptCount)))
+                            val bitmap = decodeQueuedImage(inputFile)
+                                ?: return@withTimeout EventResult.Failure("Unable to decode the queued image.")
+                            try {
+                                calendarUseCase.createEventFromImage(bitmap, inputContext)
+                            } finally {
+                                if (!bitmap.isRecycled) {
+                                    bitmap.recycle()
+                                }
+                            }
+                        }
+                        AnalysisInputType.AUDIO -> {
+                            setForeground(createForegroundInfo(buildProgressMessage("Analyzing audio with ${modelConfig.shortName}...", runAttemptCount)))
+                            calendarUseCase.createEventFromAudio(inputFile.readBytes(), inputContext)
                         }
                     }
                 }
-                AnalysisInputType.AUDIO -> {
-                    setForeground(createForegroundInfo(buildProgressMessage("Analyzing audio with ${modelConfig.shortName}...", runAttemptCount)))
-                    calendarUseCase.createEventFromAudio(inputFile.readBytes(), inputContext)
-                }
+            } catch (e: TimeoutCancellationException) {
+                AppLog.e(TAG, "Background analysis timed out for ${modelConfig.displayName} traceId=$traceId", e)
+                return failureResult(buildAnalysisTimeoutMessage())
             }
 
             return when (result) {
@@ -315,6 +325,10 @@ private fun buildUnexpectedFailureMessage(message: String?, runAttemptCount: Int
     } else {
         "The background analysis restarted and then failed. $baseMessage"
     }
+}
+
+internal fun buildAnalysisTimeoutMessage(): String {
+    return "Analysis timed out. Try disabling heavy mode, using a smaller image or audio clip, or selecting a smaller model."
 }
 
 private fun decodeQueuedImage(file: File): Bitmap? {

@@ -43,4 +43,16 @@ class LiteRtModelCatalogTest {
 
         assertEquals(1024, qwen.maxNumTokens)
     }
+
+    @Test
+    fun `Gemma models use bounded generation for extraction`() {
+        val gemmaModels = LiteRtModelCatalog.models.filter {
+            it.executionProfile == ModelExecutionProfile.ACCELERATED_GEMMA
+        }
+
+        assertTrue(gemmaModels.isNotEmpty())
+        gemmaModels.forEach { model ->
+            assertEquals("${model.id} should use the extraction token cap", 768, model.maxNumTokens)
+        }
+    }
 }

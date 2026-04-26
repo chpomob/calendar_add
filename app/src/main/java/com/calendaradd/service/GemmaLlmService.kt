@@ -149,18 +149,7 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     ): String? = withContext(Dispatchers.IO) {
         val requestId = "llm-${System.currentTimeMillis().toString(16)}"
         val mode = requestMode(image, audio)
-        val requestText = buildString {
-            appendLine("Extract calendar events from the input.")
-            appendLine("If the input contains multiple fragments about the same event, merge them into one event.")
-            appendLine("If the input contains multiple distinct events, return them all.")
-            appendLine("Use any supplied reference local datetime and timezone to resolve relative date or time phrases such as today, tomorrow, tonight, next Friday, and this weekend.")
-            appendLine("Return absolute ISO-8601 timestamps in startTime and endTime. Do not leave relative temporal words unresolved in the JSON.")
-            appendLine("Return ONLY valid JSON in this exact shape: { \"events\": [ { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601\", \"endTime\": \"ISO-8601\", \"location\": \"\", \"attendees\": [] } ] }")
-            appendLine("If there is only one event, still return it inside the events array.")
-            appendLine("If there are no events, return { \"events\": [] }.")
-            appendLine("Input data:")
-            append(text)
-        }
+        val requestText = text
         AppLog.i(
             TAG,
             "[$requestId] Starting request mode=$mode backend=${activeBackendLabel ?: "uninitialized"} " +

@@ -48,6 +48,7 @@ class TextAnalysisService(
             append(buildReferencePrompt(context))
             appendLine("Input type: text")
             appendLine("Extract calendar events from this user text.")
+            append(buildFinalEventJsonInstructions())
             appendLine("User input: $input")
         }
         val jsonString = gemmaLlmService.extractEventJson(text = promptText)
@@ -75,6 +76,7 @@ class TextAnalysisService(
             appendLine("Input type: image")
             appendLine("Extract calendar events from this image.")
             appendLine("If the image contains relative date or time phrases, resolve them using the reference local datetime above.")
+            append(buildFinalEventJsonInstructions())
         }
         val jsonString = gemmaLlmService.extractEventJson(text = promptText, image = bitmap)
         parseJsonToExtractions(jsonString, context.traceId)
@@ -98,6 +100,7 @@ class TextAnalysisService(
             appendLine("Input type: audio")
             appendLine("Extract calendar events from this audio recording.")
             appendLine("If the speaker says relative dates or times, resolve them using the reference local datetime above.")
+            append(buildFinalEventJsonInstructions())
         }
         val jsonString = gemmaLlmService.extractEventJson(text = promptText, audio = audioData)
         parseJsonToExtractions(jsonString, context.traceId)
@@ -219,6 +222,16 @@ class TextAnalysisService(
                     "next Friday, this weekend, and in two days against the reference local datetime."
             )
             appendLine("Return absolute ISO-8601 values in startTime and endTime. Never leave relative words in the JSON output.")
+        }
+    }
+
+    private fun buildFinalEventJsonInstructions(): String {
+        return buildString {
+            appendLine("If the input contains multiple fragments about the same event, merge them into one event.")
+            appendLine("If the input contains multiple distinct events, return them all.")
+            appendLine("Return ONLY valid JSON in this exact shape: { \"events\": [ { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601\", \"endTime\": \"ISO-8601\", \"location\": \"\", \"attendees\": [] } ] }")
+            appendLine("If there is only one event, still return it inside the events array.")
+            appendLine("If there are no events, return { \"events\": [] }.")
         }
     }
 

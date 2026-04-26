@@ -81,6 +81,25 @@ class GemmaLlmServiceTest {
     }
 
     @Test
+    fun `initialize should apply Gemma extraction token cap`() = runBlocking {
+        var capturedConfig: EngineConfig? = null
+        service = object : GemmaLlmService(context) {
+            override fun createEngine(config: EngineConfig): Engine {
+                capturedConfig = config
+                return engine
+            }
+        }
+        servicesToClose += service
+
+        service.initialize(
+            modelPath = "/tmp/fake-gemma-model.litertlm",
+            modelConfig = LiteRtModelCatalog.find("gemma-4-e2b")
+        )
+
+        assertEquals(768, requireNotNull(capturedConfig).maxNumTokens)
+    }
+
+    @Test
     fun `initialize should fall back to mixed NPU and CPU when multimodal NPU fails`() = runBlocking {
         val capturedConfigs = mutableListOf<EngineConfig>()
         service = object : GemmaLlmService(context) {

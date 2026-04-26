@@ -35,4 +35,12 @@ class BackgroundAnalysisWorkerTest {
         assertEquals("Initializing Gemma...", buildProgressMessage("Initializing Gemma...", 0))
         assertEquals("Retry 2: Initializing Gemma...", buildProgressMessage("Initializing Gemma...", 1))
     }
+
+    @Test
+    fun `buildAnalysisTimeoutMessage should suggest heavy mode mitigation`() {
+        val message = buildAnalysisTimeoutMessage()
+
+        assertTrue(message.contains("timed out"))
+        assertTrue(message.contains("heavy mode"))
+    }
 }
