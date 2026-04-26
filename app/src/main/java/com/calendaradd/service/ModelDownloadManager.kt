@@ -53,7 +53,13 @@ class ModelDownloadManager(
      */
     fun isModelDownloaded(model: LiteRtModelConfig = getSelectedModel()): Boolean {
         val file = getModelFile(model)
-        return file.exists() && file.length() >= model.minimumExpectedBytes
+        if (!file.exists()) return false
+        val fileSize = file.length()
+        return if (model.requireExactSize) {
+            fileSize == model.sizeBytes
+        } else {
+            fileSize >= model.minimumExpectedBytes
+        }
     }
 
     /**

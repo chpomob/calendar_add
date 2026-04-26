@@ -117,7 +117,9 @@ class BackgroundAnalysisWorker(
 
             gemmaLlmService.initialize(
                 modelPath = modelDownloadManager.getModelFile(modelConfig).absolutePath,
-                modelConfig = modelConfig
+                modelConfig = modelConfig,
+                enableImage = inputType == AnalysisInputType.IMAGE,
+                enableAudio = inputType == AnalysisInputType.AUDIO
             )
             val keepModels = backgroundAnalysisScheduler.getPendingModels() + modelConfig
             modelDownloadManager.cleanupUnusedModelFiles(keepModels)

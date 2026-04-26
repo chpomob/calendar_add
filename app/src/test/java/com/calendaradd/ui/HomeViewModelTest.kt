@@ -70,7 +70,7 @@ class HomeViewModelTest {
 
         assertTrue(viewModel.isModelReady.first())
         assertEquals(HomeUiState.Idle, viewModel.uiState.first())
-        coVerify(exactly = 0) { gemmaLlmService.initialize(any(), any()) }
+        coVerify(exactly = 0) { gemmaLlmService.initialize(any(), any(), any(), any()) }
     }
 
     @Test

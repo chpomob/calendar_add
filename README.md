@@ -96,8 +96,15 @@ The current Gemma path was cross-checked against Google AI Edge Gallery. The app
 
 Runtime choices:
 
-- Gemma text and vision prefer GPU when available, then fall back to mixed GPU/CPU and CPU.
-- Gemma audio uses CPU backend, matching Gallery's direct LiteRT-LM path for Gemma 3n audio.
+- Gemma 4 follows Gallery's `gpu,cpu` main backend order and uses GPU vision.
+- Gemma 3n follows Gallery's `cpu,gpu` main backend order and uses GPU vision.
+- Gemma audio uses CPU backend, matching Gallery's direct LiteRT-LM path.
+- Image, audio, and text jobs initialize only the matching LiteRT-LM modality backends, matching Gallery's task-specific setup.
+- Gemma 4 E4B image/audio jobs on devices below 16 GB RAM use CPU for the text backend and GPU for vision. This avoids a native GPU-main initialization kill observed on a 12 GB Pixel 8 Pro.
+- Gemma models keep Gallery's minimum device RAM guards before initialization.
+- Gemma downloads are pinned to Gallery's exact Hugging Face commits and exact file sizes.
+- Conversations use Gallery's sampler settings: topK 64, topP 0.95, temperature 1.0.
+- Gemma token windows match Gallery: 4000 for Gemma 4 and 4096 for Gemma 3n. Image prompts need the larger window because the image context is part of LiteRT-LM prefill.
 - Images are passed as PNG `ImageBytes` instead of temporary JPEG files.
 - In-app voice capture records 16 kHz mono PCM and sends WAV bytes to the model.
 - LiteRT-LM inference uses async callbacks so timeout/cancellation can call `cancelProcess()`.

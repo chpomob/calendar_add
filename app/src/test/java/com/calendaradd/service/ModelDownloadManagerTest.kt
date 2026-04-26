@@ -11,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.io.RandomAccessFile
 
 class ModelDownloadManagerTest {
 
@@ -69,5 +70,38 @@ class ModelDownloadManagerTest {
         assertTrue(currentFile.exists())
         assertTrue(queuedFile.exists())
         assertFalse(otherFile.exists())
+    }
+
+    @Test
+    fun `isModelDownloaded should require exact size for Gallery pinned Gemma models`() {
+        val model = LiteRtModelCatalog.find("gemma-4-e2b")
+        val modelFile = File(modelDir, model.fileName)
+
+        modelFile.setSparseLength(model.sizeBytes - 1L)
+        assertFalse(manager.isModelDownloaded(model))
+
+        modelFile.setSparseLength(model.sizeBytes)
+        assertTrue(manager.isModelDownloaded(model))
+
+        modelFile.setSparseLength(model.sizeBytes + 1L)
+        assertFalse(manager.isModelDownloaded(model))
+    }
+
+    @Test
+    fun `isModelDownloaded should keep threshold validation for approximate third party models`() {
+        val model = LiteRtModelCatalog.find("qwen-3_5-0_8b")
+        val modelFile = File(modelDir, model.fileName)
+
+        modelFile.setSparseLength(model.minimumExpectedBytes - 1L)
+        assertFalse(manager.isModelDownloaded(model))
+
+        modelFile.setSparseLength(model.minimumExpectedBytes)
+        assertTrue(manager.isModelDownloaded(model))
+    }
+}
+
+private fun File.setSparseLength(length: Long) {
+    RandomAccessFile(this, "rw").use { file ->
+        file.setLength(length)
     }
 }

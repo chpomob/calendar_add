@@ -1,7 +1,9 @@
 package com.calendaradd.service
 
+import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.Build
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.hasWavHeader
 import com.google.ai.edge.litertlm.*
@@ -11,7 +13,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -43,7 +44,8 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     private var engine: Engine? = null
     private val mutex = Any()
     private var activeBackendLabel: String? = null
-    private var activeModelPath: String? = null
+    private var activeModelSignature: ActiveModelSignature? = null
+    private var activeConversationConfig: ConversationConfig = ConversationConfig()
     
     /**
      * Tracks the last successfully initialized backend.
@@ -57,16 +59,28 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     protected open fun createEngine(config: EngineConfig): Engine = Engine(config)
 
     protected open fun createConversation(engine: Engine): Conversation =
-        engine.createConversation(ConversationConfig())
+        engine.createConversation(activeConversationConfig)
 
     /**
      * Initializes the LiteRT-LM engine with a Gemma 4 model.
-     * Attempts to use GPU acceleration first, falling back to mixed GPU/CPU and CPU if it fails.
+     * Initializes with the backend order from the selected model's Gallery-aligned profile.
      */
-    open suspend fun initialize(modelPath: String, modelConfig: LiteRtModelConfig? = null) = withContext(Dispatchers.IO) {
+    open suspend fun initialize(
+        modelPath: String,
+        modelConfig: LiteRtModelConfig? = null,
+        enableImage: Boolean = modelConfig?.supportsImage != false,
+        enableAudio: Boolean = modelConfig?.supportsAudio != false
+    ) = withContext(Dispatchers.IO) {
         synchronized(processEngineGuard) {
+            val requestedModelSignature = ActiveModelSignature(
+                modelPath = modelPath,
+                modelId = modelConfig?.id,
+                enableImage = enableImage,
+                enableAudio = enableAudio,
+                maxNumTokens = modelConfig?.maxNumTokens
+            )
             synchronized(mutex) {
-                if (engine != null && activeModelPath == modelPath) return@withContext
+                if (engine != null && activeModelSignature == requestedModelSignature) return@withContext
             }
 
             val previousActiveService = activeService
@@ -76,14 +90,25 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
             }
 
             synchronized(mutex) {
-                if (engine != null && activeModelPath != modelPath) {
-                    AppLog.i(TAG, "Switching LiteRT-LM model from $activeModelPath to $modelPath")
+                if (engine != null && activeModelSignature != requestedModelSignature) {
+                    AppLog.i(TAG, "Switching LiteRT-LM engine from $activeModelSignature to $requestedModelSignature")
                     closeEngineLocked()
                     lastInitializationFailure = null
                 }
 
-                val cacheDirPath = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
-                val backends = backendProfilesFor(modelConfig)
+                val deviceMemoryGb = context.deviceMemoryGb()
+                modelConfig?.validateDeviceMemoryOrThrow(deviceMemoryGb)?.let { failure ->
+                    lastInitializationFailure = failure
+                    throw IllegalStateException(failure)
+                }
+
+                val cacheDirPath = liteRtCacheDir(context, modelPath)
+                val backends = backendProfilesFor(
+                    modelConfig = modelConfig,
+                    enableImage = enableImage,
+                    enableAudio = enableAudio,
+                    deviceMemoryGb = deviceMemoryGb
+                )
 
                 var lastError: Throwable? = null
                 val attemptedBackends = mutableListOf<String>()
@@ -94,7 +119,8 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                         attemptedBackends += profile.label
                         AppLog.i(
                             TAG,
-                            "Initializing LiteRT-LM engine backend=${profile.label} model=${modelConfig?.displayName ?: "unknown"}"
+                            "Initializing LiteRT-LM engine backend=${profile.label} " +
+                                "model=${modelConfig?.displayName ?: "unknown"} image=$enableImage audio=$enableAudio"
                         )
                         val config = EngineConfig(
                             modelPath = modelPath,
@@ -109,7 +135,8 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                         }
                         engine = initializedEngine
                         activeBackendLabel = profile.label
-                        activeModelPath = modelPath
+                        activeModelSignature = requestedModelSignature
+                        activeConversationConfig = conversationConfigFor(modelConfig)
                         lastBackendUsed = profile.label
                         lastInitializationFailure = null
                         activeService = this@GemmaLlmService
@@ -138,7 +165,11 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                         }
                     }
                 }
-                throw lastError ?: RuntimeException("Failed to initialize engine with any backend")
+                val failure = lastError ?: RuntimeException("Failed to initialize engine with any backend")
+                if (failure is Exception) {
+                    throw failure
+                }
+                throw RuntimeException("Failed to initialize engine with any backend", failure)
             }
         }
     }
@@ -250,12 +281,21 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
         engine?.close()
         engine = null
         activeBackendLabel = null
-        activeModelPath = null
+        activeModelSignature = null
+        activeConversationConfig = ConversationConfig()
     }
 }
 
+private data class ActiveModelSignature(
+    val modelPath: String,
+    val modelId: String?,
+    val enableImage: Boolean,
+    val enableAudio: Boolean,
+    val maxNumTokens: Int?
+)
+
 private fun Throwable.isRecoverableBackendInitializationFailure(): Boolean {
-    return this is Exception || this is LinkageError
+    return this is Exception || this is LinkageError || this is OutOfMemoryError
 }
 
 private data class BackendProfile(
@@ -265,38 +305,158 @@ private data class BackendProfile(
     val audioBackend: Backend?
 )
 
-private fun backendProfilesFor(modelConfig: LiteRtModelConfig?): List<BackendProfile> {
+private fun backendProfilesFor(
+    modelConfig: LiteRtModelConfig?,
+    enableImage: Boolean,
+    enableAudio: Boolean,
+    deviceMemoryGb: Double?
+): List<BackendProfile> {
     return when (modelConfig?.executionProfile) {
         ModelExecutionProfile.CPU_ONLY_MULTIMODAL -> listOf(
             BackendProfile(
                 label = "CPU-only multimodal",
                 textBackend = Backend.CPU(),
-                visionBackend = Backend.CPU(),
-                audioBackend = if (modelConfig.supportsAudio) Backend.CPU() else null
+                visionBackend = if (enableImage && modelConfig.supportsImage) Backend.CPU() else null,
+                audioBackend = if (enableAudio && modelConfig.supportsAudio) Backend.CPU() else null
             )
         )
-        else -> listOf(
+        else -> acceleratedBackendProfiles(modelConfig, enableImage, enableAudio, deviceMemoryGb)
+    }
+}
+
+private fun acceleratedBackendProfiles(
+    modelConfig: LiteRtModelConfig?,
+    enableImage: Boolean,
+    enableAudio: Boolean,
+    deviceMemoryGb: Double?
+): List<BackendProfile> {
+    val mainBackends = mainBackendOrderFor(modelConfig, enableImage, enableAudio, deviceMemoryGb)
+    val visionBackends = if (enableImage && modelConfig?.supportsImage != false) {
+        buildList {
+            modelConfig?.visionBackend?.let { add(it) }
+            add(ModelBackendKind.CPU)
+        }.distinct()
+    } else {
+        listOf(null)
+    }
+    val audioBackend = if (enableAudio && modelConfig?.supportsAudio != false) Backend.CPU() else null
+
+    return mainBackends.flatMap { mainBackend ->
+        visionBackends.map { visionBackend ->
             BackendProfile(
-                label = "GPU(text/vision)+CPU(audio)",
-                textBackend = Backend.GPU(),
-                visionBackend = if (modelConfig?.supportsImage != false) Backend.GPU() else null,
-                audioBackend = if (modelConfig?.supportsAudio != false) Backend.CPU() else null
-            ),
-            BackendProfile(
-                label = "GPU(text)+CPU(vision/audio)",
-                textBackend = Backend.GPU(),
-                visionBackend = if (modelConfig?.supportsImage != false) Backend.CPU() else null,
-                audioBackend = if (modelConfig?.supportsAudio != false) Backend.CPU() else null
-            ),
-            BackendProfile(
-                label = "CPU",
-                textBackend = Backend.CPU(),
-                visionBackend = if (modelConfig?.supportsImage != false) Backend.CPU() else null,
-                audioBackend = if (modelConfig?.supportsAudio != false) Backend.CPU() else null
+                label = backendProfileLabel(mainBackend, visionBackend, audioBackend != null),
+                textBackend = mainBackend.toLiteRtBackend(),
+                visionBackend = visionBackend?.toLiteRtBackend(),
+                audioBackend = audioBackend
             )
+        }
+    }.distinctBy { profile ->
+        listOf(
+            profile.textBackend::class.java.name,
+            profile.visionBackend?.let { it::class.java.name }.orEmpty(),
+            profile.audioBackend?.let { it::class.java.name }.orEmpty()
         )
     }
 }
+
+private fun mainBackendOrderFor(
+    modelConfig: LiteRtModelConfig?,
+    enableImage: Boolean,
+    enableAudio: Boolean,
+    deviceMemoryGb: Double?
+): List<ModelBackendKind> {
+    val configuredBackends = modelConfig?.mainBackendOrder
+        ?.takeIf { it.isNotEmpty() }
+        ?: listOf(ModelBackendKind.GPU, ModelBackendKind.CPU)
+    val multimodalGpuMainMinimumMemoryGb = modelConfig?.multimodalGpuMainMinimumMemoryGb
+    val isMultimodalJob = enableImage || enableAudio
+    val hasEnoughMemoryForMultimodalGpuMain = deviceMemoryGb == null ||
+        multimodalGpuMainMinimumMemoryGb == null ||
+        deviceMemoryGb >= multimodalGpuMainMinimumMemoryGb
+
+    return if (
+        isMultimodalJob &&
+        !hasEnoughMemoryForMultimodalGpuMain &&
+        configuredBackends.firstOrNull() == ModelBackendKind.GPU
+    ) {
+        listOf(ModelBackendKind.CPU, ModelBackendKind.GPU) + configuredBackends.drop(1)
+    } else {
+        configuredBackends
+    }.distinct()
+}
+
+private fun backendProfileLabel(
+    mainBackend: ModelBackendKind,
+    visionBackend: ModelBackendKind?,
+    hasAudio: Boolean
+): String {
+    val parts = mutableListOf("${mainBackend.label}(text)")
+    if (visionBackend != null) {
+        parts += "${visionBackend.label}(vision)"
+    }
+    if (hasAudio) {
+        parts += "CPU(audio)"
+    }
+    return parts.joinToString("+")
+}
+
+private fun ModelBackendKind.toLiteRtBackend(): Backend {
+    return when (this) {
+        ModelBackendKind.CPU -> Backend.CPU()
+        ModelBackendKind.GPU -> Backend.GPU()
+    }
+}
+
+private val ModelBackendKind.label: String
+    get() = when (this) {
+        ModelBackendKind.CPU -> "CPU"
+        ModelBackendKind.GPU -> "GPU"
+    }
+
+private fun LiteRtModelConfig.validateDeviceMemoryOrThrow(deviceMemoryGb: Double?): String? {
+    val requiredMemoryGb = minimumDeviceMemoryGb ?: return null
+    deviceMemoryGb ?: return null
+    return if (deviceMemoryGb < requiredMemoryGb) {
+        "${shortName} requires at least ${requiredMemoryGb}GB RAM; this device reports ${formatMemoryGb(deviceMemoryGb)}GB."
+    } else {
+        null
+    }
+}
+
+private fun Context.deviceMemoryGb(): Double? {
+    val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return null
+    val memoryInfo = ActivityManager.MemoryInfo()
+    activityManager.getMemoryInfo(memoryInfo)
+    val totalBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        memoryInfo.advertisedMem.takeIf { it > 0L } ?: memoryInfo.totalMem
+    } else {
+        memoryInfo.totalMem
+    }
+    if (totalBytes <= 0L) return null
+    return totalBytes / BYTES_IN_GB
+}
+
+private fun liteRtCacheDir(context: Context, modelPath: String): String? {
+    return if (modelPath.startsWith("/data/local/tmp")) {
+        context.getExternalFilesDir(null)?.absolutePath
+    } else {
+        null
+    }
+}
+
+private fun conversationConfigFor(modelConfig: LiteRtModelConfig?): ConversationConfig {
+    return ConversationConfig(
+        samplerConfig = SamplerConfig(
+            topK = modelConfig?.topK ?: 64,
+            topP = modelConfig?.topP ?: 0.95,
+            temperature = modelConfig?.temperature ?: 1.0
+        )
+    )
+}
+
+private fun formatMemoryGb(value: Double): String = String.format("%.1f", value)
+
+private const val BYTES_IN_GB = 1024.0 * 1024.0 * 1024.0
 
 private data class PreparedImageBytes(
     val bytes: ByteArray,

@@ -53,18 +53,20 @@ After the selected model initializes successfully, the app removes older app-man
 `GemmaLlmService` selects backends from the chosen model:
 
 - `ACCELERATED_GEMMA`
-  - text: prefer GPU
-  - vision: prefer GPU
-  - audio: CPU when the model supports audio
-  - fallback: GPU text with CPU vision/audio, then CPU
+  - Gemma 4 text: GPU, then CPU
+  - Gemma 3n text: CPU, then GPU
+  - vision: GPU, then CPU
+  - audio: CPU only for audio jobs when the model supports audio
 - `CPU_ONLY_MULTIMODAL`
   - text: CPU
   - vision: CPU
   - audio: disabled
 
-The Gemma profile intentionally keeps GPU for text and image processing while using CPU for audio. This matches Google AI Edge Gallery's direct LiteRT-LM integration: Gemma 4 lists `gpu,cpu` with `visionAccelerator: gpu`, Gemma 3n uses GPU for vision, and audio uses CPU.
+The Gemma profile follows Google AI Edge Gallery's allowlist instead of using one hard-coded order for every Gemma model. Gemma 4 lists `gpu,cpu` with `visionAccelerator: gpu`; Gemma 3n lists `cpu,gpu`, uses GPU for vision, and uses CPU for audio. Like Gallery's Ask Image and Ask Audio tasks, the app initializes only the modality required by the queued job, so image jobs do not load the audio executor and audio jobs do not load the vision executor. The app also applies Gallery's minimum device RAM values before initialization: 8 GB for E2B models and 12 GB for E4B models.
 
-For Qwen models, the app keeps a conservative `maxNumTokens` value during engine creation to reduce compiled-model memory pressure on Android devices. Gemma token caps are aligned with Gallery's model allowlist values: 4000 for Gemma 4 and 4096 for Gemma 3n.
+Gemma 4 E4B has one additional app safety policy: on devices below 16 GB RAM, image/audio jobs start with CPU for the text backend and GPU for vision. A Pixel 8 Pro with 12 GB RAM was observed to kill the app during native E4B `GPU(text)+GPU(vision)` initialization before Kotlin fallback could run, even with audio disabled. The E2B model and 16 GB+ devices still keep Gemma 4's Gallery `gpu,cpu` text backend order.
+
+For Qwen models, the app keeps a conservative `maxNumTokens` value during engine creation to reduce compiled-model memory pressure on Android devices. Gemma token windows stay aligned with Gallery's model allowlist values: 4000 for Gemma 4 and 4096 for Gemma 3n. The larger token windows are required for image prompts because LiteRT-LM prefill can fail if the combined image and text context is smaller than the model needs. Gemma conversations use Gallery's sampler settings: topK 64, topP 0.95, temperature 1.0.
 
 ## AI Edge Gallery Parity Notes
 
@@ -76,7 +78,9 @@ Current parity choices based on `LlmChatModelHelper`:
 - send audio as WAV/PCM bytes
 - order multimodal content as images, audio, then text
 - use async LiteRT-LM callbacks and cancel the conversation on coroutine cancellation
-- use GPU for the main Gemma backend when available, with CPU audio backend
+- use per-model Gallery backend order with GPU vision and CPU audio
+- initialize image/audio/text jobs with only their required LiteRT-LM modality backends
+- pin Gemma downloads to Gallery's Hugging Face commit hashes and exact file sizes
 
 ## Input Support
 
