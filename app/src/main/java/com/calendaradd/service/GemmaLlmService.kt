@@ -54,7 +54,7 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
 
     /**
      * Initializes the LiteRT-LM engine with a Gemma 4 model.
-     * Attempts to use NPU acceleration first, falling back to CPU if it fails.
+     * Attempts to use NPU acceleration first, falling back to mixed NPU/CPU and CPU if it fails.
      */
     open suspend fun initialize(modelPath: String, modelConfig: LiteRtModelConfig? = null) = withContext(Dispatchers.IO) {
         synchronized(processEngineGuard) {
@@ -265,6 +265,12 @@ private fun backendProfilesFor(modelConfig: LiteRtModelConfig?): List<BackendPro
             )
         )
         else -> listOf(
+            BackendProfile(
+                label = "NPU multimodal",
+                textBackend = Backend.NPU(),
+                visionBackend = if (modelConfig?.supportsImage != false) Backend.NPU() else null,
+                audioBackend = if (modelConfig?.supportsAudio != false) Backend.NPU() else null
+            ),
             BackendProfile(
                 label = "NPU(text)+CPU(vision/audio)",
                 textBackend = Backend.NPU(),

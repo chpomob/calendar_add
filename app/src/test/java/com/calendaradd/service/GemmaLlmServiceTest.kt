@@ -49,7 +49,7 @@ class GemmaLlmServiceTest {
     }
 
     @Test
-    fun `initialize should keep vision and audio on CPU when text uses NPU`() = runBlocking {
+    fun `initialize should prefer NPU for Gemma text image and audio`() = runBlocking {
         var capturedConfig: EngineConfig? = null
         service = object : GemmaLlmService(context) {
             override fun createEngine(config: EngineConfig): Engine {
@@ -63,8 +63,34 @@ class GemmaLlmServiceTest {
 
         val config = requireNotNull(capturedConfig)
         assertEquals(Backend.NPU::class.java.name, config.backend::class.java.name)
-        assertEquals(Backend.CPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
-        assertEquals(Backend.CPU::class.java.name, requireNotNull(config.audioBackend)::class.java.name)
+        assertEquals(Backend.NPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
+        assertEquals(Backend.NPU::class.java.name, requireNotNull(config.audioBackend)::class.java.name)
+    }
+
+    @Test
+    fun `initialize should fall back to mixed NPU and CPU when multimodal NPU fails`() = runBlocking {
+        val capturedConfigs = mutableListOf<EngineConfig>()
+        service = object : GemmaLlmService(context) {
+            override fun createEngine(config: EngineConfig): Engine {
+                capturedConfigs += config
+                if (capturedConfigs.size == 1) {
+                    throw IllegalStateException("synthetic multimodal NPU failure")
+                }
+                return engine
+            }
+        }
+        servicesToClose += service
+
+        service.initialize("/tmp/fake-model.litertlm")
+
+        assertEquals(2, capturedConfigs.size)
+        assertEquals(Backend.NPU::class.java.name, capturedConfigs[0].backend::class.java.name)
+        assertEquals(Backend.NPU::class.java.name, requireNotNull(capturedConfigs[0].visionBackend)::class.java.name)
+        assertEquals(Backend.NPU::class.java.name, requireNotNull(capturedConfigs[0].audioBackend)::class.java.name)
+        assertEquals(Backend.NPU::class.java.name, capturedConfigs[1].backend::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, requireNotNull(capturedConfigs[1].visionBackend)::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, requireNotNull(capturedConfigs[1].audioBackend)::class.java.name)
+        assertEquals("NPU(text)+CPU(vision/audio)", service.lastBackendUsed)
     }
 
     @Test
