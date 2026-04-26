@@ -17,6 +17,7 @@ Implemented now:
 - press-and-hold microphone capture, limited to 30 seconds
 - background analysis through `WorkManager` with foreground notifications
 - multi-event extraction from a single input
+- optional heavy analysis mode for images and audio, using extra refinement rounds
 - local Room persistence
 - optional sync to the device calendar
 - opt-in diagnostics mode that can surface raw model JSON on extraction failure
@@ -86,6 +87,8 @@ The extraction pipeline is stricter than earlier versions:
 - prompts now include an explicit local reference datetime and timezone so relative phrases like `tomorrow`, `tonight`, or `next Friday` are resolved more reliably
 
 If diagnostics mode is enabled in Settings, failed background extractions can reopen the app with the raw model JSON for inspection.
+
+For difficult images or audio, Settings now expose a heavy analysis mode. It keeps the expensive multimodal pass to one round, then runs extra text-only refinement passes for temporal resolution and final event composition.
 
 ## Requirements
 

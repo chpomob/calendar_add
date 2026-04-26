@@ -2,6 +2,7 @@ package com.calendaradd.service
 
 import android.graphics.Bitmap
 import com.calendaradd.usecase.InputContext
+import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.AppLog
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
@@ -17,11 +18,18 @@ import kotlinx.coroutines.withContext
  * Service for orchestrating the AI analysis pipeline.
  */
 class TextAnalysisService(
-    private val gemmaLlmService: EventJsonExtractor
+    private val gemmaLlmService: EventJsonExtractor,
+    private val preferencesManager: PreferencesManager? = null
 ) {
     companion object {
         private const val TAG = "TextAnalysisService"
         private val promptDateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
+        private const val HEAVY_IMAGE_STAGE_1 = "Heavy mode stage 1/3: multimodal image observations"
+        private const val HEAVY_IMAGE_STAGE_2 = "Heavy mode stage 2/3: temporal normalization"
+        private const val HEAVY_IMAGE_STAGE_3 = "Heavy mode stage 3/3: final event composition"
+        private const val HEAVY_AUDIO_STAGE_1 = "Heavy mode stage 1/3: multimodal audio observations"
+        private const val HEAVY_AUDIO_STAGE_2 = "Heavy mode stage 2/3: temporal normalization"
+        private const val HEAVY_AUDIO_STAGE_3 = "Heavy mode stage 3/3: final event composition"
     }
 
     private val debugSnapshotLock = Any()
@@ -58,6 +66,10 @@ class TextAnalysisService(
             TAG,
             "[${context.traceId}] Analyzing image bitmap=${bitmap.width}x${bitmap.height} config=${bitmap.config ?: "null"}"
         )
+        if (isHeavyAnalysisEnabled()) {
+            AppLog.i(TAG, "[${context.traceId}] Heavy analysis enabled for image input")
+            return@withContext analyzeImageHeavy(bitmap, context)
+        }
         val promptText = buildString {
             append(buildReferencePrompt(context))
             appendLine("Input type: image")
@@ -77,6 +89,10 @@ class TextAnalysisService(
     ): List<EventExtraction> = withContext(Dispatchers.IO) {
         clearDebugSnapshot()
         AppLog.i(TAG, "[${context.traceId}] Analyzing audio bytes=${audioData.size}")
+        if (isHeavyAnalysisEnabled()) {
+            AppLog.i(TAG, "[${context.traceId}] Heavy analysis enabled for audio input")
+            return@withContext analyzeAudioHeavy(audioData, context)
+        }
         val promptText = buildString {
             append(buildReferencePrompt(context))
             appendLine("Input type: audio")
@@ -87,11 +103,109 @@ class TextAnalysisService(
         parseJsonToExtractions(jsonString, context.traceId)
     }
 
+    private suspend fun analyzeImageHeavy(
+        bitmap: Bitmap,
+        context: InputContext
+    ): List<EventExtraction> {
+        val observations = gemmaLlmService.extractEventJson(
+            text = buildHeavyImageObservationPrompt(context),
+            image = bitmap
+        )
+        if (observations.isNullOrBlank()) {
+            recordStageFailure(context.traceId, HEAVY_IMAGE_STAGE_1, "The model returned no image observations.", observations)
+            return emptyList()
+        }
+
+        val temporalResolution = gemmaLlmService.extractEventJson(
+            text = buildTemporalResolutionPrompt(
+                context = context,
+                stageLabel = HEAVY_IMAGE_STAGE_2,
+                sourceType = "image",
+                observations = observations
+            )
+        )
+        if (temporalResolution.isNullOrBlank()) {
+            recordStageFailure(context.traceId, HEAVY_IMAGE_STAGE_2, "The model returned no temporal resolution for the image.", observations)
+            return emptyList()
+        }
+
+        val finalJson = gemmaLlmService.extractEventJson(
+            text = buildFinalCompositionPrompt(
+                context = context,
+                stageLabel = HEAVY_IMAGE_STAGE_3,
+                sourceType = "image",
+                observations = observations,
+                temporalResolution = temporalResolution
+            )
+        )
+
+        val results = parseJsonToExtractions(finalJson, context.traceId)
+        if (results.isEmpty()) {
+            recordStageFailure(
+                traceId = context.traceId,
+                stageLabel = HEAVY_IMAGE_STAGE_3,
+                issue = "Heavy image mode completed but did not produce usable final events.",
+                rawResponse = combineHeavyModeResponses(observations, temporalResolution, finalJson)
+            )
+        }
+        return results
+    }
+
+    private suspend fun analyzeAudioHeavy(
+        audioData: ByteArray,
+        context: InputContext
+    ): List<EventExtraction> {
+        val observations = gemmaLlmService.extractEventJson(
+            text = buildHeavyAudioObservationPrompt(context),
+            audio = audioData
+        )
+        if (observations.isNullOrBlank()) {
+            recordStageFailure(context.traceId, HEAVY_AUDIO_STAGE_1, "The model returned no audio observations.", observations)
+            return emptyList()
+        }
+
+        val temporalResolution = gemmaLlmService.extractEventJson(
+            text = buildTemporalResolutionPrompt(
+                context = context,
+                stageLabel = HEAVY_AUDIO_STAGE_2,
+                sourceType = "audio",
+                observations = observations
+            )
+        )
+        if (temporalResolution.isNullOrBlank()) {
+            recordStageFailure(context.traceId, HEAVY_AUDIO_STAGE_2, "The model returned no temporal resolution for the audio.", observations)
+            return emptyList()
+        }
+
+        val finalJson = gemmaLlmService.extractEventJson(
+            text = buildFinalCompositionPrompt(
+                context = context,
+                stageLabel = HEAVY_AUDIO_STAGE_3,
+                sourceType = "audio",
+                observations = observations,
+                temporalResolution = temporalResolution
+            )
+        )
+
+        val results = parseJsonToExtractions(finalJson, context.traceId)
+        if (results.isEmpty()) {
+            recordStageFailure(
+                traceId = context.traceId,
+                stageLabel = HEAVY_AUDIO_STAGE_3,
+                issue = "Heavy audio mode completed but did not produce usable final events.",
+                rawResponse = combineHeavyModeResponses(observations, temporalResolution, finalJson)
+            )
+        }
+        return results
+    }
+
     fun consumeLastDebugSnapshot(): AnalysisDebugSnapshot? {
         return synchronized(debugSnapshotLock) {
             lastDebugSnapshot.also { lastDebugSnapshot = null }
         }
     }
+
+    private fun isHeavyAnalysisEnabled(): Boolean = preferencesManager?.isHeavyAnalysisEnabled == true
 
     private fun buildReferencePrompt(context: InputContext): String {
         val zonedReference = Instant.ofEpochMilli(context.timestamp).atZone(ZoneId.of(context.timezone))
@@ -105,6 +219,73 @@ class TextAnalysisService(
                     "next Friday, this weekend, and in two days against the reference local datetime."
             )
             appendLine("Return absolute ISO-8601 values in startTime and endTime. Never leave relative words in the JSON output.")
+        }
+    }
+
+    private fun buildHeavyImageObservationPrompt(context: InputContext): String {
+        return buildString {
+            append(buildReferencePrompt(context))
+            appendLine(HEAVY_IMAGE_STAGE_1)
+            appendLine("Inspect the image conservatively and capture raw event evidence before normalization.")
+            appendLine("Return ONLY JSON in this exact shape:")
+            appendLine("{ \"events\": [ { \"titleCandidates\": [], \"descriptionCandidates\": [], \"locationCandidates\": [], \"dateCandidates\": [], \"timeCandidates\": [], \"supportingText\": [], \"notes\": [] } ], \"globalNotes\": [] }")
+            appendLine("Keep multiple candidate dates or times if the image is ambiguous.")
+            appendLine("Copy visible phrases as they appear when useful. Do not output final ISO timestamps yet.")
+        }
+    }
+
+    private fun buildHeavyAudioObservationPrompt(context: InputContext): String {
+        return buildString {
+            append(buildReferencePrompt(context))
+            appendLine(HEAVY_AUDIO_STAGE_1)
+            appendLine("Listen to the audio conservatively and capture raw event evidence before normalization.")
+            appendLine("Return ONLY JSON in this exact shape:")
+            appendLine("{ \"events\": [ { \"titleCandidates\": [], \"descriptionCandidates\": [], \"locationCandidates\": [], \"dateCandidates\": [], \"timeCandidates\": [], \"quotedPhrases\": [], \"notes\": [] } ], \"globalNotes\": [] }")
+            appendLine("Keep multiple candidate dates or times if the speaker is ambiguous.")
+            appendLine("Do not output final ISO timestamps yet.")
+        }
+    }
+
+    private fun buildTemporalResolutionPrompt(
+        context: InputContext,
+        stageLabel: String,
+        sourceType: String,
+        observations: String
+    ): String {
+        return buildString {
+            append(buildReferencePrompt(context))
+            appendLine(stageLabel)
+            appendLine("You are resolving temporal information for a heavy $sourceType extraction pass.")
+            appendLine("Use the observation JSON below and focus only on dates, times, durations, and event boundaries.")
+            appendLine("Return ONLY JSON in this exact shape:")
+            appendLine("{ \"events\": [ { \"resolvedStartTime\": \"ISO-8601 or empty\", \"resolvedEndTime\": \"ISO-8601 or empty\", \"dateReasoning\": \"\", \"remainingAmbiguity\": \"\" } ] }")
+            appendLine("If you cannot safely resolve a time, leave it empty instead of guessing.")
+            appendLine("Observation JSON:")
+            appendLine(observations)
+        }
+    }
+
+    private fun buildFinalCompositionPrompt(
+        context: InputContext,
+        stageLabel: String,
+        sourceType: String,
+        observations: String,
+        temporalResolution: String
+    ): String {
+        return buildString {
+            append(buildReferencePrompt(context))
+            appendLine(stageLabel)
+            appendLine("You are composing final events for a heavy $sourceType extraction pass.")
+            appendLine("Use the observation JSON for titles, descriptions, locations, and attendees.")
+            appendLine("Use the temporal-resolution JSON for startTime and endTime when available.")
+            appendLine("Return ONLY valid JSON in this exact shape: { \"events\": [ { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601\", \"endTime\": \"ISO-8601\", \"location\": \"\", \"attendees\": [] } ] }")
+            appendLine("Keep multiple distinct events if the earlier stages found them.")
+            appendLine("If a date cannot be resolved safely, leave startTime and endTime empty rather than inventing one.")
+            appendLine("Observation JSON:")
+            appendLine(observations)
+            appendLine()
+            appendLine("Temporal-resolution JSON:")
+            appendLine(temporalResolution)
         }
     }
 
@@ -167,6 +348,22 @@ class TextAnalysisService(
         synchronized(debugSnapshotLock) {
             lastDebugSnapshot = null
         }
+    }
+
+    private fun recordStageFailure(
+        traceId: String,
+        stageLabel: String,
+        issue: String,
+        rawResponse: String?
+    ) {
+        setDebugSnapshot(
+            AnalysisDebugSnapshot(
+                traceId = traceId,
+                rawResponse = rawResponse,
+                cleanedResponse = rawResponse,
+                issue = "$stageLabel failed: $issue"
+            )
+        )
     }
 
     private fun setDebugSnapshot(snapshot: AnalysisDebugSnapshot) {
@@ -249,6 +446,23 @@ class TextAnalysisService(
             this
         }
     }
+}
+
+private fun combineHeavyModeResponses(
+    observations: String?,
+    temporalResolution: String?,
+    finalJson: String?
+): String {
+    return buildString {
+        appendLine("Heavy mode observation stage:")
+        appendLine(observations ?: "<no response>")
+        appendLine()
+        appendLine("Heavy mode temporal stage:")
+        appendLine(temporalResolution ?: "<no response>")
+        appendLine()
+        appendLine("Heavy mode final stage:")
+        appendLine(finalJson ?: "<no response>")
+    }.trim()
 }
 
 data class AnalysisDebugSnapshot(

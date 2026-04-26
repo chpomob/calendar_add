@@ -1,9 +1,12 @@
 package com.calendaradd.service
 
 import com.calendaradd.usecase.InputContext
+import com.calendaradd.usecase.PreferencesManager
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -199,6 +202,56 @@ class TextAnalysisServiceTest {
         assertTrue(result.isEmpty())
         assertEquals("""{"events": []}""", debugSnapshot?.cleanedResponse)
         assertEquals("The model response did not contain any usable events.", debugSnapshot?.issue)
+    }
+
+    @Test
+    fun `analyzeImage should use heavy staged extraction when enabled`() = runBlocking {
+        val heavyPreferences = mockk<PreferencesManager>()
+        val heavyService = TextAnalysisService(gemmaLlmService, heavyPreferences)
+        val bitmap = mockk<android.graphics.Bitmap>(relaxed = true)
+        every { heavyPreferences.isHeavyAnalysisEnabled } returns true
+
+        coEvery {
+            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 1/3: multimodal image observations") }, bitmap, null)
+        } returns """{"events":[{"titleCandidates":["Town hall"],"dateCandidates":["tomorrow"],"timeCandidates":["7pm"]}]}"""
+        coEvery {
+            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 2/3: temporal normalization") }, null, null)
+        } returns """{"events":[{"resolvedStartTime":"2026-04-22T19:00:00+02:00","resolvedEndTime":"2026-04-22T20:00:00+02:00"}]}"""
+        coEvery {
+            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 3/3: final event composition") }, null, null)
+        } returns """{"events":[{"title":"Town hall","startTime":"2026-04-22T19:00:00+02:00","endTime":"2026-04-22T20:00:00+02:00","location":"Community Center","description":"Neighborhood update","attendees":[]}]}"""
+
+        val result = heavyService.analyzeImage(bitmap)
+
+        assertEquals(1, result.size)
+        assertEquals("Town hall", result.first().title)
+        assertEquals("Community Center", result.first().location)
+        verify(atLeast = 1) { heavyPreferences.isHeavyAnalysisEnabled }
+    }
+
+    @Test
+    fun `analyzeAudio should use heavy staged extraction when enabled`() = runBlocking {
+        val heavyPreferences = mockk<PreferencesManager>()
+        val heavyService = TextAnalysisService(gemmaLlmService, heavyPreferences)
+        val audioData = byteArrayOf(1, 2, 3)
+        every { heavyPreferences.isHeavyAnalysisEnabled } returns true
+
+        coEvery {
+            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 1/3: multimodal audio observations") }, null, audioData)
+        } returns """{"events":[{"titleCandidates":["Dentist"],"dateCandidates":["next friday"],"timeCandidates":["9 in the morning"]}]}"""
+        coEvery {
+            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 2/3: temporal normalization") }, null, null)
+        } returns """{"events":[{"resolvedStartTime":"2026-04-24T09:00:00+02:00","resolvedEndTime":"2026-04-24T10:00:00+02:00"}]}"""
+        coEvery {
+            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 3/3: final event composition") }, null, null)
+        } returns """{"events":[{"title":"Dentist","startTime":"2026-04-24T09:00:00+02:00","endTime":"2026-04-24T10:00:00+02:00","location":"","description":"","attendees":[]}]}"""
+
+        val result = heavyService.analyzeAudio(audioData)
+
+        assertEquals(1, result.size)
+        assertEquals("Dentist", result.first().title)
+        assertEquals("2026-04-24T09:00:00+02:00", result.first().startTime)
+        verify(atLeast = 1) { heavyPreferences.isHeavyAnalysisEnabled }
     }
 
     @Test

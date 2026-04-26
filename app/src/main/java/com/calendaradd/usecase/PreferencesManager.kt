@@ -15,6 +15,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_TARGET_CALENDAR_ID = "target_calendar_id"
         private const val KEY_TARGET_CALENDAR_NAME = "target_calendar_name"
         private const val KEY_SELECTED_MODEL_ID = "selected_model_id"
+        private const val KEY_HEAVY_ANALYSIS = "heavy_analysis"
         private const val KEY_DEBUG_FAILURE_JSON = "debug_failure_json"
     }
 
@@ -34,6 +35,10 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_SELECTED_MODEL_ID, LiteRtModelCatalog.DEFAULT_MODEL_ID)
             ?: LiteRtModelCatalog.DEFAULT_MODEL_ID
         set(value) = prefs.edit().putString(KEY_SELECTED_MODEL_ID, value).apply()
+
+    var isHeavyAnalysisEnabled: Boolean
+        get() = prefs.getBoolean(KEY_HEAVY_ANALYSIS, false)
+        set(value) = prefs.edit().putBoolean(KEY_HEAVY_ANALYSIS, value).apply()
 
     var isFailureJsonDebugEnabled: Boolean
         get() = prefs.getBoolean(KEY_DEBUG_FAILURE_JSON, false)

@@ -31,6 +31,9 @@ class SettingsViewModel(
     private val _selectedCalendarId = MutableStateFlow(preferencesManager.targetCalendarId)
     val selectedCalendarId: StateFlow<Long> = _selectedCalendarId.asStateFlow()
 
+    private val _isHeavyAnalysisEnabled = MutableStateFlow(preferencesManager.isHeavyAnalysisEnabled)
+    val isHeavyAnalysisEnabled: StateFlow<Boolean> = _isHeavyAnalysisEnabled.asStateFlow()
+
     private val _isFailureJsonDebugEnabled = MutableStateFlow(preferencesManager.isFailureJsonDebugEnabled)
     val isFailureJsonDebugEnabled: StateFlow<Boolean> = _isFailureJsonDebugEnabled.asStateFlow()
 
@@ -75,5 +78,10 @@ class SettingsViewModel(
     fun setFailureJsonDebugEnabled(enabled: Boolean) {
         preferencesManager.isFailureJsonDebugEnabled = enabled
         _isFailureJsonDebugEnabled.value = enabled
+    }
+
+    fun setHeavyAnalysisEnabled(enabled: Boolean) {
+        preferencesManager.isHeavyAnalysisEnabled = enabled
+        _isHeavyAnalysisEnabled.value = enabled
     }
 }

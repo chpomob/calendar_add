@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
         backgroundAnalysisScheduler = BackgroundAnalysisScheduler(this)
         systemCalendarService = SystemCalendarService(this)
 
-        val textAnalysisService = TextAnalysisService(gemmaLlmService)
+        val textAnalysisService = TextAnalysisService(gemmaLlmService, preferencesManager)
         calendarUseCase = CalendarUseCase(
             textAnalysisService = textAnalysisService,
             eventDatabase = eventDatabase,

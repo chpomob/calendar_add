@@ -14,6 +14,7 @@ Last updated: 2026-04-26
 - GitHub Actions publishes a debug APK on normal pushes
 - GitHub Actions publishes an unsigned release AAB for `v*` tags
 - Alpha tags like `v0.1.0-alpha.2` now draft a GitHub prerelease with attached build artifacts
+- Settings now expose an optional heavy analysis mode for staged image/audio extraction
 
 Current output after `./gradlew bundleRelease`:
 

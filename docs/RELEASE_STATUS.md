@@ -18,6 +18,7 @@ Verified on the current codebase:
 - Image analysis flow from picker/share input
 - Press-and-hold live microphone capture with a 30-second limit, audio-file import, and shared audio-byte analysis pipeline
 - Multi-event extraction and persistence
+- Optional heavy analysis mode for staged image/audio extraction
 - Background analysis through a foreground worker notification flow
 - Local Room persistence
 - Optional sync to the Android system calendar
@@ -31,6 +32,7 @@ Verified on the current codebase:
 - Extraction failures no longer create empty placeholder events
 - Invalid extracted dates are rejected instead of silently defaulting to the current time
 - Relative dates like `tomorrow` and `next Friday` are now prompted against an explicit local reference datetime and timezone
+- Heavy analysis mode now uses one multimodal pass plus text-only refinement rounds for image and audio inputs
 - An optional diagnostics mode can surface the raw model JSON in the app when a background extraction fails
 - Background worker retries are now labeled, capped after repeated restarts, and result notifications use a separate channel from progress notifications
 - Background analysis results keep separate notifications instead of overwriting each other

@@ -39,6 +39,7 @@ fun CalendarSettingsScreen(
     val availableModels by viewModel.availableModels.collectAsState()
     val availableCalendars by viewModel.availableCalendars.collectAsState()
     val isAutoAddEnabled by viewModel.isAutoAddEnabled.collectAsState()
+    val isHeavyAnalysisEnabled by viewModel.isHeavyAnalysisEnabled.collectAsState()
     val isFailureJsonDebugEnabled by viewModel.isFailureJsonDebugEnabled.collectAsState()
     val selectedModelId by viewModel.selectedModelId.collectAsState()
     val selectedCalendarId by viewModel.selectedCalendarId.collectAsState()
@@ -199,27 +200,45 @@ fun CalendarSettingsScreen(
             }
 
             Text(
-                "Diagnostics",
+                "Analysis",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary
             )
 
             Card {
-                ListItem(
-                    headlineContent = { Text("Show raw model JSON on failure") },
-                    supportingContent = {
-                        Text(
-                            "When enabled, failed background analyses can open a debug dialog with the raw model response. Keep this off for normal use."
-                        )
-                    },
-                    leadingContent = { Icon(Icons.Default.BugReport, contentDescription = null) },
-                    trailingContent = {
-                        Switch(
-                            checked = isFailureJsonDebugEnabled,
-                            onCheckedChange = { viewModel.setFailureJsonDebugEnabled(it) }
-                        )
-                    }
-                )
+                Column {
+                    ListItem(
+                        headlineContent = { Text("Heavy analysis mode") },
+                        supportingContent = {
+                            Text(
+                                "Uses extra extraction rounds for images and audio. Slower, but can improve difficult inputs."
+                            )
+                        },
+                        leadingContent = { Icon(Icons.Default.AutoFixHigh, contentDescription = null) },
+                        trailingContent = {
+                            Switch(
+                                checked = isHeavyAnalysisEnabled,
+                                onCheckedChange = { viewModel.setHeavyAnalysisEnabled(it) }
+                            )
+                        }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    ListItem(
+                        headlineContent = { Text("Show raw model JSON on failure") },
+                        supportingContent = {
+                            Text(
+                                "When enabled, failed background analyses can open a debug dialog with the raw model response. Keep this off for normal use."
+                            )
+                        },
+                        leadingContent = { Icon(Icons.Default.BugReport, contentDescription = null) },
+                        trailingContent = {
+                            Switch(
+                                checked = isFailureJsonDebugEnabled,
+                                onCheckedChange = { viewModel.setFailureJsonDebugEnabled(it) }
+                            )
+                        }
+                    )
+                }
             }
 
             // About Section

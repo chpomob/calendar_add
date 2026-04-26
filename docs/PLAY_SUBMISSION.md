@@ -86,6 +86,7 @@ Based on the current codebase:
 - the app downloads models from external URLs into app-specific storage
 - there is no app backend, account system, analytics SDK, or crash reporting SDK currently wired in the project
 - shared text, images, audio, and calendar data are processed on-device for the app’s core functionality
+- the app optionally offers a heavier staged extraction mode for image/audio inputs, which stays on-device but may run longer
 
 This should still be reviewed carefully before filling the Play Console data safety form.
 
