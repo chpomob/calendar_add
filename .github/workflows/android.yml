@@ -8,7 +8,7 @@ on:
     branches: [ main, develop ]
 
 permissions:
-  contents: read
+  contents: write
   security-events: write
 
 jobs:
@@ -67,6 +67,29 @@ jobs:
           path: app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 30
+
+      - name: Draft alpha prerelease
+        uses: softprops/action-gh-release@v2
+        if: success() && startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-alpha')
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Calendar Add ${{ github.ref_name }}
+          draft: true
+          prerelease: true
+          generate_release_notes: false
+          body: |
+            Alpha prerelease build for testers.
+
+            Included assets:
+            - Debug APK for direct device testing
+            - Unsigned release AAB built on GitHub Actions
+
+            Notes:
+            - The AAB is unsigned from CI on purpose.
+            - Final production signing remains local.
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/bundle/release/app-release.aab
 
   lint:
     runs-on: ubuntu-latest
