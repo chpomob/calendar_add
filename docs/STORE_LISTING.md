@@ -1,6 +1,6 @@
 # Store Listing Draft
 
-Last updated: 2026-04-20
+Last updated: 2026-04-26
 
 ## App Identity
 
@@ -67,4 +67,4 @@ Suggested direction:
 ## Notes
 
 - Avoid claiming server-side AI or cloud extraction because the current product direction is local-first.
-- Avoid claiming fully polished voice capture because in-app voice recording is still incomplete.
+- Avoid overclaiming reliability or speed on large local multimodal jobs because device performance still varies.

@@ -1,5 +1,7 @@
 # Release Notes
 
+Last updated: 2026-04-26
+
 ## Current Release Build Status
 
 - `compileSdk = 35`
@@ -9,6 +11,9 @@
 - Release minify and shrink are enabled
 - Release Android App Bundle builds successfully
 - Release signing is wired through local `keystore.properties`
+- GitHub Actions publishes a debug APK on normal pushes
+- GitHub Actions publishes an unsigned release AAB for `v*` tags
+- Alpha tags like `v0.1.0-alpha.2` now draft a GitHub prerelease with attached build artifacts
 
 Current output after `./gradlew bundleRelease`:
 
@@ -19,6 +24,7 @@ Current output after `./gradlew bundleRelease`:
 The project can now produce a release bundle artifact suitable for the next distribution steps.
 
 Gradle now reads release signing values from a local `keystore.properties` file when it exists.
+In CI, release bundles are intentionally built without the local keystore so signing secrets do not need to be stored on GitHub.
 
 Expected keys:
 
@@ -39,9 +45,12 @@ Use `keystore.properties.example` as the template.
 3. Build and verify:
    - `./gradlew clean test`
    - `./gradlew bundleRelease`
+4. For tester distribution:
+   - use the GitHub Actions debug APK artifact on normal commits
+   - use alpha tags to draft a prerelease with attached APK and unsigned AAB
 
 ## Known Release Debt
 
 - There is an R8 warning about Kotlin metadata compatibility during `bundleRelease`. It is currently non-blocking, but should be cleaned up before store publication.
-- In-app voice capture UI is still incomplete.
+- Local multimodal inference can still be slow and may still be device-sensitive on large jobs.
 - Event list and detail UX remain basic.

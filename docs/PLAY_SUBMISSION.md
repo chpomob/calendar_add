@@ -69,7 +69,7 @@ From the current manifest:
 - `READ_CALENDAR` and `WRITE_CALENDAR`
   Used only for optional sync to the device calendar.
 - `RECORD_AUDIO`
-  Present for audio input support. In-app voice capture UI is still incomplete.
+  Present for audio input support. The app now supports press-and-hold in-app voice capture and audio file import.
 - `CAMERA`
   Used for direct photo capture before local image analysis.
 
@@ -103,6 +103,6 @@ The public privacy policy should explicitly cover:
 
 ## Open Release Risks
 
-- voice capture UI is still unfinished
+- local multimodal speed and reliability still vary by device and model
 - event list/detail editing remains basic
 - R8 emits a non-blocking Kotlin metadata warning during release bundling

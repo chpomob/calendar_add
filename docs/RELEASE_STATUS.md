@@ -1,6 +1,6 @@
-# Calendar Add AI - Release Status
+# Calendar Add - Release Status
 
-Last updated: 2026-04-20
+Last updated: 2026-04-26
 
 ## Summary
 
@@ -60,30 +60,20 @@ Historical planning material still exists in `DEVELOPMENT_PLAN.md`, but it shoul
 
 ## Conclusion
 
-**Current State**: ✅ Production Ready (v1.0.0)  
-**Production Ready**: ✅ Minor fixes complete  
-**Recommendation**: Release to Play Store (Internal Testing first)
+Current state:
 
-The app provides real value with local AI event extraction. Users will appreciate the privacy-first approach even if the AI isn't perfect on day one.
+- usable beta
+- good enough for internal and alpha testing
+- not yet a polished final consumer release
 
-**Fixes Applied:**
-- ✅ Storage permissions for Android 13+
-- ✅ ProGuard enabled for release builds
-- ✅ Model downloads to app-specific directory
-- ✅ Error handling improved
-- ✅ Build configuration hardened
+Recommended distribution path:
 
-**Release Checklist:**
-- [x] Storage permissions added
-- [x] ProGuard rules configured
-- [x] Build script created
-- [x] Error handling improved
-- [ ] Add privacy policy link
-- [ ] Add terms of service
-- [ ] Generate screenshots for Play Store
-- [ ] Create app description
-- [ ] Configure Play Store listing
+- debug APK artifacts from GitHub Actions for commit-by-commit testing
+- draft GitHub prereleases for alpha tags
+- local signing for final release publication
 
----
+Main remaining release debt:
 
-*Last updated: 2026-04-18*
+- local multimodal performance and reliability still vary by device and model
+- event list/detail UX is still basic
+- Play listing assets and final hosted privacy policy still need completion
