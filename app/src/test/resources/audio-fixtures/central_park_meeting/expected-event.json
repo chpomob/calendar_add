@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Meeting",
+      "description": "Meet me at the bridge in Central Park tomorrow at noon.",
+      "startTime": "2026-04-28T12:00:00+02:00",
+      "endTime": "",
+      "location": "bridge in Central Park",
+      "attendees": []
+    }
+  ]
+}

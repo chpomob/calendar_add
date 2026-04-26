@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Store pickup",
+      "description": "Pick me up at the store at 4 o'clock tomorrow.",
+      "startTime": "2026-04-28T16:00:00+02:00",
+      "endTime": "",
+      "location": "store",
+      "attendees": []
+    }
+  ]
+}

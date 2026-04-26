@@ -74,7 +74,11 @@ class TextAnalysisService(
         val promptText = buildString {
             append(buildReferencePrompt(context))
             appendLine("Input type: image")
-            appendLine("Extract calendar events from this image.")
+            appendLine("Extract calendar events from this flyer, poster, screenshot, or event notice.")
+            appendLine("Use the exact visible event title, date, time, and location when they are present.")
+            appendLine("Treat visible virtual-location text such as Online, Virtual, Zoom, or Teams as a real location value.")
+            appendLine("Do not guess missing details.")
+            appendLine("If the image contains a schedule table or a flyer series with multiple explicit date/time rows, return one event per row when the rows clearly describe separate occurrences.")
             appendLine("If the image contains relative date or time phrases, resolve them using the reference local datetime above.")
             append(buildFinalEventJsonInstructions())
         }
@@ -98,7 +102,11 @@ class TextAnalysisService(
         val promptText = buildString {
             append(buildReferencePrompt(context))
             appendLine("Input type: audio")
-            appendLine("Extract calendar events from this audio recording.")
+            appendLine("Extract the intended calendar event from this audio only when the speaker clearly proposes, confirms, schedules, or reschedules a concrete calendar item.")
+            appendLine("Ignore incidental mentions of time, generic future statements, or status updates that are not actual calendar commitments.")
+            appendLine("If the audio only mentions a time or date without naming an event, do not invent a generic title like Meeting.")
+            appendLine("The audio may contain filler words, background noise, repeated fragments, and ASR mistakes.")
+            appendLine("Use the intended meaning of the speech, not the noisy transcription artifacts.")
             appendLine("If the speaker says relative dates or times, resolve them using the reference local datetime above.")
             append(buildFinalEventJsonInstructions())
         }
@@ -221,7 +229,7 @@ class TextAnalysisService(
                 "Resolve relative date and time phrases such as today, tomorrow, tonight, this evening, " +
                     "next Friday, this weekend, and in two days against the reference local datetime."
             )
-            appendLine("Return absolute ISO-8601 values in startTime and endTime. Never leave relative words in the JSON output.")
+            appendLine("Return absolute ISO-8601 values with timezone offsets in startTime and endTime. Never leave relative words in the JSON output.")
         }
     }
 
@@ -229,7 +237,7 @@ class TextAnalysisService(
         return buildString {
             appendLine("If the input contains multiple fragments about the same event, merge them into one event.")
             appendLine("If the input contains multiple distinct events, return them all.")
-            appendLine("Return ONLY valid JSON in this exact shape: { \"events\": [ { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601\", \"endTime\": \"ISO-8601\", \"location\": \"\", \"attendees\": [] } ] }")
+            appendLine("Return ONLY valid JSON in this exact shape: { \"events\": [ { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601 with timezone offset\", \"endTime\": \"ISO-8601 with timezone offset\", \"location\": \"\", \"attendees\": [] } ] }")
             appendLine("If there is only one event, still return it inside the events array.")
             appendLine("If there are no events, return { \"events\": [] }.")
         }
@@ -240,6 +248,11 @@ class TextAnalysisService(
             append(buildReferencePrompt(context))
             appendLine(HEAVY_IMAGE_STAGE_1)
             appendLine("Inspect the image conservatively and capture raw event evidence before normalization.")
+            appendLine("Treat the image as a flyer, poster, screenshot, or event notice.")
+            appendLine("Prefer exact visible event title, date, time, and location text.")
+            appendLine("Treat visible virtual-location text such as Online, Virtual, Zoom, or Teams as a real location value.")
+            appendLine("Do not invent details that are not visible.")
+            appendLine("If the image shows a schedule table or recurring series with multiple explicit date/time rows, keep one candidate per row when the rows clearly describe separate occurrences.")
             appendLine("Return ONLY JSON in this exact shape:")
             appendLine("{ \"events\": [ { \"titleCandidates\": [], \"descriptionCandidates\": [], \"locationCandidates\": [], \"dateCandidates\": [], \"timeCandidates\": [], \"supportingText\": [], \"notes\": [] } ], \"globalNotes\": [] }")
             appendLine("Keep multiple candidate dates or times if the image is ambiguous.")
@@ -252,6 +265,10 @@ class TextAnalysisService(
             append(buildReferencePrompt(context))
             appendLine(HEAVY_AUDIO_STAGE_1)
             appendLine("Listen to the audio conservatively and capture raw event evidence before normalization.")
+            appendLine("Only capture actual calendar commitments; ignore incidental future mentions and general availability statements.")
+            appendLine("Do not invent a generic meeting when the audio only mentions a time or date without naming an event.")
+            appendLine("The audio may contain filler words, background noise, repeated fragments, and ASR mistakes.")
+            appendLine("Keep the intended event, not the transcription artifacts.")
             appendLine("Return ONLY JSON in this exact shape:")
             appendLine("{ \"events\": [ { \"titleCandidates\": [], \"descriptionCandidates\": [], \"locationCandidates\": [], \"dateCandidates\": [], \"timeCandidates\": [], \"quotedPhrases\": [], \"notes\": [] } ], \"globalNotes\": [] }")
             appendLine("Keep multiple candidate dates or times if the speaker is ambiguous.")

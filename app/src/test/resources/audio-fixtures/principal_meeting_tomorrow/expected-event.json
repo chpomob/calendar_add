@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Meeting with principal",
+      "description": "You have a meeting with our principal tomorrow.",
+      "startTime": "2026-04-28T00:00:00+02:00",
+      "endTime": "",
+      "location": "",
+      "attendees": []
+    }
+  ]
+}

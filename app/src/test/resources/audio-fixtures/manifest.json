@@ -1,0 +1,456 @@
+{
+  "cases": [
+    {
+      "id": "next_meeting_tomorrow_9_am",
+      "sourceTitle": "The Love Gala next meeting",
+      "sourceUrl": "https://clip.cafe/the-love-gala-2023/i-am-not-sure-about-that/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "OK, let's meet tomorrow at 9 AM and start talking about logistics.",
+      "audioFile": "next_meeting_tomorrow_9_am/audio.wav",
+      "expectedEvent": {
+        "title": "Meeting",
+        "description": "Let's meet tomorrow at 9 AM and start talking about logistics.",
+        "startTime": "2026-04-28T09:00:00+02:00",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "committee_meets_tomorrow_9",
+      "sourceTitle": "Rocketry committee meeting",
+      "sourceUrl": "https://clip.cafe/what-you-think-about/76",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "The committee meets tomorrow at 9.",
+      "audioFile": "committee_meets_tomorrow_9/audio.wav",
+      "expectedEvent": {
+        "title": "Committee meeting",
+        "description": "The committee meets tomorrow at 9.",
+        "startTime": "2026-04-28T09:00:00+02:00",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "principal_meeting_tomorrow",
+      "sourceTitle": "Circuit Breakers principal meeting",
+      "sourceUrl": "https://clip.cafe/circuit-breakers-2022/yeah-and-have-a-meeting-with-our-principal-tomorrow/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "You have a meeting with our principal tomorrow, so better make those two weeks.",
+      "audioFile": "principal_meeting_tomorrow/audio.wav",
+      "expectedEvent": {
+        "title": "Meeting with principal",
+        "description": "You have a meeting with our principal tomorrow.",
+        "startTime": "2026-04-28T00:00:00+02:00",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "hearing_tomorrow",
+      "sourceTitle": "Suits hearing tomorrow",
+      "sourceUrl": "https://clip.cafe/suits-2011/good-night-harvey/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I'll see you tomorrow at the hearing.",
+      "audioFile": "hearing_tomorrow/audio.wav",
+      "expectedEvent": {
+        "title": "Hearing",
+        "description": "I'll see you tomorrow at the hearing.",
+        "startTime": "",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "incidental_time_reference",
+      "sourceTitle": "Tomorrow morning, 10:00 a.m. That's when we know where he'll be.",
+      "sourceUrl": "https://clip.cafe/?p=3&s=By%2Btomorrow%2Bmorning&ss=1",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "Tomorrow morning, 10:00 a.m. That's when we know where he'll be.",
+      "audioFile": "incidental_time_reference/audio.wav",
+      "expectedEvents": []
+    },
+    {
+      "id": "dinner_pickup_saturday",
+      "sourceTitle": "The Good Doctor Saturday dinner pickup",
+      "sourceUrl": "https://clip.cafe/s/Pick%2Bme%2Bup%2Bat",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "How about dinner? You pick me up at 7:30, Saturday. We can try that Filipino place.",
+      "audioFile": "dinner_pickup_saturday/audio.wav",
+      "expectedEvent": {
+        "title": "Dinner",
+        "description": "Dinner at the Filipino place.",
+        "startTime": "2026-05-02T19:30:00+02:00",
+        "endTime": "",
+        "location": "Filipino place",
+        "attendees": []
+      }
+    },
+    {
+      "id": "hospital_pickup",
+      "sourceTitle": "Pick me up at the hospital",
+      "sourceUrl": "https://clip.cafe/landman-2024/did-find-em/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "Will you pick me up at the hospital.",
+      "audioFile": "hospital_pickup/audio.wav",
+      "expectedEvent": {
+        "title": "Hospital pickup",
+        "description": "Pick me up at the hospital.",
+        "startTime": "",
+        "endTime": "",
+        "location": "hospital",
+        "attendees": []
+      }
+    },
+    {
+      "id": "meet_here_tomorrow_night",
+      "sourceTitle": "Meet me here tomorrow night at nine",
+      "sourceUrl": "https://clip.cafe/the-burning-girls-2023/pack-stuff-tonight/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "Pack your stuff tonight, meet me here tomorrow night at nine and we'll go.",
+      "audioFile": "meet_here_tomorrow_night/audio.wav",
+      "expectedEvent": {
+        "title": "Meet-up",
+        "description": "Meet me here tomorrow night at nine.",
+        "startTime": "2026-04-28T21:00:00+02:00",
+        "endTime": "",
+        "location": "here",
+        "attendees": []
+      }
+    },
+    {
+      "id": "trade_deadline_reminder",
+      "sourceTitle": "NBA Trade Deadline Heats Up",
+      "sourceUrl": "https://www.spreaker.com/episode/nba-trade-deadline-heats-up--69785430",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "The trade deadline is tomorrow at 3 PM.",
+      "audioFile": "trade_deadline_reminder/audio.wav",
+      "expectedEvent": {
+        "title": "NBA trade deadline",
+        "description": "The trade deadline is tomorrow at 3 PM.",
+        "startTime": "2026-04-28T15:00:00+02:00",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "birthday_party_invite",
+      "sourceTitle": "I need you here with me",
+      "sourceUrl": "https://clip.cafe/the-room-2003/i-need-here-with-me/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I'm organizing a party for Johnny's birthday. Can you come? Next Friday at 6:00. It's a surprise.",
+      "audioFile": "birthday_party_invite/audio.wav",
+      "expectedEvent": {
+        "title": "Johnny's birthday party",
+        "description": "Organize a party for Johnny's birthday. It's a surprise.",
+        "startTime": "2026-05-01T18:00:00+02:00",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "store_pickup_tomorrow",
+      "sourceTitle": "White Palace pickup at the store at 4 o'clock",
+      "sourceUrl": "https://clip.cafe/white-palace-1990/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "Don't forget tomorrow we visit Janey. You'll pick me up at the store at 4 o'clock.",
+      "audioFile": "store_pickup_tomorrow/audio.wav",
+      "expectedEvent": {
+        "title": "Store pickup",
+        "description": "Pick me up at the store at 4 o'clock tomorrow.",
+        "startTime": "2026-04-28T16:00:00+02:00",
+        "endTime": "",
+        "location": "store",
+        "attendees": []
+      }
+    },
+    {
+      "id": "pickup_tomorrow_two",
+      "sourceTitle": "Pick me up at two tomorrow",
+      "sourceUrl": "https://clip.cafe/s/Pick%2Bme%2Bup%2Bat",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "Pick me up at two tomorrow.",
+      "audioFile": "pickup_tomorrow_two/audio.wav",
+      "expectedEvent": {
+        "title": "Pickup",
+        "description": "Pick me up at two tomorrow.",
+        "startTime": "2026-04-28T14:00:00+02:00",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "therapist_appointment",
+      "sourceTitle": "I made an appointment with the new therapist for tomorrow at noon",
+      "sourceUrl": "https://clip.cafe/dexter-2006/i-made-an-appointment/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I booked an appointment with the new therapist for tomorrow at noon.",
+      "audioFile": "therapist_appointment/audio.wav",
+      "expectedEvent": {
+        "title": "Therapist appointment",
+        "description": "Appointment with the new therapist.",
+        "startTime": "2026-04-28T12:00:00+02:00",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "central_park_meeting",
+      "sourceTitle": "Meet me at the bridge in Central Park tomorrow at noon",
+      "sourceUrl": "https://clip.cafe/time-after-time-2017/meet-at-the-bridge-in-central-park-tomorrow-at-noon/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "Meet me at the bridge in Central Park tomorrow at noon.",
+      "audioFile": "central_park_meeting/audio.wav",
+      "expectedEvent": {
+        "title": "Meeting",
+        "description": "Meet me at the bridge in Central Park tomorrow at noon.",
+        "startTime": "2026-04-28T12:00:00+02:00",
+        "endTime": "",
+        "location": "bridge in Central Park",
+        "attendees": []
+      }
+    },
+    {
+      "id": "follow_up_next_friday",
+      "sourceTitle": "Protecting your time with Linda Babcock",
+      "sourceUrl": "https://www.ted.com/pages/protecting-your-time-with-linda-babcock-transcript",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "Let's schedule a follow-up meeting next Friday at 10 AM.",
+      "audioFile": "follow_up_next_friday/audio.wav",
+      "expectedEvent": {
+        "title": "Follow-up meeting",
+        "description": "Schedule a follow-up meeting next Friday at 10 AM.",
+        "startTime": "2026-05-01T10:00:00+02:00",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "lot_6am_tomorrow",
+      "sourceTitle": "Yeah. I'm in. See, he's in. I'll see you at the lot at 6:00 a.m. tomorrow. I'm there. And I'm...",
+      "sourceUrl": "https://clip.cafe/interstellar-2014/yeah-s212/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I'll see you at the lot at 6:00 a.m. tomorrow.",
+      "audioFile": "lot_6am_tomorrow/audio.wav",
+      "expectedEvent": {
+        "title": "Lot meeting",
+        "description": "I'll see you at the lot at 6:00 a.m. tomorrow.",
+        "startTime": "2026-04-28T06:00:00+02:00",
+        "endTime": "",
+        "location": "the lot",
+        "attendees": []
+      }
+    },
+    {
+      "id": "office_pictures_tomorrow",
+      "sourceTitle": "I'll be going then. I'll see you tomorrow at the office for the pictures.",
+      "sourceUrl": "https://clip.cafe/parallel-mothers-2021/ill-be-going-then-ill-see-tomorrow-at-the-office-the-pictures/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I'll see you tomorrow at the office for the pictures.",
+      "audioFile": "office_pictures_tomorrow/audio.wav",
+      "expectedEvent": {
+        "title": "Office pictures",
+        "description": "I'll see you tomorrow at the office for the pictures.",
+        "startTime": "",
+        "endTime": "",
+        "location": "office",
+        "attendees": []
+      }
+    },
+    {
+      "id": "first_day_newman_media",
+      "sourceTitle": "Look, relax, okay? It's all good. I'll see you tomorrow for your first day at Newman Media.",
+      "sourceUrl": "https://clip.cafe/the-young-the-restless-1973/look-relax-okay/t/13",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I'll see you tomorrow for your first day at Newman Media.",
+      "audioFile": "first_day_newman_media/audio.wav",
+      "expectedEvent": {
+        "title": "First day at Newman Media",
+        "description": "I'll see you tomorrow for your first day at Newman Media.",
+        "startTime": "",
+        "endTime": "",
+        "location": "Newman Media",
+        "attendees": []
+      }
+    },
+    {
+      "id": "visit_with_daughter_offices",
+      "sourceTitle": "Quote \"YOU SEE AT THE | Page: 42\" in movies - Clip.Cafe",
+      "sourceUrl": "https://clip.cafe/s/You%20see%20at%20the/42",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "You've been approved for a visit with your daughter tomorrow at our offices.",
+      "audioFile": "visit_with_daughter_offices/audio.wav",
+      "expectedEvent": {
+        "title": "Visit with daughter",
+        "description": "You've been approved for a visit with your daughter tomorrow at our offices.",
+        "startTime": "",
+        "endTime": "",
+        "location": "our offices",
+        "attendees": []
+      }
+    },
+    {
+      "id": "special_collections_library_tomorrow_night",
+      "sourceTitle": "Quote \"I WILL SEE YOU | Page: 3\" in movies - Clip.Cafe",
+      "sourceUrl": "https://clip.cafe/?p=3&s=I%2Bwill%2Bsee%2Byou&ss=1",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I will see you tomorrow night, 8:00 P.M., at the special collections library.",
+      "audioFile": "special_collections_library_tomorrow_night/audio.wav",
+      "expectedEvent": {
+        "title": "Special collections library meeting",
+        "description": "I will see you tomorrow night, 8:00 P.M., at the special collections library.",
+        "startTime": "2026-04-28T20:00:00+02:00",
+        "endTime": "",
+        "location": "special collections library",
+        "attendees": []
+      }
+    },
+    {
+      "id": "tree_lighting_tomorrow",
+      "sourceTitle": "Quote \"I WILL SEE YOU | Page: 3\" in movies - Clip.Cafe",
+      "sourceUrl": "https://clip.cafe/?p=3&s=I%2Bwill%2Bsee%2Byou&ss=1",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I will see you tomorrow at the tree-lighting.",
+      "audioFile": "tree_lighting_tomorrow/audio.wav",
+      "expectedEvent": {
+        "title": "Tree lighting",
+        "description": "I will see you tomorrow at the tree-lighting.",
+        "startTime": "",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "status_update_in_a_couple_of_hours",
+      "sourceTitle": "Quote \"ARE A COUPLE OF\" in movies - Clip.Cafe",
+      "sourceUrl": "https://clip.cafe/s/are%20a%20couple%20of/29",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "Okay, everything is looking good, and I will see you in a couple of hours.",
+      "audioFile": "status_update_in_a_couple_of_hours/audio.wav",
+      "expectedEvents": []
+    },
+    {
+      "id": "generic_tomorrow_morning",
+      "sourceTitle": "Quote \"I WILL SEE YOU | Page: 3\" in movies - Clip.Cafe",
+      "sourceUrl": "https://clip.cafe/?p=3&s=I%2Bwill%2Bsee%2Byou&ss=1",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I will see you in the morning, if we don't wake up too late.",
+      "audioFile": "generic_tomorrow_morning/audio.wav",
+      "expectedEvents": []
+    },
+    {
+      "id": "see_you_soon_generic",
+      "sourceTitle": "Quote \"SEE YOU SOON | Page: 8\" in movies - Clip.Cafe",
+      "sourceUrl": "https://clip.cafe/?p=8&s=see%2Byou%2Bsoon&ss=1",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "en"
+      },
+      "transcript": "I'll see you soon.",
+      "audioFile": "see_you_soon_generic/audio.wav",
+      "expectedEvents": []
+    }
+  ]
+}

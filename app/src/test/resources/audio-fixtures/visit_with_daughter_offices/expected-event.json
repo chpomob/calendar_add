@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Visit with daughter",
+      "description": "You've been approved for a visit with your daughter tomorrow at our offices.",
+      "startTime": "",
+      "endTime": "",
+      "location": "our offices",
+      "attendees": []
+    }
+  ]
+}

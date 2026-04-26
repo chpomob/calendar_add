@@ -162,8 +162,8 @@ class TextAnalysisServiceTest {
 
         assertTrue(capturedPrompt.captured.contains("Reference local datetime: 2026-04-21T09:30:00+02:00"))
         assertTrue(capturedPrompt.captured.contains("Resolve relative date and time phrases such as today, tomorrow"))
-        assertTrue(capturedPrompt.captured.contains("Return absolute ISO-8601 values in startTime and endTime"))
-        assertTrue(capturedPrompt.captured.contains("\"startTime\": \"ISO-8601\""))
+        assertTrue(capturedPrompt.captured.contains("Return absolute ISO-8601 values with timezone offsets in startTime and endTime"))
+        assertTrue(capturedPrompt.captured.contains("\"startTime\": \"ISO-8601 with timezone offset\""))
     }
 
     @Test
@@ -176,7 +176,10 @@ class TextAnalysisServiceTest {
         textAnalysisService.analyzeAudio(audioData)
 
         assertTrue(capturedPrompt.captured.contains("Input type: audio"))
+        assertTrue(capturedPrompt.captured.contains("filler words, background noise, repeated fragments, and ASR mistakes"))
+        assertTrue(capturedPrompt.captured.contains("Extract the intended calendar event from this audio only when the speaker clearly proposes, confirms, schedules, or reschedules a concrete calendar item."))
         assertTrue(capturedPrompt.captured.contains("If the speaker says relative dates or times, resolve them using the reference local datetime above."))
+        assertTrue(capturedPrompt.captured.contains("Return ONLY valid JSON"))
     }
 
     @Test
@@ -229,7 +232,9 @@ class TextAnalysisServiceTest {
         assertEquals("Town hall", result.first().title)
         assertEquals("Community Center", result.first().location)
         assertTrue(observationPrompt.captured.contains("Heavy mode stage 1/3: multimodal image observations"))
-        assertTrue(!observationPrompt.captured.contains("\"startTime\": \"ISO-8601\""))
+        assertTrue(observationPrompt.captured.contains("Treat the image as a flyer, poster, screenshot, or event notice."))
+        assertTrue(observationPrompt.captured.contains("Prefer exact visible event title, date, time, and location text."))
+        assertTrue(!observationPrompt.captured.contains("\"startTime\": \"ISO-8601 with timezone offset\""))
         verify(atLeast = 1) { heavyPreferences.isHeavyAnalysisEnabled }
     }
 
@@ -238,10 +243,11 @@ class TextAnalysisServiceTest {
         val heavyPreferences = mockk<PreferencesManager>()
         val heavyService = TextAnalysisService(gemmaLlmService, heavyPreferences)
         val audioData = byteArrayOf(1, 2, 3)
+        val observationPrompt = slot<String>()
         every { heavyPreferences.isHeavyAnalysisEnabled } returns true
 
         coEvery {
-            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 1/3: multimodal audio observations") }, null, audioData)
+            gemmaLlmService.extractEventJson(capture(observationPrompt), null, audioData)
         } returns """{"events":[{"titleCandidates":["Dentist"],"dateCandidates":["next friday"],"timeCandidates":["9 in the morning"]}]}"""
         coEvery {
             gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 2/3: temporal normalization") }, null, null)
@@ -255,6 +261,9 @@ class TextAnalysisServiceTest {
         assertEquals(1, result.size)
         assertEquals("Dentist", result.first().title)
         assertEquals("2026-04-24T09:00:00+02:00", result.first().startTime)
+        assertTrue(observationPrompt.captured.contains("Heavy mode stage 1/3: multimodal audio observations"))
+        assertTrue(observationPrompt.captured.contains("filler words, background noise, repeated fragments, and ASR mistakes"))
+        assertTrue(observationPrompt.captured.contains("Keep the intended event, not the transcription artifacts."))
         verify(atLeast = 1) { heavyPreferences.isHeavyAnalysisEnabled }
     }
 

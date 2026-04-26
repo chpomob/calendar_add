@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Follow-up meeting",
+      "description": "Schedule a follow-up meeting next Friday at 10 AM.",
+      "startTime": "2026-05-01T10:00:00+02:00",
+      "endTime": "",
+      "location": "",
+      "attendees": []
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Johnny's birthday party",
+      "description": "Organize a party for Johnny's birthday. It's a surprise.",
+      "startTime": "2026-05-01T18:00:00+02:00",
+      "endTime": "",
+      "location": "",
+      "attendees": []
+    }
+  ]
+}

@@ -105,6 +105,7 @@ Runtime choices:
 - Gemma downloads are pinned to Gallery's exact Hugging Face commits and exact file sizes.
 - Conversations use Gallery's sampler settings: topK 64, topP 0.95, temperature 1.0.
 - Gemma token windows match Gallery: 4000 for Gemma 4 and 4096 for Gemma 3n. Image prompts need the larger window because the image context is part of LiteRT-LM prefill.
+- Audio prompts now explicitly tell the model to ignore filler words, background noise, repeated fragments, and ASR mistakes.
 - Images are passed as PNG `ImageBytes` instead of temporary JPEG files.
 - In-app voice capture records 16 kHz mono PCM and sends WAV bytes to the model.
 - LiteRT-LM inference uses async callbacks so timeout/cancellation can call `cancelProcess()`.
@@ -161,6 +162,12 @@ app/src/main/java/com/calendaradd/
   util/        image loading, recording, permissions, and helpers
 app/src/test/java/
   JVM tests for services, worker helpers, and use cases
+app/src/test/resources/audio-fixtures/
+  synthetic audio samples, transcripts, and expected event payloads for regression tests
+app/src/test/resources/image-fixtures/
+  synthetic flyer images, source metadata, and expected event payloads for regression tests
+scripts/
+  `generate_audio_fixtures.sh`, `run_audio_fixture_on_device.sh`, `generate_image_fixtures.sh`, and `check_image_flyer_cases.sh`
 docs/
   release, privacy, model, and submission notes
 ```

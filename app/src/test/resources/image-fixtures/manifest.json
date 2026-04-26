@@ -1,0 +1,679 @@
+{
+  "cases": [
+    {
+      "id": "wellness_workshop_series",
+      "sourceTitle": "UCI Wellness Workshop Series",
+      "sourceUrl": "https://counseling.uci.edu/services/workshop-services/",
+      "context": {
+        "datetime": "2026-01-06T09:00:00-08:00",
+        "timezone": "America/Los_Angeles",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Wellness Workshop Series",
+        "date": "",
+        "time": "",
+        "location": "Counseling Center Main Office (203 Student Services I)",
+        "description": "Join us for a weekly workshop series."
+      },
+      "imageFile": "wellness_workshop_series/flyer.png",
+      "scheduleRows": [
+        {
+          "date": "Wednesday, January 7, 2026",
+          "title": "ABC's of Mindfulness",
+          "time": "1:00 PM - 2:00 PM"
+        },
+        {
+          "date": "Wednesday, January 14, 2026",
+          "title": "Building Self-Esteem",
+          "time": "1:00 PM - 2:00 PM"
+        },
+        {
+          "date": "Wednesday, January 21, 2026",
+          "title": "Happiness: Positive Psychology's Lessons on Flourishing",
+          "time": "1:00 PM - 2:00 PM"
+        }
+      ],
+      "expectedEvents": [
+        {
+          "title": "ABC's of Mindfulness",
+          "description": "Join us for a weekly workshop series.",
+          "startTime": "2026-01-07T13:00:00-08:00",
+          "endTime": "2026-01-07T14:00:00-08:00",
+          "location": "Counseling Center Main Office (203 Student Services I)",
+          "attendees": []
+        },
+        {
+          "title": "Building Self-Esteem",
+          "description": "Join us for a weekly workshop series.",
+          "startTime": "2026-01-14T13:00:00-08:00",
+          "endTime": "2026-01-14T14:00:00-08:00",
+          "location": "Counseling Center Main Office (203 Student Services I)",
+          "attendees": []
+        },
+        {
+          "title": "Happiness: Positive Psychology's Lessons on Flourishing",
+          "description": "Join us for a weekly workshop series.",
+          "startTime": "2026-01-21T13:00:00-08:00",
+          "endTime": "2026-01-21T14:00:00-08:00",
+          "location": "Counseling Center Main Office (203 Student Services I)",
+          "attendees": []
+        }
+      ]
+    },
+    {
+      "id": "ai_mini_workshop_introduction_to_ai",
+      "sourceTitle": "A.I. Mini-Workshop: Introduction to A.I.",
+      "sourceUrl": "https://www.lapc.edu/campus-life/events/2026/4/14/ai-mini-workshop-introduction-ai",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-05:00",
+        "timezone": "America/Chicago",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "A.I. Mini-Workshop: Introduction to A.I.",
+        "date": "Tuesday, April 14, 2026",
+        "time": "2:00 PM - 2:30 PM",
+        "location": "Online",
+        "description": "Curious about A.I.? Join us for an introduction to artificial intelligence."
+      },
+      "imageFile": "ai_mini_workshop_introduction_to_ai/flyer.png",
+      "expectedEvent": {
+        "title": "A.I. Mini-Workshop: Introduction to A.I.",
+        "description": "Curious about A.I.? Join us for an introduction to artificial intelligence.",
+        "startTime": "2026-04-14T14:00:00-05:00",
+        "endTime": "2026-04-14T14:30:00-05:00",
+        "location": "Online",
+        "attendees": []
+      }
+    },
+    {
+      "id": "know_your_rights_workshop",
+      "sourceTitle": "Know Your Rights Workshop",
+      "sourceUrl": "https://www.law.berkeley.edu/event/know-your-rights-workshop/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-05:00",
+        "timezone": "America/Chicago",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Know Your Rights Workshop",
+        "date": "Tuesday, April 14, 2026",
+        "time": "12:45 PM - 2:00 PM",
+        "location": "Room 105, Law Building",
+        "description": "Everyone in the US has constitutional rights regardless of immigration status. RSVP for lunch."
+      },
+      "imageFile": "know_your_rights_workshop/flyer.png",
+      "expectedEvent": {
+        "title": "Know Your Rights Workshop",
+        "description": "Everyone in the US has constitutional rights regardless of immigration status. RSVP for lunch.",
+        "startTime": "2026-04-14T12:45:00-05:00",
+        "endTime": "2026-04-14T14:00:00-05:00",
+        "location": "Room 105, the Law Building",
+        "attendees": []
+      }
+    },
+    {
+      "id": "private_sector_careers_in_international_litigation_and_arbitration",
+      "sourceTitle": "Private Sector Careers in International Litigation and Arbitration",
+      "sourceUrl": "https://www.law.berkeley.edu/event/private-sector-careers-in-international-litigation-and-arbitration-2/",
+      "context": {
+        "datetime": "2026-02-22T09:00:00-06:00",
+        "timezone": "America/Chicago",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Private Sector Careers in International Litigation",
+        "date": "Thursday, February 5, 2026",
+        "time": "5:30 PM - 7:00 PM",
+        "location": "Room 140",
+        "description": "Hosted by Berkeley Law with an RSVP note for dinner."
+      },
+      "imageFile": "private_sector_careers_in_international_litigation_and_arbitration/flyer.png",
+      "expectedEvent": {
+        "title": "Private Sector Careers in International Litigation",
+        "description": "Hosted by Berkeley Law with an RSVP note for dinner.",
+        "startTime": "2026-02-05T17:30:00-06:00",
+        "endTime": "2026-02-05T19:00:00-06:00",
+        "location": "Room 140",
+        "attendees": []
+      }
+    },
+    {
+      "id": "campus_speech_and_academic_freedom",
+      "sourceTitle": "A Discussion on Campus Speech and Academic Freedom: A Guide for Difficult Times",
+      "sourceUrl": "https://www.law.berkeley.edu/event/a-discussion-on-campus-speech-and-academic-freedom-a-guide-for-difficult-times/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-05:00",
+        "timezone": "America/Chicago",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Campus Speech and Academic Freedom",
+        "date": "Monday, February 9, 2026",
+        "time": "1:00 PM - 2:00 PM",
+        "location": "Room 100, Law Building",
+        "description": "Please join Dean Erwin Chemerinsky and Edley Center Faculty Co-Director Daniel Farber."
+      },
+      "imageFile": "campus_speech_and_academic_freedom/flyer.png",
+      "expectedEvent": {
+        "title": "Campus Speech and Academic Freedom",
+        "description": "Please join Dean Erwin Chemerinsky and Edley Center Faculty Co-Director Daniel Farber.",
+        "startTime": "2026-02-09T13:00:00-06:00",
+        "endTime": "2026-02-09T14:00:00-06:00",
+        "location": "Room 100, Law Building",
+        "attendees": []
+      }
+    },
+    {
+      "id": "humanizing_critical_race_theory_launch_event",
+      "sourceTitle": "Humanizing Critical Race Theory Launch Event",
+      "sourceUrl": "https://blst.uic.edu/events/hcrt/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-05:00",
+        "timezone": "America/Chicago",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Humanizing Race Theory Launch Event",
+        "date": "Thursday, September 28, 2023",
+        "time": "5:00 PM - 7:00 PM",
+        "location": "Hull House, 800 S Halsted St., Chicago, IL 60607",
+        "description": "Celebrate the launch of the Humanizing Critical Race Theory Project."
+      },
+      "imageFile": "humanizing_critical_race_theory_launch_event/flyer.png",
+      "expectedEvent": {
+        "title": "Humanizing Race Theory Launch Event",
+        "description": "Celebrate the launch of the Humanizing Critical Race Theory Project.",
+        "startTime": "2023-09-28T17:00:00-05:00",
+        "endTime": "2023-09-28T19:00:00-05:00",
+        "location": "Hull House, 800 S Halsted St, Chicago, IL 60607",
+        "attendees": []
+      }
+    },
+    {
+      "id": "lean_manufacturing_principles",
+      "sourceTitle": "Lean Manufacturing Principles",
+      "sourceUrl": "https://www.dcc.edu/documents/lean-mfg-principles-app.pdf",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-05:00",
+        "timezone": "America/Chicago",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Lean Manufacturing Principles",
+        "date": "September 21, 2023",
+        "time": "8:30 AM - 4:00 PM",
+        "location": "Delgado River City Campus, 709 Churchill Parkway",
+        "description": "Lean Workshop with part lecture and simulation."
+      },
+      "imageFile": "lean_manufacturing_principles/flyer.png",
+      "expectedEvent": {
+        "title": "Lean Manufacturing Principles",
+        "description": "Lean Workshop with part lecture and simulation.",
+        "startTime": "2023-09-21T08:30:00-05:00",
+        "endTime": "2023-09-21T16:00:00-05:00",
+        "location": "Delgado River City Campus, 709 Churchill Parkway",
+        "attendees": []
+      }
+    },
+    {
+      "id": "student_research_symposium_schedule",
+      "sourceTitle": "Student Research Symposium Schedule",
+      "sourceUrl": "https://www.montclair.edu/research-symposium/schedule-2/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-04:00",
+        "timezone": "America/New_York",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Student Research Symposium Schedule",
+        "date": "Friday, April 24, 2026",
+        "time": "8:40 AM - 2:15 PM",
+        "location": "Conference Center",
+        "description": "A day of research presentations and poster sessions."
+      },
+      "imageFile": "student_research_symposium_schedule/flyer.png",
+      "scheduleRows": [
+        {
+          "date": "Friday, April 24, 2026",
+          "title": "Welcome",
+          "time": "8:40 AM - 8:45 AM"
+        },
+        {
+          "date": "Friday, April 24, 2026",
+          "title": "Opening Remarks",
+          "time": "8:45 AM - 9:00 AM"
+        },
+        {
+          "date": "Friday, April 24, 2026",
+          "title": "Keynote Presentation",
+          "time": "9:00 AM - 9:20 AM"
+        },
+        {
+          "date": "Friday, April 24, 2026",
+          "title": "Poster Session 1",
+          "time": "9:30 AM - 10:30 AM"
+        },
+        {
+          "date": "Friday, April 24, 2026",
+          "title": "Poster Session 2",
+          "time": "10:45 AM - 11:45 AM"
+        },
+        {
+          "date": "Friday, April 24, 2026",
+          "title": "Poster Session 3",
+          "time": "12:00 PM - 1:00 PM"
+        },
+        {
+          "date": "Friday, April 24, 2026",
+          "title": "Poster Session 4",
+          "time": "1:15 PM - 2:15 PM"
+        }
+      ],
+      "expectedEvents": [
+        {
+          "title": "Welcome",
+          "description": "A day of research presentations and poster sessions.",
+          "startTime": "2026-04-24T08:40:00-04:00",
+          "endTime": "2026-04-24T08:45:00-04:00",
+          "location": "Conference Center",
+          "attendees": []
+        },
+        {
+          "title": "Opening Remarks",
+          "description": "A day of research presentations and poster sessions.",
+          "startTime": "2026-04-24T08:45:00-04:00",
+          "endTime": "2026-04-24T09:00:00-04:00",
+          "location": "Conference Center",
+          "attendees": []
+        },
+        {
+          "title": "Keynote Presentation",
+          "description": "A day of research presentations and poster sessions.",
+          "startTime": "2026-04-24T09:00:00-04:00",
+          "endTime": "2026-04-24T09:20:00-04:00",
+          "location": "Conference Center",
+          "attendees": []
+        },
+        {
+          "title": "Poster Session 1",
+          "description": "A day of research presentations and poster sessions.",
+          "startTime": "2026-04-24T09:30:00-04:00",
+          "endTime": "2026-04-24T10:30:00-04:00",
+          "location": "Conference Center",
+          "attendees": []
+        },
+        {
+          "title": "Poster Session 2",
+          "description": "A day of research presentations and poster sessions.",
+          "startTime": "2026-04-24T10:45:00-04:00",
+          "endTime": "2026-04-24T11:45:00-04:00",
+          "location": "Conference Center",
+          "attendees": []
+        },
+        {
+          "title": "Poster Session 3",
+          "description": "A day of research presentations and poster sessions.",
+          "startTime": "2026-04-24T12:00:00-04:00",
+          "endTime": "2026-04-24T13:00:00-04:00",
+          "location": "Conference Center",
+          "attendees": []
+        },
+        {
+          "title": "Poster Session 4",
+          "description": "A day of research presentations and poster sessions.",
+          "startTime": "2026-04-24T13:15:00-04:00",
+          "endTime": "2026-04-24T14:15:00-04:00",
+          "location": "Conference Center",
+          "attendees": []
+        }
+      ]
+    },
+    {
+      "id": "ptk_symposium_schedule",
+      "sourceTitle": "Symposium Schedule | Office of Faculty Affairs",
+      "sourceUrl": "https://faculty.umd.edu/2026/schedule",
+      "context": {
+        "datetime": "2026-03-04T09:00:00-05:00",
+        "timezone": "America/New_York",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "PTK Symposium Schedule",
+        "date": "Thursday, March 5, 2026",
+        "time": "9:00 AM - 11:00 AM",
+        "location": "1101 Clark Hall (Zupnik Forum)",
+        "description": "Networking breakfast, welcome, and plenary session."
+      },
+      "imageFile": "ptk_symposium_schedule/flyer.png",
+      "scheduleRows": [
+        {
+          "date": "Thursday, March 5, 2026",
+          "title": "Networking Breakfast",
+          "time": "9:00 AM - 9:40 AM"
+        },
+        {
+          "date": "Thursday, March 5, 2026",
+          "title": "Welcome and Plenary",
+          "time": "9:40 AM - 10:00 AM"
+        },
+        {
+          "date": "Thursday, March 5, 2026",
+          "title": "Leading, Connecting, & Networking in Academia in Uncertain Times",
+          "time": "10:00 AM - 11:00 AM"
+        }
+      ],
+      "expectedEvents": [
+        {
+          "title": "Networking Breakfast",
+          "description": "Networking breakfast, welcome, and plenary session.",
+          "startTime": "2026-03-05T09:00:00-05:00",
+          "endTime": "2026-03-05T09:40:00-05:00",
+          "location": "1101 Clark Hall (Zupnik Forum)",
+          "attendees": []
+        },
+        {
+          "title": "Welcome and Plenary",
+          "description": "Networking breakfast, welcome, and plenary session.",
+          "startTime": "2026-03-05T09:40:00-05:00",
+          "endTime": "2026-03-05T10:00:00-05:00",
+          "location": "1101 Clark Hall (Zupnik Forum)",
+          "attendees": []
+        },
+        {
+          "title": "Leading, Connecting, & Networking in Academia in Uncertain Times",
+          "description": "Networking breakfast, welcome, and plenary session.",
+          "startTime": "2026-03-05T10:00:00-05:00",
+          "endTime": "2026-03-05T11:00:00-05:00",
+          "location": "1101 Clark Hall (Zupnik Forum)",
+          "attendees": []
+        }
+      ]
+    },
+    {
+      "id": "sustainability_symposium_schedule",
+      "sourceTitle": "College of Arts and Architecture Sustainability Symposium",
+      "sourceUrl": "https://sites.psu.edu/aasustainability/home/events/symposium-schedule/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-04:00",
+        "timezone": "America/New_York",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Sustainability Symposium Schedule",
+        "date": "Thursday, April 9, 2026",
+        "time": "8:00 AM - 11:30 AM",
+        "location": "HUB 233 AB",
+        "description": "Cultivation: sustainability symposium and keynote sessions."
+      },
+      "imageFile": "sustainability_symposium_schedule/flyer.png",
+      "scheduleRows": [
+        {
+          "date": "Thursday, April 9, 2026",
+          "title": "Registration and Breakfast",
+          "time": "8:00 AM - 8:40 AM"
+        },
+        {
+          "date": "Thursday, April 9, 2026",
+          "title": "Opening Remarks: B. Stephen Carpenter II",
+          "time": "8:40 AM - 8:50 AM"
+        },
+        {
+          "date": "Thursday, April 9, 2026",
+          "title": "Opening Remarks: Peter Buck",
+          "time": "8:50 AM - 9:00 AM"
+        },
+        {
+          "date": "Thursday, April 9, 2026",
+          "title": "Keynote Address",
+          "time": "9:00 AM - 10:00 AM"
+        },
+        {
+          "date": "Thursday, April 9, 2026",
+          "title": "Preservation and Innovation: Pathways to Sustainable Environments",
+          "time": "10:00 AM - 10:45 AM"
+        },
+        {
+          "date": "Thursday, April 9, 2026",
+          "title": "Music and Nature: Soundscapes of Sustainability",
+          "time": "11:00 AM - 11:30 AM"
+        }
+      ],
+      "expectedEvents": [
+        {
+          "title": "Registration and Breakfast",
+          "description": "Cultivation: sustainability symposium and keynote sessions.",
+          "startTime": "2026-04-09T08:00:00-04:00",
+          "endTime": "2026-04-09T08:40:00-04:00",
+          "location": "HUB 233 AB",
+          "attendees": []
+        },
+        {
+          "title": "Opening Remarks: B. Stephen Carpenter II",
+          "description": "Cultivation: sustainability symposium and keynote sessions.",
+          "startTime": "2026-04-09T08:40:00-04:00",
+          "endTime": "2026-04-09T08:50:00-04:00",
+          "location": "HUB 233 AB",
+          "attendees": []
+        },
+        {
+          "title": "Opening Remarks: Peter Buck",
+          "description": "Cultivation: sustainability symposium and keynote sessions.",
+          "startTime": "2026-04-09T08:50:00-04:00",
+          "endTime": "2026-04-09T09:00:00-04:00",
+          "location": "HUB 233 AB",
+          "attendees": []
+        },
+        {
+          "title": "Keynote Address",
+          "description": "Cultivation: sustainability symposium and keynote sessions.",
+          "startTime": "2026-04-09T09:00:00-04:00",
+          "endTime": "2026-04-09T10:00:00-04:00",
+          "location": "HUB 233 AB",
+          "attendees": []
+        },
+        {
+          "title": "Preservation and Innovation: Pathways to Sustainable Environments",
+          "description": "Cultivation: sustainability symposium and keynote sessions.",
+          "startTime": "2026-04-09T10:00:00-04:00",
+          "endTime": "2026-04-09T10:45:00-04:00",
+          "location": "HUB 233 AB",
+          "attendees": []
+        },
+        {
+          "title": "Music and Nature: Soundscapes of Sustainability",
+          "description": "Cultivation: sustainability symposium and keynote sessions.",
+          "startTime": "2026-04-09T11:00:00-04:00",
+          "endTime": "2026-04-09T11:30:00-04:00",
+          "location": "HUB 233 AB",
+          "attendees": []
+        }
+      ]
+    },
+    {
+      "id": "biomedical_research_graduate_student_symposium",
+      "sourceTitle": "Symposium Schedule | Irell and Manella Graduate School of Biological Sciences",
+      "sourceUrl": "https://www.imgs-coh.edu/biomedical-research-graduate-student-symposium/biomedical-research-graduate-student-symposium-schedule",
+      "context": {
+        "datetime": "2025-08-29T09:00:00-07:00",
+        "timezone": "America/Los_Angeles",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Biomedical Research Graduate Student Symposium",
+        "date": "August 29, 2025",
+        "time": "8:30 AM - 4:50 PM",
+        "location": "",
+        "description": "Graduate student talks, poster session, keynote, and awards."
+      },
+      "imageFile": "biomedical_research_graduate_student_symposium/flyer.png",
+      "scheduleRows": [
+        {
+          "date": "August 29, 2025",
+          "title": "Registration / Poster set-up / self-serve breakfast",
+          "time": "8:30 AM - 8:50 AM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "Opening Remarks",
+          "time": "8:50 AM - 9:00 AM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "Student Talks: Session 1",
+          "time": "9:00 AM - 9:50 AM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "Keynote Address by Dr. Guerriero",
+          "time": "10:00 AM - 11:00 AM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "Student Talks: Session 2",
+          "time": "11:10 AM - 12:00 PM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "Student Poster Session",
+          "time": "12:30 PM - 2:00 PM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "Student Talks: Session 3",
+          "time": "2:00 PM - 2:30 PM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "3-Minute Thesis Competition",
+          "time": "2:30 PM - 3:20 PM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "Alumni Career Panel",
+          "time": "3:30 PM - 4:30 PM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "Awards and Closing Remarks",
+          "time": "4:30 PM - 4:50 PM"
+        },
+        {
+          "date": "August 29, 2025",
+          "title": "Social/Network Session",
+          "time": "4:50 PM - 5:10 PM"
+        }
+      ],
+      "expectedEvents": [
+        {
+          "title": "Registration / Poster set-up / self-serve breakfast",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T08:30:00-07:00",
+          "endTime": "2025-08-29T08:50:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "Opening Remarks",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T08:50:00-07:00",
+          "endTime": "2025-08-29T09:00:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "Student Talks: Session 1",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T09:00:00-07:00",
+          "endTime": "2025-08-29T09:50:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "Keynote Address by Dr. Guerriero",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T10:00:00-07:00",
+          "endTime": "2025-08-29T11:00:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "Student Talks: Session 2",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T11:10:00-07:00",
+          "endTime": "2025-08-29T12:00:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "Student Poster Session",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T12:30:00-07:00",
+          "endTime": "2025-08-29T14:00:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "Student Talks: Session 3",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T14:00:00-07:00",
+          "endTime": "2025-08-29T14:30:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "3-Minute Thesis Competition",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T14:30:00-07:00",
+          "endTime": "2025-08-29T15:20:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "Alumni Career Panel",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T15:30:00-07:00",
+          "endTime": "2025-08-29T16:30:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "Awards and Closing Remarks",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T16:30:00-07:00",
+          "endTime": "2025-08-29T16:50:00-07:00",
+          "location": "",
+          "attendees": []
+        },
+        {
+          "title": "Social/Network Session",
+          "description": "Graduate student talks, poster session, keynote, and awards.",
+          "startTime": "2025-08-29T16:50:00-07:00",
+          "endTime": "2025-08-29T17:10:00-07:00",
+          "location": "",
+          "attendees": []
+        }
+      ]
+    },
+    {
+      "id": "event_flyer_content_guidelines",
+      "sourceTitle": "Event Flyer Content & Branding Guidelines",
+      "sourceUrl": "https://collegeofsanmateo.edu/marketing/eventflyers.php",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-07:00",
+        "timezone": "America/Los_Angeles",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Event Flyer Content Guidelines",
+        "date": "",
+        "time": "",
+        "location": "",
+        "description": "Guidelines for creating clear and accessible event flyers."
+      },
+      "imageFile": "event_flyer_content_guidelines/flyer.png",
+      "expectedEvents": []
+    }
+  ]
+}

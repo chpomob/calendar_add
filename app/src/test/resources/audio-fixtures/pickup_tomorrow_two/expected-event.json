@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Pickup",
+      "description": "Pick me up at two tomorrow.",
+      "startTime": "2026-04-28T14:00:00+02:00",
+      "endTime": "",
+      "location": "",
+      "attendees": []
+    }
+  ]
+}

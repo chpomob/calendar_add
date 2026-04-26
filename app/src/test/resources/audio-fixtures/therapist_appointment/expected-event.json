@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Therapist appointment",
+      "description": "Appointment with the new therapist.",
+      "startTime": "2026-04-28T12:00:00+02:00",
+      "endTime": "",
+      "location": "",
+      "attendees": []
+    }
+  ]
+}

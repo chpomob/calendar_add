@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Office pictures",
+      "description": "I'll see you tomorrow at the office for the pictures.",
+      "startTime": "",
+      "endTime": "",
+      "location": "office",
+      "attendees": []
+    }
+  ]
+}

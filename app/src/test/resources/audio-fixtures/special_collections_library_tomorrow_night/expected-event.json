@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Special collections library meeting",
+      "description": "I will see you tomorrow night, 8:00 P.M., at the special collections library.",
+      "startTime": "2026-04-28T20:00:00+02:00",
+      "endTime": "",
+      "location": "special collections library",
+      "attendees": []
+    }
+  ]
+}

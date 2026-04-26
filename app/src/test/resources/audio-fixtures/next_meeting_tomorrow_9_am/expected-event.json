@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Meeting",
+      "description": "Let's meet tomorrow at 9 AM and start talking about logistics.",
+      "startTime": "2026-04-28T09:00:00+02:00",
+      "endTime": "",
+      "location": "",
+      "attendees": []
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Dinner",
+      "description": "Dinner at the Filipino place.",
+      "startTime": "2026-05-02T19:30:00+02:00",
+      "endTime": "",
+      "location": "Filipino place",
+      "attendees": []
+    }
+  ]
+}

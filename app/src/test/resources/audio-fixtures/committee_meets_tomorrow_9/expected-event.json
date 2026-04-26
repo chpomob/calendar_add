@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Committee meeting",
+      "description": "The committee meets tomorrow at 9.",
+      "startTime": "2026-04-28T09:00:00+02:00",
+      "endTime": "",
+      "location": "",
+      "attendees": []
+    }
+  ]
+}

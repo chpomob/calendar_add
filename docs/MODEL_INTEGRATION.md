@@ -80,7 +80,18 @@ Current parity choices based on `LlmChatModelHelper`:
 - use async LiteRT-LM callbacks and cancel the conversation on coroutine cancellation
 - use per-model Gallery backend order with GPU vision and CPU audio
 - initialize image/audio/text jobs with only their required LiteRT-LM modality backends
+- tell audio prompts to ignore filler words, background noise, repeated fragments, and ASR mistakes
+- tell image prompts to treat flyers, posters, screenshots, and event notices as the main source of title/date/time/location data
+- keep regression fixtures under `app/src/test/resources/audio-fixtures/` and `app/src/test/resources/image-fixtures/`
+- use `scripts/generate_audio_fixtures.sh` to refresh transcript-backed WAV samples
+- use `scripts/run_audio_fixture_on_device.sh <fixture-id>` to push a fixture into app-specific storage and exercise the real share path on-device
+- use `scripts/check_image_flyer_cases.sh` to validate the synthetic flyer suite against local Gemma 4
 - pin Gemma downloads to Gallery's Hugging Face commit hashes and exact file sizes
+
+Known limitations from the hard-case suite:
+
+- audio prompts can still over-trigger on bare time mentions and produce a generic `Meeting`
+- flyer series with clearly separated rows are handled, but the layout must stay readable for OCR
 
 ## Input Support
 
