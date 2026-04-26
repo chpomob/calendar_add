@@ -61,7 +61,7 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
 
     /**
      * Initializes the LiteRT-LM engine with a Gemma 4 model.
-     * Attempts to use NPU acceleration first, falling back to mixed NPU/CPU and CPU if it fails.
+     * Attempts to use GPU acceleration first, falling back to mixed GPU/CPU and CPU if it fails.
      */
     open suspend fun initialize(modelPath: String, modelConfig: LiteRtModelConfig? = null) = withContext(Dispatchers.IO) {
         synchronized(processEngineGuard) {
@@ -83,8 +83,7 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                 }
 
                 val cacheDirPath = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
-                val npuNativeLibraryDir = context.applicationInfo.nativeLibraryDir.orEmpty()
-                val backends = backendProfilesFor(modelConfig, npuNativeLibraryDir)
+                val backends = backendProfilesFor(modelConfig)
 
                 var lastError: Throwable? = null
                 val attemptedBackends = mutableListOf<String>()
@@ -266,10 +265,7 @@ private data class BackendProfile(
     val audioBackend: Backend?
 )
 
-private fun backendProfilesFor(
-    modelConfig: LiteRtModelConfig?,
-    npuNativeLibraryDir: String
-): List<BackendProfile> {
+private fun backendProfilesFor(modelConfig: LiteRtModelConfig?): List<BackendProfile> {
     return when (modelConfig?.executionProfile) {
         ModelExecutionProfile.CPU_ONLY_MULTIMODAL -> listOf(
             BackendProfile(
@@ -281,14 +277,14 @@ private fun backendProfilesFor(
         )
         else -> listOf(
             BackendProfile(
-                label = "NPU(text/vision)+CPU(audio)",
-                textBackend = npuBackend(npuNativeLibraryDir),
-                visionBackend = if (modelConfig?.supportsImage != false) npuBackend(npuNativeLibraryDir) else null,
+                label = "GPU(text/vision)+CPU(audio)",
+                textBackend = Backend.GPU(),
+                visionBackend = if (modelConfig?.supportsImage != false) Backend.GPU() else null,
                 audioBackend = if (modelConfig?.supportsAudio != false) Backend.CPU() else null
             ),
             BackendProfile(
-                label = "NPU(text)+CPU(vision/audio)",
-                textBackend = npuBackend(npuNativeLibraryDir),
+                label = "GPU(text)+CPU(vision/audio)",
+                textBackend = Backend.GPU(),
                 visionBackend = if (modelConfig?.supportsImage != false) Backend.CPU() else null,
                 audioBackend = if (modelConfig?.supportsAudio != false) Backend.CPU() else null
             ),
@@ -301,8 +297,6 @@ private fun backendProfilesFor(
         )
     }
 }
-
-private fun npuBackend(nativeLibraryDir: String): Backend.NPU = Backend.NPU(nativeLibraryDir)
 
 private data class PreparedImageBytes(
     val bytes: ByteArray,

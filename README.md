@@ -96,7 +96,7 @@ The current Gemma path was cross-checked against Google AI Edge Gallery. The app
 
 Runtime choices:
 
-- Gemma text and vision prefer NPU when available, then fall back to mixed NPU/CPU and CPU.
+- Gemma text and vision prefer GPU when available, then fall back to mixed GPU/CPU and CPU.
 - Gemma audio uses CPU backend, matching Gallery's direct LiteRT-LM path for Gemma 3n audio.
 - Images are passed as PNG `ImageBytes` instead of temporary JPEG files.
 - In-app voice capture records 16 kHz mono PCM and sends WAV bytes to the model.

@@ -58,7 +58,7 @@ class GemmaLlmServiceTest {
     }
 
     @Test
-    fun `initialize should prefer NPU for Gemma text and vision with CPU audio`() = runBlocking {
+    fun `initialize should prefer GPU for Gemma text and vision with CPU audio`() = runBlocking {
         var capturedConfig: EngineConfig? = null
         service = object : GemmaLlmService(context) {
             override fun createEngine(config: EngineConfig): Engine {
@@ -71,14 +71,9 @@ class GemmaLlmServiceTest {
         service.initialize("/tmp/fake-model.litertlm")
 
         val config = requireNotNull(capturedConfig)
-        assertEquals(Backend.NPU::class.java.name, config.backend::class.java.name)
-        assertEquals(Backend.NPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
+        assertEquals(Backend.GPU::class.java.name, config.backend::class.java.name)
+        assertEquals(Backend.GPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(config.audioBackend)::class.java.name)
-        assertEquals("/tmp/calendar-add-native-libs", (config.backend as Backend.NPU).nativeLibraryDir)
-        assertEquals(
-            "/tmp/calendar-add-native-libs",
-            (requireNotNull(config.visionBackend) as Backend.NPU).nativeLibraryDir
-        )
     }
 
     @Test
@@ -101,13 +96,13 @@ class GemmaLlmServiceTest {
     }
 
     @Test
-    fun `initialize should fall back to CPU vision when NPU vision fails`() = runBlocking {
+    fun `initialize should fall back to CPU vision when GPU vision fails`() = runBlocking {
         val capturedConfigs = mutableListOf<EngineConfig>()
         service = object : GemmaLlmService(context) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfigs += config
                 if (capturedConfigs.size == 1) {
-                    throw IllegalStateException("synthetic multimodal NPU failure")
+                    throw IllegalStateException("synthetic multimodal GPU failure")
                 }
                 return engine
             }
@@ -117,25 +112,23 @@ class GemmaLlmServiceTest {
         service.initialize("/tmp/fake-model.litertlm")
 
         assertEquals(2, capturedConfigs.size)
-        assertEquals(Backend.NPU::class.java.name, capturedConfigs[0].backend::class.java.name)
-        assertEquals(Backend.NPU::class.java.name, requireNotNull(capturedConfigs[0].visionBackend)::class.java.name)
+        assertEquals(Backend.GPU::class.java.name, capturedConfigs[0].backend::class.java.name)
+        assertEquals(Backend.GPU::class.java.name, requireNotNull(capturedConfigs[0].visionBackend)::class.java.name)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(capturedConfigs[0].audioBackend)::class.java.name)
-        assertEquals("/tmp/calendar-add-native-libs", (capturedConfigs[0].backend as Backend.NPU).nativeLibraryDir)
-        assertEquals(Backend.NPU::class.java.name, capturedConfigs[1].backend::class.java.name)
+        assertEquals(Backend.GPU::class.java.name, capturedConfigs[1].backend::class.java.name)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(capturedConfigs[1].visionBackend)::class.java.name)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(capturedConfigs[1].audioBackend)::class.java.name)
-        assertEquals("/tmp/calendar-add-native-libs", (capturedConfigs[1].backend as Backend.NPU).nativeLibraryDir)
-        assertEquals("NPU(text)+CPU(vision/audio)", service.lastBackendUsed)
+        assertEquals("GPU(text)+CPU(vision/audio)", service.lastBackendUsed)
     }
 
     @Test
-    fun `initialize should fall back to CPU when NPU native loading fails`() = runBlocking {
+    fun `initialize should fall back to CPU when GPU loading fails`() = runBlocking {
         val capturedConfigs = mutableListOf<EngineConfig>()
         service = object : GemmaLlmService(context) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfigs += config
-                if (config.backend is Backend.NPU) {
-                    throw UnsatisfiedLinkError("synthetic NPU native load failure")
+                if (config.backend is Backend.GPU) {
+                    throw UnsatisfiedLinkError("synthetic GPU load failure")
                 }
                 return engine
             }
@@ -145,8 +138,8 @@ class GemmaLlmServiceTest {
         service.initialize("/tmp/fake-model.litertlm")
 
         assertEquals(3, capturedConfigs.size)
-        assertEquals(Backend.NPU::class.java.name, capturedConfigs[0].backend::class.java.name)
-        assertEquals(Backend.NPU::class.java.name, capturedConfigs[1].backend::class.java.name)
+        assertEquals(Backend.GPU::class.java.name, capturedConfigs[0].backend::class.java.name)
+        assertEquals(Backend.GPU::class.java.name, capturedConfigs[1].backend::class.java.name)
         assertEquals(Backend.CPU::class.java.name, capturedConfigs[2].backend::class.java.name)
         assertEquals("CPU", service.lastBackendUsed)
     }

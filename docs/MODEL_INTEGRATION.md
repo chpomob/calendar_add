@@ -53,16 +53,16 @@ After the selected model initializes successfully, the app removes older app-man
 `GemmaLlmService` selects backends from the chosen model:
 
 - `ACCELERATED_GEMMA`
-  - text: prefer NPU
-  - vision: prefer NPU
+  - text: prefer GPU
+  - vision: prefer GPU
   - audio: CPU when the model supports audio
-  - fallback: NPU text with CPU vision/audio, then CPU
+  - fallback: GPU text with CPU vision/audio, then CPU
 - `CPU_ONLY_MULTIMODAL`
   - text: CPU
   - vision: CPU
   - audio: disabled
 
-The Gemma profile intentionally keeps NPU for text and image processing while using CPU for audio. This matches Google AI Edge Gallery's direct LiteRT-LM integration, where audio uses CPU even when the main model backend is accelerated.
+The Gemma profile intentionally keeps GPU for text and image processing while using CPU for audio. This matches Google AI Edge Gallery's direct LiteRT-LM integration: Gemma 4 lists `gpu,cpu` with `visionAccelerator: gpu`, Gemma 3n uses GPU for vision, and audio uses CPU.
 
 For Qwen models, the app keeps a conservative `maxNumTokens` value during engine creation to reduce compiled-model memory pressure on Android devices. Gemma token caps are aligned with Gallery's model allowlist values: 4000 for Gemma 4 and 4096 for Gemma 3n.
 
@@ -76,7 +76,7 @@ Current parity choices based on `LlmChatModelHelper`:
 - send audio as WAV/PCM bytes
 - order multimodal content as images, audio, then text
 - use async LiteRT-LM callbacks and cancel the conversation on coroutine cancellation
-- use NPU for the main Gemma backend when available, with CPU audio backend
+- use GPU for the main Gemma backend when available, with CPU audio backend
 
 ## Input Support
 
