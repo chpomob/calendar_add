@@ -43,7 +43,8 @@ class LinkPreviewService {
                 title = title,
                 description = description,
                 imageUrl = imageUrl,
-                faviconUrl = extractFavicon(document, originalUrl)
+                faviconUrl = extractFavicon(document, originalUrl),
+                textSnippet = extractBodySnippet(document)
             )
         } catch (e: Exception) {
             null
@@ -83,6 +84,15 @@ class LinkPreviewService {
             if (it.startsWith("http")) it else URL(URL(originalUrl), it).toString()
         }
     }
+
+    private fun extractBodySnippet(document: Document): String {
+        return document.body()
+            ?.text()
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            ?.take(4000)
+            .orEmpty()
+    }
 }
 
 data class LinkPreview(
@@ -90,5 +100,6 @@ data class LinkPreview(
     val title: String,
     val description: String,
     val imageUrl: String?,
-    val faviconUrl: String?
+    val faviconUrl: String?,
+    val textSnippet: String = ""
 )

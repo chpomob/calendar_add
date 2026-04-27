@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
         backgroundAnalysisScheduler = BackgroundAnalysisScheduler(this)
         systemCalendarService = SystemCalendarService(this)
         ocrService = OcrService()
-        webVerificationService = WebVerificationService()
+        webVerificationService = WebVerificationService(webSearchClient = PreferencesWebSearchClient(preferencesManager))
 
         val textAnalysisService = TextAnalysisService(
             gemmaLlmService,

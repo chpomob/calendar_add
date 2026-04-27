@@ -89,10 +89,11 @@ main() {
       jq -c '.cases[]' "$SEED_MANIFEST"
     fi
   } | while IFS= read -r case_json; do
-    local id source_title source_url evidence_text snapshot page_title page_description page_canonical
+    local id source_title source_url expected_address evidence_text snapshot page_title page_description page_canonical
     id="$(jq -r '.id' <<<"$case_json")"
     source_title="$(jq -r '.sourceTitle' <<<"$case_json")"
     source_url="$(jq -r '.sourceUrl' <<<"$case_json")"
+    expected_address="$(jq -r '.expectedAddress // ""' <<<"$case_json")"
     evidence_text="$(case_ocr_text "$case_json" | paste -sd ' ' -)"
     snapshot="$(fetch_page_snapshot "$source_url")"
     page_title="$(jq -r '.title' <<<"$snapshot")"
@@ -106,6 +107,7 @@ main() {
       --arg pageTitle "${page_title:-$source_title}" \
       --arg pageDescription "${page_description:-}" \
       --arg canonicalUrl "${page_canonical:-$source_url}" \
+      --arg expectedAddress "$expected_address" \
       --arg evidenceText "$evidence_text" \
       '{
         id: $id,
@@ -114,6 +116,7 @@ main() {
         pageTitle: $pageTitle,
         pageDescription: $pageDescription,
         canonicalUrl: $canonicalUrl,
+        expectedAddress: $expectedAddress,
         evidenceText: $evidenceText
       }'
   done | jq -s '

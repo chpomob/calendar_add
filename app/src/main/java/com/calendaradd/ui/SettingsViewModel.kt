@@ -37,6 +37,12 @@ class SettingsViewModel(
     private val _isWebVerificationEnabled = MutableStateFlow(preferencesManager.isWebVerificationEnabled)
     val isWebVerificationEnabled: StateFlow<Boolean> = _isWebVerificationEnabled.asStateFlow()
 
+    private val _webSearchProvider = MutableStateFlow(preferencesManager.webSearchProvider)
+    val webSearchProvider: StateFlow<String> = _webSearchProvider.asStateFlow()
+
+    private val _braveSearchApiKey = MutableStateFlow(preferencesManager.braveSearchApiKey)
+    val braveSearchApiKey: StateFlow<String> = _braveSearchApiKey.asStateFlow()
+
     private val _isFailureJsonDebugEnabled = MutableStateFlow(preferencesManager.isFailureJsonDebugEnabled)
     val isFailureJsonDebugEnabled: StateFlow<Boolean> = _isFailureJsonDebugEnabled.asStateFlow()
 
@@ -91,5 +97,15 @@ class SettingsViewModel(
     fun setWebVerificationEnabled(enabled: Boolean) {
         preferencesManager.isWebVerificationEnabled = enabled
         _isWebVerificationEnabled.value = enabled
+    }
+
+    fun setWebSearchProvider(provider: String) {
+        preferencesManager.webSearchProvider = provider
+        _webSearchProvider.value = provider
+    }
+
+    fun setBraveSearchApiKey(apiKey: String) {
+        preferencesManager.braveSearchApiKey = apiKey.trim()
+        _braveSearchApiKey.value = apiKey.trim()
     }
 }

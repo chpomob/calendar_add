@@ -7,6 +7,7 @@
       "pageTitle": "A.I. Mini-Workshop: Introduction to A.I.",
       "pageDescription": "",
       "canonicalUrl": "https://www.lapc.edu/campus-life/events/2026/4/14/ai-mini-workshop-introduction-ai",
+      "expectedAddress": "",
       "evidenceText": "A.I. Mini-Workshop: Introduction to A.I. Tuesday, April 14, 2026 2:00 PM - 2:30 PM Online Curious about A.I.? Join us for an introduction to artificial intelligence."
     },
     {
@@ -16,6 +17,7 @@
       "pageTitle": "Attention Required! | Cloudflare",
       "pageDescription": "",
       "canonicalUrl": "https://www.imgs-coh.edu/biomedical-research-graduate-student-symposium/biomedical-research-graduate-student-symposium-schedule",
+      "expectedAddress": "",
       "evidenceText": "Biomedical Research Graduate Student Symposium August 29, 2025 8:30 AM - 4:50 PM Graduate student talks, poster session, keynote, and awards. August 29, 2025 Registration / Poster set-up / self-serve breakfast 8:30 AM - 8:50 AM August 29, 2025 Opening Remarks 8:50 AM - 9:00 AM August 29, 2025 Student Talks: Session 1 9:00 AM - 9:50 AM August 29, 2025 Keynote Address by Dr. Guerriero 10:00 AM - 11:00 AM August 29, 2025 Student Talks: Session 2 11:10 AM - 12:00 PM August 29, 2025 Student Poster Session 12:30 PM - 2:00 PM August 29, 2025 Student Talks: Session 3 2:00 PM - 2:30 PM August 29, 2025 3-Minute Thesis Competition 2:30 PM - 3:20 PM August 29, 2025 Alumni Career Panel 3:30 PM - 4:30 PM August 29, 2025 Awards and Closing Remarks 4:30 PM - 4:50 PM August 29, 2025 Social/Network Session 4:50 PM - 5:10 PM"
     },
     {
@@ -25,6 +27,7 @@
       "pageTitle": "A Discussion on Campus Speech and Academic Freedom: A Guide for Difficult Times",
       "pageDescription": "Please join Dean Erwin Chemerinsky and Edley Center Faculty Co-Director Daniel Farber for a discussion on Campus Speech and Academic Freedom on Monday, February 9, 2026, from 1:00 &#8211; 2:00 [&hellip;]",
       "canonicalUrl": "https://www.law.berkeley.edu/event/a-discussion-on-campus-speech-and-academic-freedom-a-guide-for-difficult-times/",
+      "expectedAddress": "",
       "evidenceText": "Campus Speech and Academic Freedom Monday, February 9, 2026 1:00 PM - 2:00 PM Room 100, Law Building Please join Dean Erwin Chemerinsky and Edley Center Faculty Co-Director Daniel Farber."
     },
     {
@@ -34,7 +37,78 @@
       "pageTitle": "Conférence de Sophie Montreuil : « L’édition savante en français, au cœur des priorités de l’Acfas » - Faculté des lettres et sciences humaines - Université de Sherbrooke",
       "pageDescription": "",
       "canonicalUrl": "https://www.usherbrooke.ca/flsh/actualites/evenements/details/57438",
+      "expectedAddress": "",
       "evidenceText": "Conférence de Sophie Montreuil : « L’édition savante en français, au cœur des priorités de l’Acfas » Jeudi 19 février 2026 18 h 30 - 19 h 30 Local L1-4660 du campus de Longueuil de l’Université de Sherbrooke et en ligne sur Teams Le GRÉLQ et le CRIHN vous invitent à la conférence de Sophie Montreuil."
+    },
+    {
+      "id": "elysee_montmartre_abyssinians_big_youth",
+      "sourceTitle": "THE ABYSSINIANS & BIG YOUTH",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/the-abyssinians-big-youth/",
+      "pageTitle": "THE ABYSSINIANS &amp; BIG YOUTH - Elysée Montmartre",
+      "pageDescription": "",
+      "canonicalUrl": "https://www.elyseemontmartre.com/fr/programmation/the-abyssinians-big-youth/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "evidenceText": "THE ABYSSINIANS & BIG YOUTH Samedi 16 mai 2026 20h00 Élysée Montmartre Deux figures majeures du reggae roots jamaïcain pour une soirée exceptionnelle."
+    },
+    {
+      "id": "elysee_montmartre_apparat",
+      "sourceTitle": "APPARAT",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/apparat/",
+      "pageTitle": "APPARAT - Elysée Montmartre",
+      "pageDescription": "",
+      "canonicalUrl": "https://www.elyseemontmartre.com/fr/programmation/apparat/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "evidenceText": "APPARAT Vendredi 09 octobre 2026 20h00 Élysée Montmartre APPARAT revient à Paris pour une date à l'Élysée Montmartre."
+    },
+    {
+      "id": "elysee_montmartre_burning_spear",
+      "sourceTitle": "BURNING SPEAR",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/burning-spear/",
+      "pageTitle": "BURNING SPEAR - Elysée Montmartre",
+      "pageDescription": "",
+      "canonicalUrl": "https://www.elyseemontmartre.com/fr/programmation/burning-spear/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "evidenceText": "BURNING SPEAR Mardi 30 juin 2026 19h00 Élysée Montmartre Figure légendaire du reggae roots. Ouverture des portes 1h avant."
+    },
+    {
+      "id": "elysee_montmartre_infos_pratiques",
+      "sourceTitle": "Infos pratiques - Élysée Montmartre",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/informations-pratiques/",
+      "pageTitle": "Infos pratiques - Elysée Montmartre",
+      "pageDescription": "",
+      "canonicalUrl": "https://www.elyseemontmartre.com/fr/informations-pratiques/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "evidenceText": ""
+    },
+    {
+      "id": "elysee_montmartre_portugal_the_man",
+      "sourceTitle": "PORTUGAL. THE MAN",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/portugal-the-man/",
+      "pageTitle": "PORTUGAL. THE MAN - Elysée Montmartre",
+      "pageDescription": "",
+      "canonicalUrl": "https://www.elyseemontmartre.com/fr/programmation/portugal-the-man/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "evidenceText": "PORTUGAL. THE MAN Élysée Montmartre Le concert initialement prévu le 28 février 2026 est reporté. Deux dates à Paris. Vendredi 04 décembre 2026 PORTUGAL. THE MAN - Report 20h00 Samedi 05 décembre 2026 PORTUGAL. THE MAN - Nouvelle date 20h00"
+    },
+    {
+      "id": "elysee_montmartre_sabrina_claudio_cancelled",
+      "sourceTitle": "SABRINA CLAUDIO",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/sabrina-claudio/",
+      "pageTitle": "SABRINA CLAUDIO - Elysée Montmartre",
+      "pageDescription": "",
+      "canonicalUrl": "https://www.elyseemontmartre.com/fr/programmation/sabrina-claudio/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "evidenceText": "SABRINA CLAUDIO Lundi 04 mai 2026 20h00 Élysée Montmartre Annulé. Première partie : Sam Fischer."
+    },
+    {
+      "id": "elysee_montmartre_smash_into_pieces",
+      "sourceTitle": "SMASH INTO PIECES",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/smash-into-pieces/",
+      "pageTitle": "SMASH INTO PIECES - Elysée Montmartre",
+      "pageDescription": "",
+      "canonicalUrl": "https://www.elyseemontmartre.com/fr/programmation/smash-into-pieces/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "evidenceText": "SMASH INTO PIECES Jeudi 07 mai 2026 19h30 Élysée Montmartre Titans du rock suédois. Ouverture des portes 1h avant. Fosse debout."
     },
     {
       "id": "engage_2026",
@@ -43,6 +117,7 @@
       "pageTitle": "Engage 2026 | ASU Enterprise Technology",
       "pageDescription": "",
       "canonicalUrl": "https://tech.asu.edu/events/engage2026",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -52,6 +127,7 @@
       "pageTitle": "Event Flyer Content &amp; Branding Guidelines | Community Relations &amp; Marketing | College of San Mateo",
       "pageDescription": "",
       "canonicalUrl": "https://collegeofsanmateo.edu/marketing/eventflyers.php",
+      "expectedAddress": "",
       "evidenceText": "Event Flyer Content Guidelines Guidelines for creating clear and accessible event flyers."
     },
     {
@@ -61,79 +137,8 @@
       "pageTitle": " Humanizing Critical Race Theory Launch Event | Black Studies | University of Illinois Chicago ",
       "pageDescription": "",
       "canonicalUrl": "https://blst.uic.edu/events/hcrt/",
+      "expectedAddress": "",
       "evidenceText": "Humanizing Race Theory Launch Event Thursday, September 28, 2023 5:00 PM - 7:00 PM Hull House, 800 S Halsted St., Chicago, IL 60607 Celebrate the launch of the Humanizing Critical Race Theory Project."
-    },
-    {
-      "id": "kilowatt_bounce_mija_2026",
-      "sourceTitle": "Bounce SF + Never B Alone pres: Mija SOLD OUT",
-      "sourceUrl": "https://ra.co/events/2343707",
-      "pageTitle": "Attention Required! | Cloudflare",
-      "pageDescription": "",
-      "canonicalUrl": "https://ra.co/events/2343707",
-      "evidenceText": ""
-    },
-    {
-      "id": "kilowatt_dreamscape_dj_night_2026",
-      "sourceTitle": "Dreamscape DJ Night",
-      "sourceUrl": "https://events.extrachill.com/events/dreamscape-dj-night-2",
-      "pageTitle": "Dreamscape DJ Night at Kilowatt, San Francisco, (May 1, 2026) &#8211; Extra Chill Events",
-      "pageDescription": "Dreamscape DJ Night takes place at Kilowatt in San Francisco. Time: 10:00 PM – 2:00 AM (local time). This is a 21+ event. Lineup: Galine, Krill Keleev,...",
-      "canonicalUrl": "https://events.extrachill.com/events/dreamscape-dj-night-2",
-      "evidenceText": ""
-    },
-    {
-      "id": "kilowatt_ex_heir_2026",
-      "sourceTitle": "Ex Heir, Spiralteeth and 55 Castles",
-      "sourceUrl": "https://events.extrachill.com/events/ex-heir-spiralteeth-and-55-castles",
-      "pageTitle": "Ex Heir, Spiralteeth and 55 Castles at Kilowatt, San Francisco, (Apr 26, 2026) &#8211; Extra Chill Events",
-      "pageDescription": "Presented by Kilowatt Live music at Kilowatt (21+ event). Tickets/RSVP: https://link.dice.fm/m553f354dbda",
-      "canonicalUrl": "https://events.extrachill.com/events/ex-heir-spiralteeth-and-55-castles",
-      "evidenceText": ""
-    },
-    {
-      "id": "kilowatt_honey_channel_2026",
-      "sourceTitle": "Honey Channel",
-      "sourceUrl": "https://ra.co/events/2376222",
-      "pageTitle": "Attention Required! | Cloudflare",
-      "pageDescription": "",
-      "canonicalUrl": "https://ra.co/events/2376222",
-      "evidenceText": ""
-    },
-    {
-      "id": "kilowatt_planet_synth_2025",
-      "sourceTitle": "Planet Synth: Holiday Soiree",
-      "sourceUrl": "https://ra.co/events/2305329",
-      "pageTitle": "Attention Required! | Cloudflare",
-      "pageDescription": "",
-      "canonicalUrl": "https://ra.co/events/2305329",
-      "evidenceText": ""
-    },
-    {
-      "id": "kilowatt_theya_vinyl_release_party_2026",
-      "sourceTitle": "Theya Vinyl Release Party",
-      "sourceUrl": "https://events.extrachill.com/events/theya-vinyl-release-party",
-      "pageTitle": "Theya Vinyl Release Party at Kilowatt, San Francisco, (Apr 25, 2026) &#8211; Extra Chill Events",
-      "pageDescription": "About: Theya celebrates the release of their vinyl with live sets from Hazzard’s Cure, Magic Ov Spell, and DJ Cristy Bubbles. Presented by Kilowatt. When:...",
-      "canonicalUrl": "https://events.extrachill.com/events/theya-vinyl-release-party",
-      "evidenceText": ""
-    },
-    {
-      "id": "kilowatt_vinylissimo_dec_2025",
-      "sourceTitle": "VINYLISSIMO",
-      "sourceUrl": "https://ra.co/events/2298975",
-      "pageTitle": "Attention Required! | Cloudflare",
-      "pageDescription": "",
-      "canonicalUrl": "https://ra.co/events/2298975",
-      "evidenceText": ""
-    },
-    {
-      "id": "kilowatt_vinylissimo_oct_2025",
-      "sourceTitle": "VINYLISSIMO",
-      "sourceUrl": "https://ra.co/events/2253189",
-      "pageTitle": "Attention Required! | Cloudflare",
-      "pageDescription": "",
-      "canonicalUrl": "https://ra.co/events/2253189",
-      "evidenceText": ""
     },
     {
       "id": "know_your_rights_workshop",
@@ -142,7 +147,58 @@
       "pageTitle": "Know Your Rights Workshop",
       "pageDescription": "Did you know you have rights? The Constitution says you do! Come learn about them at our Know Your Rights workshop, led by Cal SAFIRE and hosted by La Alianza [&hellip;]",
       "canonicalUrl": "https://www.law.berkeley.edu/event/know-your-rights-workshop/",
+      "expectedAddress": "",
       "evidenceText": "Know Your Rights Workshop Tuesday, April 14, 2026 12:45 PM - 2:00 PM Room 105, Law Building Everyone in the US has constitutional rights regardless of immigration status. RSVP for lunch."
+    },
+    {
+      "id": "le_kilowatt_20_years_kicking",
+      "sourceTitle": "20 YEARS KICKING",
+      "sourceUrl": "https://lekilowatt.fr/agenda/20-years-kicking/",
+      "pageTitle": "  20 YEARS KICKING",
+      "pageDescription": "BILLETTERIE  \r\n\r\nSUPER éclate FATALE #2 :\r\nle retour du come back \r\nLes jeudis 9 et 16 juin de 19h à 00h \r\nDeux soirées explosives pour fêter les 20 ans de Kicking Records – label culte, activiste, et infatigable agitateur de la scène punk-rock internationale. Le Kilowatt et Kicking Records s’associent pour une édition unique : 12 groupes, 2 jours,",
+      "canonicalUrl": "https://lekilowatt.fr/agenda/20-years-kicking/",
+      "expectedAddress": "18 rue des Fusillés 94400 Vitry-sur-Seine",
+      "evidenceText": "20 YEARS KICKING Le Kilowatt Deux soirées punk-rock pour les 20 ans de Kicking Records. Vendredi 10 avril 2026 20 YEARS KICKING - Jour 1 19h - 02h Samedi 11 avril 2026 20 YEARS KICKING - Jour 2 17h - 02h"
+    },
+    {
+      "id": "le_kilowatt_don_carlos_geo",
+      "sourceTitle": "DON CARLOS ET GÉO + Première partie : Fatta + after concert : Little Lion Sound",
+      "sourceUrl": "https://lekilowatt.fr/agenda/don-carlos-et-geo-premiere-partie-fatta-after-concert-little-lion-sound-geneve/",
+      "pageTitle": "  Don Carlos et Géo + Première partie : Fatta + after concert : Little Lion Sound (Genève)",
+      "pageDescription": "BILLETTERIE  \r\n\r\nSUPER éclate FATALE #2 :\r\nle retour du come back \r\nLes jeudis 9 et 16 juin de 19h à 00h \r\n\r\n\r\n&nbsp;\r\n\r\n\r\nDon Carlos, légende vivante du reggae jamaïcain, revient en Europe en 2026 avec son fils Geo et le groupe The Upright Ones.\r\nUn show puissant mêlant classiques intemporels, énergie nouvelle et vibrations authentiques",
+      "canonicalUrl": "https://lekilowatt.fr/agenda/don-carlos-et-geo-premiere-partie-fatta-after-concert-little-lion-sound-geneve/",
+      "expectedAddress": "18 rue des Fusillés 94400 Vitry-sur-Seine",
+      "evidenceText": "DON CARLOS ET GÉO Vendredi 17 avril 2026 19h - 01h Le Kilowatt Première partie : Fatta. After concert : Little Lion Sound (Genève). Reggae roots."
+    },
+    {
+      "id": "le_kilowatt_infos_pratiques",
+      "sourceTitle": "Infos pratiques - Le Kilowatt",
+      "sourceUrl": "https://lekilowatt.fr/infos-pratiques/",
+      "pageTitle": "  Infos pratiques",
+      "pageDescription": "ACCÈS      \r\n\r\nLE KILOWATT : ESPACE MARCEL PAUL - 18 rue des Fusillés 94400 Vitry-sur-Seine\r\n\r\nAccès voiture par A86 sortie Vitry-sur-Seine\r\n\r\nRER C les Ardoines : 10 min à pied",
+      "canonicalUrl": "https://lekilowatt.fr/infos-pratiques/",
+      "expectedAddress": "18 rue des Fusillés 94400 Vitry-sur-Seine",
+      "evidenceText": ""
+    },
+    {
+      "id": "le_kilowatt_instrumental_3",
+      "sourceTitle": "INSTRUMENTAL #3",
+      "sourceUrl": "https://lekilowatt.fr/agenda/instrumental-3/",
+      "pageTitle": "  INSTRUMENTAL #3",
+      "pageDescription": "BILLETTERIE  \r\n\r\nSUPER éclate FATALE #2 :\r\nle retour du come back \r\nLes jeudis 9 et 16 juin de 19h à 00h \r\n\r\n\r\n&nbsp;\r\n\r\n\r\nDe l&#039;Electro à la Trance en passant par le Dub et la Techno, les soirées INSTRUMENTAL invitent des artistes confirmés ou futurs talents de la scène electro pour un voyage",
+      "canonicalUrl": "https://lekilowatt.fr/agenda/instrumental-3/",
+      "expectedAddress": "18 rue des Fusillés 94400 Vitry-sur-Seine",
+      "evidenceText": "INSTRUMENTAL #3 Vendredi 29 mai 2026 19h - 02h Le Kilowatt Deux scènes, six artistes, 100% électro live : Hilight Tribe, Spoink, Purrsuit, Bandi!, Roots Zombie, I Roots."
+    },
+    {
+      "id": "le_kilowatt_le_bal_du_31",
+      "sourceTitle": "LE BAL DU 31",
+      "sourceUrl": "https://lekilowatt.fr/agenda/le-bal-du-31/",
+      "pageTitle": "  Le Bal du 31",
+      "pageDescription": "BILLETTERIE  \r\n\r\nSUPER éclate FATALE #2 :\r\nle retour du come back \r\nLes jeudis 9 et 16 juin de 19h à 00h \r\nHey… Mais dis donc une année se termine et une nouvelle commence!\r\nLe Kilowatt se met sur son 31 pour une Saint Sylvestre inédite avec une seule consigne : DANSER ! DANSER ! ET ENCORE",
+      "canonicalUrl": "https://lekilowatt.fr/agenda/le-bal-du-31/",
+      "expectedAddress": "18 rue des Fusillés 94400 Vitry-sur-Seine",
+      "evidenceText": ""
     },
     {
       "id": "lean_manufacturing_principles",
@@ -151,6 +207,7 @@
       "pageTitle": "Lean Manufacturing Principles",
       "pageDescription": "",
       "canonicalUrl": "https://www.dcc.edu/documents/lean-mfg-principles-app.pdf",
+      "expectedAddress": "",
       "evidenceText": "Lean Manufacturing Principles September 21, 2023 8:30 AM - 4:00 PM Delgado River City Campus, 709 Churchill Parkway Lean Workshop with part lecture and simulation."
     },
     {
@@ -160,6 +217,7 @@
       "pageTitle": "Just a moment...",
       "pageDescription": "",
       "canonicalUrl": "https://nursing.umich.edu/about/events-calendar/2026-mlk-health-sciences-event-250910",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -169,6 +227,7 @@
       "pageTitle": "Just a moment...",
       "pageDescription": "",
       "canonicalUrl": "https://www.harrisburgu.edu/events/onehr-2026/",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -178,6 +237,7 @@
       "pageTitle": "Private Sector Careers in International Litigation and Arbitration",
       "pageDescription": "Ever wondered who represents Gambia in its genocide case against Myanmar at the International Court of Justice?  Or which law firms secured Naftogaz’s $5 billion award against Russia for seizing [&hellip;]",
       "canonicalUrl": "https://www.law.berkeley.edu/event/private-sector-careers-in-international-litigation-and-arbitration-2/",
+      "expectedAddress": "",
       "evidenceText": "Private Sector Careers in International Litigation Thursday, February 5, 2026 5:30 PM - 7:00 PM Room 140 Hosted by Berkeley Law with an RSVP note for dinner."
     },
     {
@@ -187,6 +247,7 @@
       "pageTitle": "Symposium Schedule | Office of Faculty Affairs",
       "pageDescription": "",
       "canonicalUrl": "https://faculty.umd.edu/2026/schedule",
+      "expectedAddress": "",
       "evidenceText": "PTK Symposium Schedule Thursday, March 5, 2026 9:00 AM - 11:00 AM 1101 Clark Hall (Zupnik Forum) Networking breakfast, welcome, and plenary session. Thursday, March 5, 2026 Networking Breakfast 9:00 AM - 9:40 AM Thursday, March 5, 2026 Welcome and Plenary 9:40 AM - 10:00 AM Thursday, March 5, 2026 Leading, Connecting, & Networking in Academia in Uncertain Times 10:00 AM - 11:00 AM"
     },
     {
@@ -196,6 +257,7 @@
       "pageTitle": " Rencontre - « Ça s’écrit comme ça se prononce ! » | Université de Strasbourg ",
       "pageDescription": "Durant cette rencontre, on discutera des rouages de la langue, de sa beauté et de l’origine de sa forme.",
       "canonicalUrl": "https://www.unistra.fr/fr/agenda/2026/rencontre-ca-secrit-ca-se-prononce",
+      "expectedAddress": "",
       "evidenceText": "Ça s’écrit comme ça se prononce ! Mercredi 4 mars 2026 14 h 00 - 16 h 30 Amphithéâtre Beretz, campus de l’Esplanade Rencontre grand public sur l’écriture et la prononciation du français."
     },
     {
@@ -205,6 +267,7 @@
       "pageTitle": "Séminaire Sourds et Langues des Signes | Structures Formelles du Langage",
       "pageDescription": "",
       "canonicalUrl": "https://www.sfl.cnrs.fr/fr/seminaire-lsg",
+      "expectedAddress": "",
       "evidenceText": "Séminaire Sourds et Langues des Signes CNRS Pouchet et à distance par Zoom Séminaire mensuel avec interprétation LSF-français ou LSF-anglais. Lundi 16 février 2026 Réunion interne 14 h 00 - 16 h 00 Lundi 23 mars 2026 Suelen Silva de Oliveira et Alain Bacci 14 h 00 - 16 h 00 Lundi 13 avril 2026 Sandra Recollon et Kelig Bertin 15 h 00 - 17 h 00"
     },
     {
@@ -214,6 +277,7 @@
       "pageTitle": "Student Research Symposium Schedule",
       "pageDescription": "2026 Symposium Schedule This year’s Student Research Symposium will take place on Friday, April 24th, 2026. TIME EVENT 8:00 am Check-In Opens 8:00 – 8:40 am Light Continental Breakfast &amp; Refreshments 8:40 – 8:45 am Welcome Dr. Stefanie Brachfeld, Vice Provost for Research and Interim Head of the Graduate Center 8:45 – 9:00 am Opening […]",
       "canonicalUrl": "https://www.montclair.edu/research-symposium/schedule-2/",
+      "expectedAddress": "",
       "evidenceText": "Student Research Symposium Schedule Friday, April 24, 2026 8:40 AM - 2:15 PM Conference Center A day of research presentations and poster sessions. Friday, April 24, 2026 Welcome 8:40 AM - 8:45 AM Friday, April 24, 2026 Opening Remarks 8:45 AM - 9:00 AM Friday, April 24, 2026 Keynote Presentation 9:00 AM - 9:20 AM Friday, April 24, 2026 Poster Session 1 9:30 AM - 10:30 AM Friday, April 24, 2026 Poster Session 2 10:45 AM - 11:45 AM Friday, April 24, 2026 Poster Session 3 12:00 PM - 1:00 PM Friday, April 24, 2026 Poster Session 4 1:15 PM - 2:15 PM"
     },
     {
@@ -223,6 +287,7 @@
       "pageTitle": "Symposium Schedule | College of Arts and Architecture Sustainability Symposium",
       "pageDescription": "",
       "canonicalUrl": "https://sites.psu.edu/aasustainability/home/events/symposium-schedule/",
+      "expectedAddress": "",
       "evidenceText": "Sustainability Symposium Schedule Thursday, April 9, 2026 8:00 AM - 11:30 AM HUB 233 AB Cultivation: sustainability symposium and keynote sessions. Thursday, April 9, 2026 Registration and Breakfast 8:00 AM - 8:40 AM Thursday, April 9, 2026 Opening Remarks: B. Stephen Carpenter II 8:40 AM - 8:50 AM Thursday, April 9, 2026 Opening Remarks: Peter Buck 8:50 AM - 9:00 AM Thursday, April 9, 2026 Keynote Address 9:00 AM - 10:00 AM Thursday, April 9, 2026 Preservation and Innovation: Pathways to Sustainable Environments 10:00 AM - 10:45 AM Thursday, April 9, 2026 Music and Nature: Soundscapes of Sustainability 11:00 AM - 11:30 AM"
     },
     {
@@ -232,6 +297,7 @@
       "pageTitle": " Conférence « Faire un doctorat, ce qu’il faut savoir » | Université de Strasbourg ",
       "pageDescription": "Préparer son projet / devenir doctorantLes exigences et les spécificités du parcoursLe statut du doctorantNe manquez pas cette conférence pour répondre à toutes vos interrogations.",
       "canonicalUrl": "https://www.unistra.fr/fr/agenda/2026/conference-faire-doctorat-ce-quil-faut-savoir",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -241,6 +307,7 @@
       "pageTitle": " « ELLES vous rencontrent ! » | Université de Strasbourg ",
       "pageDescription": "ELLES nous inspirent ! # 2 : en lien avec la Journée internationale des femmes et filles de science du 11 février, le Jardin des sciences vous invite à participer à une deuxième édition de ce temps fort pour découvrir celles qui font avancer les sciences.",
       "canonicalUrl": "https://www.unistra.fr/fr/agenda/2026/elles-vous-rencontrent",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -250,6 +317,7 @@
       "pageTitle": " Festival USIAS - « Regards sur le passé, perspectives d’avenir » | Université de Strasbourg ",
       "pageDescription": "La recherche universitaire a toujours été motivée par la curiosité, l&#039;imagination et le courage de poser des questions allant au-delà des évidences.L’Institut d’études avancées de l’université de Strasbourg (USIAS) permet aux chercheurs et chercheuses strasbourgeois d&#039;ouvrir de nouvelles pistes de recherche et de poursuivre des idées et approches novatrices nécessitant à la fois du temps de réflexion et un investissement important afin d’établir des liens avec d&#039;autres domaines et méthodes.",
       "canonicalUrl": "https://en.unistra.fr/fr/agenda/2026/festival-usias-regards-passe-perspectives-davenir",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -259,6 +327,7 @@
       "pageTitle": " Hacking Health Camp 2026 | Université de Strasbourg ",
       "pageDescription": "Vous êtes un professionnel de la santé, un soignant, un patient ou un aidant, à la recherche de nouvelles opportunités d’innovation dans le domaine de la santé ? Rejoignez le Hacking Health Camp, l’événement phare de l’innovation en santé numérique !",
       "canonicalUrl": "https://www.unistra.fr/fr/agenda/2026/hacking-health-camp-2026",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -268,6 +337,7 @@
       "pageTitle": " Nuit de l&#039;Europe 2026 | Université de Strasbourg ",
       "pageDescription": "La Nuit de l’Europe rassemblera des chercheurs, des journalistes, des dessinateurs de presse et des étudiants pour penser ensemble l’Europe dans toutes ses facettes.",
       "canonicalUrl": "https://www.unistra.fr/fr/agenda/2026/nuit-leurope-2026",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -277,6 +347,7 @@
       "pageTitle": " Journée portes ouvertes au Centre Européen de Sciences Quantiques (CESQ) | Université de Strasbourg ",
       "pageDescription": "Journée des portes ouvertes au Centre Européen de Sciences Quantiques (CESQ) aura lieu samedi 28 mars à 10h au CESQ sur le campus de Cronenbourg.",
       "canonicalUrl": "https://www.unistra.fr/fr/agenda/2026/journee-portes-ouvertes-au-centre-europeen-sciences-quantiques-cesq",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -286,6 +357,7 @@
       "pageTitle": "2026 State of the University Address",
       "pageDescription": "Join UNLV Interim President Chris Heavey for the annual State of the University Address. This signature event brings together students, faculty, staff, alumni, and community partners to reflect on UNLV’s progress, celebrate accomplishments, and look ahead to upcoming priorities and opportunities. All are welcome and encouraged to attend. The address will also be livestreamed on YouTube",
       "canonicalUrl": "https://www.unlv.edu/event/2026-state-university-address",
+      "expectedAddress": "",
       "evidenceText": ""
     },
     {
@@ -295,6 +367,7 @@
       "pageTitle": "Workshop Services | UCI Counseling Center",
       "pageDescription": "",
       "canonicalUrl": "https://counseling.uci.edu/services/workshop-services/",
+      "expectedAddress": "",
       "evidenceText": "Wellness Workshop Series Counseling Center Main Office (203 Student Services I) Join us for a weekly workshop series. Wednesday, January 7, 2026 ABC's of Mindfulness 1:00 PM - 2:00 PM Wednesday, January 14, 2026 Building Self-Esteem 1:00 PM - 2:00 PM Wednesday, January 21, 2026 Happiness: Positive Psychology's Lessons on Flourishing 1:00 PM - 2:00 PM"
     }
   ]

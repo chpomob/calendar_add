@@ -88,7 +88,8 @@ Current parity choices based on `LlmChatModelHelper`:
 - use `scripts/check_image_flyer_cases.sh` to validate the synthetic flyer suite against local Gemma 4
 - use `scripts/benchmark_image_modes.sh` to compare classic vs heavy image scoring across the full corpus
 - use `scripts/benchmark_audio_modes.sh` to compare classic vs heavy audio prompt scoring from transcript proxies
-- optional late web lookup is available for image heavy mode when OCR exposes event hints; it stays off by default and only runs after local extraction
+- experimental optional late web lookup is available for image heavy mode when OCR exposes event hints; it stays off by default, runs after local extraction, reads a bounded page text snippet, and may perform one extra venue-address lookup when the local result only has a venue name
+- experimental web lookup supports an optional Brave Search API provider configured in Settings; if no key is configured or the API fails, the app falls back to DuckDuckGo HTML search, which can be blocked by anti-bot pages
 - use `scripts/benchmark_web_lookup_queries.sh` to compare heuristic vs model-generated web search queries on the image corpus before adding more web-planning logic
 - use `scripts/generate_web_lookup_fixtures.sh` to snapshot live metadata from public event pages into `app/src/test/resources/web-lookup-fixtures/`
 - use `scripts/benchmark_web_lookup_live.sh` to compare query planners against live DuckDuckGo results on the snapshot corpus

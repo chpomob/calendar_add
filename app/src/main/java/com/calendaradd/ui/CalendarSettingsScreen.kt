@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -41,6 +42,8 @@ fun CalendarSettingsScreen(
     val isAutoAddEnabled by viewModel.isAutoAddEnabled.collectAsState()
     val isHeavyAnalysisEnabled by viewModel.isHeavyAnalysisEnabled.collectAsState()
     val isWebVerificationEnabled by viewModel.isWebVerificationEnabled.collectAsState()
+    val webSearchProvider by viewModel.webSearchProvider.collectAsState()
+    val braveSearchApiKey by viewModel.braveSearchApiKey.collectAsState()
     val isFailureJsonDebugEnabled by viewModel.isFailureJsonDebugEnabled.collectAsState()
     val selectedModelId by viewModel.selectedModelId.collectAsState()
     val selectedCalendarId by viewModel.selectedCalendarId.collectAsState()
@@ -225,10 +228,10 @@ fun CalendarSettingsScreen(
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     ListItem(
-                        headlineContent = { Text("Late web lookup") },
+                        headlineContent = { Text("Experimental web lookup") },
                         supportingContent = {
                             Text(
-                                "When image OCR exposes event hints, optionally search public pages to confirm or improve the extracted event. Off by default."
+                                "Experimental. When image OCR exposes event hints, optionally search public pages to confirm or improve the extracted event. Off by default. Brave Search API is more reliable; DuckDuckGo HTML is only a fallback and may hit anti-bot pages."
                             )
                         },
                         leadingContent = { Icon(Icons.Default.Language, contentDescription = null) },
@@ -239,6 +242,15 @@ fun CalendarSettingsScreen(
                             )
                         }
                     )
+                    if (isWebVerificationEnabled) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        WebSearchProviderSettings(
+                            provider = webSearchProvider,
+                            braveApiKey = braveSearchApiKey,
+                            onProviderChange = viewModel::setWebSearchProvider,
+                            onBraveApiKeyChange = viewModel::setBraveSearchApiKey
+                        )
+                    }
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     ListItem(
                         headlineContent = { Text("Show raw model JSON on failure") },
@@ -355,6 +367,77 @@ fun CalendarSettingsScreen(
                 }
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WebSearchProviderSettings(
+    provider: String,
+    braveApiKey: String,
+    onProviderChange: (String) -> Unit,
+    onBraveApiKeyChange: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val providerLabel = when (provider) {
+        "brave" -> "Brave Search API"
+        else -> "DuckDuckGo HTML fallback"
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            OutlinedTextField(
+                value = providerLabel,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Experimental search provider") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Brave Search API") },
+                    onClick = {
+                        onProviderChange("brave")
+                        expanded = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("DuckDuckGo HTML fallback") },
+                    onClick = {
+                        onProviderChange("duckduckgo")
+                        expanded = false
+                    }
+                )
+            }
+        }
+
+        if (provider == "brave") {
+            OutlinedTextField(
+                value = braveApiKey,
+                onValueChange = onBraveApiKeyChange,
+                label = { Text("Brave Search API key") },
+                supportingText = {
+                    Text("Stored locally on this device. If empty or rejected, lookup falls back to DuckDuckGo HTML.")
+                },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 

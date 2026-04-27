@@ -789,82 +789,284 @@
       "expectedEvents": []
     },
     {
-      "id": "kilowatt_theya_vinyl_release_party",
-      "sourceTitle": "Theya Vinyl Release Party",
-      "sourceUrl": "https://events.extrachill.com/events/theya-vinyl-release-party",
+      "id": "le_kilowatt_don_carlos_geo",
+      "sourceTitle": "DON CARLOS ET GÉO + Première partie : Fatta + after concert : Little Lion Sound",
+      "sourceUrl": "https://lekilowatt.fr/agenda/don-carlos-et-geo-premiere-partie-fatta-after-concert-little-lion-sound-geneve/",
+      "expectedAddress": "18 rue des Fusillés 94400 Vitry-sur-Seine",
       "context": {
-        "datetime": "2026-04-27T09:00:00-07:00",
-        "timezone": "America/Los_Angeles",
-        "language": "en"
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
       },
       "flyerText": {
-        "title": "Theya Vinyl Release Party",
-        "date": "Saturday, April 25, 2026",
-        "time": "7:00 PM - 11:00 PM",
-        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
-        "description": "Theya celebrates the release of their vinyl with live sets from Hazzard’s Cure, Magic Ov Spell, and DJ Cristy Bubbles. Presented by Kilowatt."
+        "title": "DON CARLOS ET GÉO",
+        "date": "Vendredi 17 avril 2026",
+        "time": "19h - 01h",
+        "location": "Le Kilowatt",
+        "description": "Première partie : Fatta. After concert : Little Lion Sound (Genève). Reggae roots."
       },
-      "imageFile": "kilowatt_theya_vinyl_release_party/flyer.png",
+      "imageFile": "le_kilowatt_don_carlos_geo/flyer.png",
       "expectedEvent": {
-        "title": "Theya Vinyl Release Party",
-        "description": "Theya celebrates the release of their vinyl with live sets from Hazzard’s Cure, Magic Ov Spell, and DJ Cristy Bubbles. Presented by Kilowatt.",
-        "startTime": "2026-04-25T19:00:00-07:00",
-        "endTime": "2026-04-25T23:00:00-07:00",
-        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
+        "title": "DON CARLOS ET GÉO",
+        "description": "Première partie : Fatta. After concert : Little Lion Sound (Genève). Reggae roots.",
+        "startTime": "2026-04-17T19:00:00+02:00",
+        "endTime": "2026-04-18T01:00:00+02:00",
+        "location": "Le Kilowatt",
         "attendees": []
       }
     },
     {
-      "id": "kilowatt_ex_heir_spiralteeth_55_castles",
-      "sourceTitle": "Ex Heir, Spiralteeth and 55 Castles",
-      "sourceUrl": "https://events.extrachill.com/events/ex-heir-spiralteeth-and-55-castles",
+      "id": "le_kilowatt_20_years_kicking",
+      "sourceTitle": "20 YEARS KICKING",
+      "sourceUrl": "https://lekilowatt.fr/agenda/20-years-kicking/",
+      "expectedAddress": "18 rue des Fusillés 94400 Vitry-sur-Seine",
       "context": {
-        "datetime": "2026-04-27T09:00:00-07:00",
-        "timezone": "America/Los_Angeles",
-        "language": "en"
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
       },
       "flyerText": {
-        "title": "Ex Heir, Spiralteeth and 55 Castles",
-        "date": "Sunday, April 26, 2026",
-        "time": "8:00 PM - 12:00 AM",
-        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
-        "description": "FREE LIVE MUSIC AT KILOWATT. Presented by Kilowatt. This is a 21+ event."
+        "title": "20 YEARS KICKING",
+        "date": "",
+        "time": "",
+        "location": "Le Kilowatt",
+        "description": "Deux soirées punk-rock pour les 20 ans de Kicking Records."
       },
-      "imageFile": "kilowatt_ex_heir_spiralteeth_55_castles/flyer.png",
+      "scheduleRows": [
+        {
+          "date": "Vendredi 10 avril 2026",
+          "title": "20 YEARS KICKING - Jour 1",
+          "time": "19h - 02h"
+        },
+        {
+          "date": "Samedi 11 avril 2026",
+          "title": "20 YEARS KICKING - Jour 2",
+          "time": "17h - 02h"
+        }
+      ],
+      "imageFile": "le_kilowatt_20_years_kicking/flyer.png",
+      "expectedEvents": [
+        {
+          "title": "20 YEARS KICKING - Jour 1",
+          "description": "Deux soirées punk-rock pour les 20 ans de Kicking Records.",
+          "startTime": "2026-04-10T19:00:00+02:00",
+          "endTime": "2026-04-11T02:00:00+02:00",
+          "location": "Le Kilowatt",
+          "attendees": []
+        },
+        {
+          "title": "20 YEARS KICKING - Jour 2",
+          "description": "Deux soirées punk-rock pour les 20 ans de Kicking Records.",
+          "startTime": "2026-04-11T17:00:00+02:00",
+          "endTime": "2026-04-12T02:00:00+02:00",
+          "location": "Le Kilowatt",
+          "attendees": []
+        }
+      ]
+    },
+    {
+      "id": "le_kilowatt_instrumental_3",
+      "sourceTitle": "INSTRUMENTAL #3",
+      "sourceUrl": "https://lekilowatt.fr/agenda/instrumental-3/",
+      "expectedAddress": "18 rue des Fusillés 94400 Vitry-sur-Seine",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "flyerText": {
+        "title": "INSTRUMENTAL #3",
+        "date": "Vendredi 29 mai 2026",
+        "time": "19h - 02h",
+        "location": "Le Kilowatt",
+        "description": "Deux scènes, six artistes, 100% électro live : Hilight Tribe, Spoink, Purrsuit, Bandi!, Roots Zombie, I Roots."
+      },
+      "imageFile": "le_kilowatt_instrumental_3/flyer.png",
       "expectedEvent": {
-        "title": "Ex Heir, Spiralteeth and 55 Castles",
-        "description": "FREE LIVE MUSIC AT KILOWATT. Presented by Kilowatt. This is a 21+ event.",
-        "startTime": "2026-04-26T20:00:00-07:00",
-        "endTime": "2026-04-27T00:00:00-07:00",
-        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
+        "title": "INSTRUMENTAL #3",
+        "description": "Deux scènes, six artistes, 100% électro live : Hilight Tribe, Spoink, Purrsuit, Bandi!, Roots Zombie, I Roots.",
+        "startTime": "2026-05-29T19:00:00+02:00",
+        "endTime": "2026-05-30T02:00:00+02:00",
+        "location": "Le Kilowatt",
         "attendees": []
       }
     },
     {
-      "id": "kilowatt_dreamscape_dj_night",
-      "sourceTitle": "Dreamscape DJ Night",
-      "sourceUrl": "https://events.extrachill.com/events/dreamscape-dj-night-2",
+      "id": "elysee_montmartre_smash_into_pieces",
+      "sourceTitle": "SMASH INTO PIECES",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/smash-into-pieces/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
       "context": {
-        "datetime": "2026-04-27T09:00:00-07:00",
-        "timezone": "America/Los_Angeles",
-        "language": "en"
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
       },
       "flyerText": {
-        "title": "Dreamscape DJ Night",
-        "date": "Friday, May 1, 2026",
-        "time": "10:00 PM - 2:00 AM",
-        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
-        "description": "with Galine, Krill Keleev, and May Day Marxist. Presented by Kilowatt."
+        "title": "SMASH INTO PIECES",
+        "date": "Jeudi 07 mai 2026",
+        "time": "19h30",
+        "location": "Élysée Montmartre",
+        "description": "Titans du rock suédois. Ouverture des portes 1h avant. Fosse debout."
       },
-      "imageFile": "kilowatt_dreamscape_dj_night/flyer.png",
+      "imageFile": "elysee_montmartre_smash_into_pieces/flyer.png",
       "expectedEvent": {
-        "title": "Dreamscape DJ Night",
-        "description": "with Galine, Krill Keleev, and May Day Marxist. Presented by Kilowatt.",
-        "startTime": "2026-05-01T22:00:00-07:00",
-        "endTime": "2026-05-02T02:00:00-07:00",
-        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
+        "title": "SMASH INTO PIECES",
+        "description": "Titans du rock suédois. Ouverture des portes 1h avant. Fosse debout.",
+        "startTime": "2026-05-07T19:30:00+02:00",
+        "endTime": "",
+        "location": "Élysée Montmartre",
         "attendees": []
       }
+    },
+    {
+      "id": "elysee_montmartre_abyssinians_big_youth",
+      "sourceTitle": "THE ABYSSINIANS & BIG YOUTH",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/the-abyssinians-big-youth/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "flyerText": {
+        "title": "THE ABYSSINIANS & BIG YOUTH",
+        "date": "Samedi 16 mai 2026",
+        "time": "20h00",
+        "location": "Élysée Montmartre",
+        "description": "Deux figures majeures du reggae roots jamaïcain pour une soirée exceptionnelle."
+      },
+      "imageFile": "elysee_montmartre_abyssinians_big_youth/flyer.png",
+      "expectedEvent": {
+        "title": "THE ABYSSINIANS & BIG YOUTH",
+        "description": "Deux figures majeures du reggae roots jamaïcain pour une soirée exceptionnelle.",
+        "startTime": "2026-05-16T20:00:00+02:00",
+        "endTime": "",
+        "location": "Élysée Montmartre",
+        "attendees": []
+      }
+    },
+    {
+      "id": "elysee_montmartre_burning_spear",
+      "sourceTitle": "BURNING SPEAR",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/burning-spear/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "flyerText": {
+        "title": "BURNING SPEAR",
+        "date": "Mardi 30 juin 2026",
+        "time": "19h00",
+        "location": "Élysée Montmartre",
+        "description": "Figure légendaire du reggae roots. Ouverture des portes 1h avant."
+      },
+      "imageFile": "elysee_montmartre_burning_spear/flyer.png",
+      "expectedEvent": {
+        "title": "BURNING SPEAR",
+        "description": "Figure légendaire du reggae roots. Ouverture des portes 1h avant.",
+        "startTime": "2026-06-30T19:00:00+02:00",
+        "endTime": "",
+        "location": "Élysée Montmartre",
+        "attendees": []
+      }
+    },
+    {
+      "id": "elysee_montmartre_portugal_the_man",
+      "sourceTitle": "PORTUGAL. THE MAN",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/portugal-the-man/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "flyerText": {
+        "title": "PORTUGAL. THE MAN",
+        "date": "",
+        "time": "",
+        "location": "Élysée Montmartre",
+        "description": "Le concert initialement prévu le 28 février 2026 est reporté. Deux dates à Paris."
+      },
+      "scheduleRows": [
+        {
+          "date": "Vendredi 04 décembre 2026",
+          "title": "PORTUGAL. THE MAN - Report",
+          "time": "20h00"
+        },
+        {
+          "date": "Samedi 05 décembre 2026",
+          "title": "PORTUGAL. THE MAN - Nouvelle date",
+          "time": "20h00"
+        }
+      ],
+      "imageFile": "elysee_montmartre_portugal_the_man/flyer.png",
+      "expectedEvents": [
+        {
+          "title": "PORTUGAL. THE MAN - Report",
+          "description": "Le concert initialement prévu le 28 février 2026 est reporté. Deux dates à Paris.",
+          "startTime": "2026-12-04T20:00:00+01:00",
+          "endTime": "",
+          "location": "Élysée Montmartre",
+          "attendees": []
+        },
+        {
+          "title": "PORTUGAL. THE MAN - Nouvelle date",
+          "description": "Le concert initialement prévu le 28 février 2026 est reporté. Deux dates à Paris.",
+          "startTime": "2026-12-05T20:00:00+01:00",
+          "endTime": "",
+          "location": "Élysée Montmartre",
+          "attendees": []
+        }
+      ]
+    },
+    {
+      "id": "elysee_montmartre_apparat",
+      "sourceTitle": "APPARAT",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/apparat/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "flyerText": {
+        "title": "APPARAT",
+        "date": "Vendredi 09 octobre 2026",
+        "time": "20h00",
+        "location": "Élysée Montmartre",
+        "description": "APPARAT revient à Paris pour une date à l'Élysée Montmartre."
+      },
+      "imageFile": "elysee_montmartre_apparat/flyer.png",
+      "expectedEvent": {
+        "title": "APPARAT",
+        "description": "APPARAT revient à Paris pour une date à l'Élysée Montmartre.",
+        "startTime": "2026-10-09T20:00:00+02:00",
+        "endTime": "",
+        "location": "Élysée Montmartre",
+        "attendees": []
+      }
+    },
+    {
+      "id": "elysee_montmartre_sabrina_claudio_cancelled",
+      "sourceTitle": "SABRINA CLAUDIO",
+      "sourceUrl": "https://www.elyseemontmartre.com/fr/programmation/sabrina-claudio/",
+      "expectedAddress": "72 Boulevard de Rochechouart 75018 PARIS",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "flyerText": {
+        "title": "SABRINA CLAUDIO",
+        "date": "Lundi 04 mai 2026",
+        "time": "20h00",
+        "location": "Élysée Montmartre",
+        "description": "Annulé. Première partie : Sam Fischer."
+      },
+      "imageFile": "elysee_montmartre_sabrina_claudio_cancelled/flyer.png",
+      "expectedEvents": []
     }
   ]
 }

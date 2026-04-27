@@ -75,7 +75,7 @@ class BackgroundAnalysisWorker(
         val backgroundAnalysisScheduler = BackgroundAnalysisScheduler(applicationContext)
         val gemmaLlmService = GemmaLlmService(applicationContext)
         val ocrService = OcrService()
-        val webVerificationService = WebVerificationService()
+        val webVerificationService = WebVerificationService(webSearchClient = PreferencesWebSearchClient(preferencesManager))
         val textAnalysisService = TextAnalysisService(
             gemmaLlmService = gemmaLlmService,
             preferencesManager = preferencesManager,

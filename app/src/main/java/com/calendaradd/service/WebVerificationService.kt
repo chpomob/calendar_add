@@ -5,7 +5,9 @@ import com.calendaradd.util.AppLog
 import com.calendaradd.util.LinkPreview
 import com.calendaradd.util.LinkPreviewService
 import android.net.Uri
-import java.nio.charset.StandardCharsets
+import com.calendaradd.usecase.PreferencesManager
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
@@ -30,11 +32,24 @@ class WebVerificationService(
         ocrText: String?,
         context: InputContext
     ): List<EventExtraction> = withContext(Dispatchers.IO) {
-        val preview = resolvePreview(currentEvents, ocrText) ?: return@withContext currentEvents
-        refineWithPreview(currentEvents, preview, context)
+        val previews = resolvePreviews(currentEvents, ocrText)
+        if (previews.isEmpty()) return@withContext currentEvents
+        refineWithPreviews(currentEvents, previews, context)
     }
 
-    private suspend fun resolvePreview(
+    private suspend fun resolvePreviews(
+        currentEvents: List<EventExtraction>,
+        ocrText: String?
+    ): List<LinkPreview> {
+        val primaryPreview = resolvePrimaryPreview(currentEvents, ocrText) ?: return emptyList()
+        val previews = mutableListOf(primaryPreview)
+        resolveVenuePreview(currentEvents, ocrText, primaryPreview)?.let { venuePreview ->
+            if (venuePreview.url != primaryPreview.url) previews += venuePreview
+        }
+        return previews
+    }
+
+    private suspend fun resolvePrimaryPreview(
         currentEvents: List<EventExtraction>,
         ocrText: String?
     ): LinkPreview? {
@@ -48,19 +63,48 @@ class WebVerificationService(
         return linkPreviewService.getLinkPreview(resultUrl)
     }
 
-    private fun refineWithPreview(
+    private suspend fun resolveVenuePreview(
         currentEvents: List<EventExtraction>,
-        preview: LinkPreview,
+        ocrText: String?,
+        primaryPreview: LinkPreview
+    ): LinkPreview? {
+        val venue = extractVenueLookupName(currentEvents.firstOrNull()?.location) ?: return null
+        if (hasStreetAddress(venue)) return null
+        val combinedEvidence = listOf(ocrText, primaryPreview.title, primaryPreview.description, primaryPreview.textSnippet)
+            .filterNotNull()
+            .joinToString(" ")
+        val primaryAddress = extractLocationCandidate(combinedEvidence)
+        if (primaryAddress != null && hasStreetAddress(primaryAddress)) return null
+        val cityHint = extractCityHint(combinedEvidence) ?: "France"
+        val query = "$venue $cityHint adresse"
+        AppLog.i(TAG, "Trying venue address lookup query='${query.take(120)}'")
+        val resultUrl = webSearchClient.findFirstResultUrl(query) ?: return null
+        return linkPreviewService.getLinkPreview(resultUrl)
+    }
+
+    private fun refineWithPreviews(
+        currentEvents: List<EventExtraction>,
+        previews: List<LinkPreview>,
         context: InputContext
     ): List<EventExtraction> {
-        val titleHint = preview.title.takeIf { it.isNotBlank() }
-        val descriptionHint = preview.description.takeIf { it.isNotBlank() }
-        if (titleHint == null && descriptionHint == null) return currentEvents
+        val titleHint = previews.firstNotNullOfOrNull { preview ->
+            preview.title.takeIf { it.isNotBlank() }
+        }
+        val descriptionHint = previews.firstNotNullOfOrNull { preview ->
+            preview.description.takeIf { it.isNotBlank() }
+                ?: extractDescriptionCandidate(preview.textSnippet)
+        }
+        val locationHintText = previews.joinToString(" ") { preview ->
+            listOf(preview.title, preview.description, preview.textSnippet)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+        }
+        if (titleHint == null && descriptionHint == null && locationHintText.isBlank()) return currentEvents
 
         return currentEvents.map { event ->
             val title = chooseBetterTitle(event.title, titleHint)
             val description = chooseBetterDescription(event.description, descriptionHint)
-            val location = chooseBetterLocation(event.location, descriptionHint)
+            val location = chooseBetterLocation(event.location, locationHintText)
             event.copy(
                 title = title,
                 description = description,
@@ -88,7 +132,7 @@ class WebVerificationService(
 
         addPart(primaryEvent.title)
         addPart(primaryEvent.location)
-        addPart(primaryEvent.description)
+        addPart(extractDistinctiveTerms(primaryEvent.description, 6))
         addPart(extractDateHint(primaryEvent.startTime))
 
         val ocrHints = extractSearchHints(ocrText)
@@ -120,27 +164,82 @@ class WebVerificationService(
     }
 
     private fun chooseBetterLocation(current: String, hintDescription: String?): String {
-        if (current.isNotBlank()) return current
         val extracted = extractLocationCandidate(hintDescription)
-        return extracted ?: current
+        if (current.isBlank()) return extracted ?: current
+        if (extracted == null || hasStreetAddress(current) || !hasStreetAddress(extracted)) return current
+        if (current.normalizeKey() in extracted.normalizeKey()) return extracted
+        return if (looksVenueOnly(current)) "$current, $extracted" else current
     }
 
     private fun extractLocationCandidate(text: String?): String? {
         if (text.isNullOrBlank()) return null
         val normalized = text.replace(Regex("\\s+"), " ").trim()
         val locationPatterns = listOf(
-            Regex("(?i)\\blieu\\s*:\\s*([^\\.]+)"),
-            Regex("(?i)\\blocation\\s*:\\s*([^\\.]+)"),
+            Regex("(?i)\\b(?:adresse|acc[èe]s|lieu|location|où)\\s*[:\\-–]\\s*([^\\.]+)"),
+            Regex("(?i)\\b([0-9]{1,5}\\s*(?:bis|ter)?\\s+(?:rue|avenue|av\\.?|boulevard|bd\\.?|place|impasse|route|chemin|quai|all[ée]e|cours)\\s+[A-Za-zÀ-ÖØ-öø-ÿ0-9'’ .\\-]{2,80}(?:,?\\s*[0-9]{5}\\s+[A-Za-zÀ-ÖØ-öø-ÿ'’ \\-]{2,60})?)\\b"),
             Regex("(?i)\\b(online|virtual|zoom|teams)\\b"),
             Regex("(?i)\\b(room\\s*\\d+[A-Za-z0-9\\-]*)\\b"),
             Regex("(?i)\\b([0-9]{1,5}\\s+[A-Za-z0-9.'\\- ]+(street|st\\.|avenue|ave\\.|road|rd\\.|boulevard|blvd\\.|drive|dr\\.|hall|center|centre|building|campus))\\b")
         )
         for (pattern in locationPatterns) {
             val match = pattern.find(normalized) ?: continue
-            val candidate = match.groupValues.last().takeIf { it.isNotBlank() } ?: match.value
-            return candidate.trim().trimEnd('.', ',', ';')
+            val candidate = match.groupValues.getOrNull(1).takeIf { !it.isNullOrBlank() } ?: match.value
+            return cleanLocationCandidate(candidate)
         }
         return null
+    }
+
+    private fun cleanLocationCandidate(value: String): String {
+        return value
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .trimEnd('.', ',', ';', '-', '–')
+            .replace(Regex("(?i)\\s+(accès voiture|rer|métro|metro|bus|parking)\\b.*$"), "")
+            .trim()
+            .trimEnd('.', ',', ';', '-', '–')
+    }
+
+    private fun extractDescriptionCandidate(text: String?): String? {
+        if (text.isNullOrBlank()) return null
+        return text.replace(Regex("\\s+"), " ")
+            .split(Regex("(?<=[.!?])\\s+"))
+            .map { it.trim() }
+            .firstOrNull { sentence ->
+                sentence.length in 80..280 &&
+                    !sentence.contains("Newsletter", ignoreCase = true) &&
+                    !sentence.contains("Tous droit réservés", ignoreCase = true)
+            }
+    }
+
+    private fun extractVenueLookupName(currentLocation: String?): String? {
+        val normalized = currentLocation
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            ?.trimEnd(',', ';', '.')
+            ?: return null
+        if (normalized.isBlank() || looksGeneric(normalized) || hasStreetAddress(normalized)) return null
+        if (!looksVenueOnly(normalized)) return null
+        return normalized
+    }
+
+    private fun extractCityHint(value: String?): String? {
+        if (value.isNullOrBlank()) return null
+        val postalCity = Regex("\\b[0-9]{5}\\s+([A-Za-zÀ-ÖØ-öø-ÿ'’ \\-]{2,60})\\b").find(value)
+        if (postalCity != null) return postalCity.groupValues[1].trim()
+        val knownCity = Regex("(?i)\\b(Vitry-sur-Seine|Paris|Strasbourg|San Francisco|Los Angeles|New York)\\b").find(value)
+        return knownCity?.value
+    }
+
+    private fun hasStreetAddress(value: String): Boolean {
+        return value.contains(Regex("(?i)\\b[0-9]{1,5}\\s*(?:bis|ter)?\\s+(?:rue|avenue|av\\.?|boulevard|bd\\.?|place|impasse|route|chemin|quai|all[ée]e|cours|street|st\\.|road|rd\\.|drive|dr\\.)\\b")) ||
+            value.contains(Regex("\\b[0-9]{5}\\b"))
+    }
+
+    private fun looksVenueOnly(value: String): Boolean {
+        val normalized = value.normalizeKey()
+        if (normalized.contains("@") || normalized.contains("http")) return false
+        if (hasStreetAddress(value)) return false
+        return normalized.split(" ").size <= 6
     }
 
     private fun looksGeneric(value: String): Boolean {
@@ -156,6 +255,17 @@ class WebVerificationService(
             "conference",
             "schedule"
         ) || normalized.length <= 4
+    }
+
+    private fun extractDistinctiveTerms(value: String?, maxTerms: Int): String? {
+        if (value.isNullOrBlank()) return null
+        return value
+            .normalizeSearchTokens()
+            .filterNot { it in SEARCH_STOP_WORDS }
+            .distinct()
+            .take(maxTerms)
+            .joinToString(" ")
+            .takeIf { it.isNotBlank() }
     }
 
     private fun extractFirstUrl(text: String?): String? {
@@ -204,13 +314,79 @@ class WebVerificationService(
             .replace('—', '-')
             .replace(Regex("\\s+"), " ")
     }
+
+    private fun String.normalizeSearchTokens(): List<String> {
+        return lowercase()
+            .replace(Regex("[^a-z0-9à-öø-ÿ]+"), " ")
+            .split(Regex("\\s+"))
+            .map { it.trim() }
+            .filter { it.length >= 3 }
+    }
 }
 
 interface WebSearchClient {
     suspend fun findFirstResultUrl(query: String): String?
 }
 
+class PreferencesWebSearchClient(
+    private val preferencesManager: PreferencesManager,
+    private val duckDuckGoClient: WebSearchClient = DuckDuckGoWebSearchClient()
+) : WebSearchClient {
+    override suspend fun findFirstResultUrl(query: String): String? {
+        val provider = preferencesManager.webSearchProvider
+        if (provider == "brave") {
+            val apiKey = preferencesManager.braveSearchApiKey
+            if (apiKey.isNotBlank()) {
+                BraveSearchApiClient(apiKey).findFirstResultUrl(query)?.let { return it }
+            }
+        }
+        return duckDuckGoClient.findFirstResultUrl(query)
+    }
+}
+
+class BraveSearchApiClient(
+    private val apiKey: String
+) : WebSearchClient {
+    override suspend fun findFirstResultUrl(query: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val searchUrl = "https://api.search.brave.com/res/v1/web/search?q=${Uri.encode(query)}&count=8"
+            val response = Jsoup.connect(searchUrl)
+                .timeout(10000)
+                .ignoreContentType(true)
+                .header("Accept", "application/json")
+                .header("X-Subscription-Token", apiKey)
+                .execute()
+            if (response.statusCode() !in 200..299) return@withContext null
+            selectBestResultUrl(query, response.body())
+        } catch (e: Exception) {
+            AppLog.w("WebVerificationService", "Brave web lookup failed: ${e.message}")
+            null
+        }
+    }
+
+    internal fun selectBestResultUrl(query: String, responseBody: String): String? {
+        val root = JsonParser.parseString(responseBody).asJsonObject
+        val results = root.getAsJsonObject("web")
+            ?.getAsJsonArray("results")
+            ?: return null
+        return results.mapIndexedNotNull { index, element ->
+            val result = element as? JsonObject ?: return@mapIndexedNotNull null
+            val url = result.get("url")?.asString?.takeIf { it.isNotBlank() } ?: return@mapIndexedNotNull null
+            SearchResultCandidate(
+                url = url,
+                title = result.get("title")?.asString.orEmpty(),
+                snippet = result.get("description")?.asString.orEmpty(),
+                rank = index
+            )
+        }.maxByOrNull { scoreSearchResult(query, it) }?.url
+    }
+}
+
 class DuckDuckGoWebSearchClient : WebSearchClient {
+    companion object {
+        private const val MAX_RANKED_RESULTS = 8
+    }
+
     override suspend fun findFirstResultUrl(query: String): String? = withContext(Dispatchers.IO) {
         try {
             val searchUrl = "https://html.duckduckgo.com/html/?q=${Uri.encode(query)}"
@@ -218,8 +394,27 @@ class DuckDuckGoWebSearchClient : WebSearchClient {
                 .timeout(10000)
                 .userAgent("Mozilla/5.0")
                 .get()
-            val link = document.selectFirst("a.result__a") ?: document.selectFirst("a[href*='uddg=']")
-            resolveSearchResultUrl(link?.attr("href"))
+            val candidates = document.select("div.result")
+                .mapIndexedNotNull { index, element ->
+                    val link = element.selectFirst("a.result__a") ?: return@mapIndexedNotNull null
+                    val url = resolveSearchResultUrl(link.attr("href")) ?: return@mapIndexedNotNull null
+                    SearchResultCandidate(
+                        url = url,
+                        title = link.text(),
+                        snippet = element.selectFirst(".result__snippet")?.text().orEmpty(),
+                        rank = index
+                    )
+                }
+                .take(MAX_RANKED_RESULTS)
+                .ifEmpty {
+                    document.select("a[href*='uddg=']")
+                        .mapIndexedNotNull { index, link ->
+                            val url = resolveSearchResultUrl(link.attr("href")) ?: return@mapIndexedNotNull null
+                            SearchResultCandidate(url = url, title = link.text(), snippet = "", rank = index)
+                        }
+                        .take(MAX_RANKED_RESULTS)
+                }
+            candidates.maxByOrNull { scoreSearchResult(query, it) }?.url
         } catch (e: Exception) {
             AppLog.w("WebVerificationService", "Public web lookup failed: ${e.message}")
             null
@@ -235,4 +430,82 @@ class DuckDuckGoWebSearchClient : WebSearchClient {
         }
         return if (href.startsWith("//")) "https:$href" else "https://duckduckgo.com$href"
     }
+
+}
+
+private data class SearchResultCandidate(
+    val url: String,
+    val title: String,
+    val snippet: String,
+    val rank: Int
+)
+
+private fun scoreSearchResult(query: String, candidate: SearchResultCandidate): Int {
+    val queryTokens = query.normalizeSearchTokens()
+        .filterNot { it in SEARCH_STOP_WORDS }
+        .distinct()
+    val title = candidate.title.normalizeComparable()
+    val haystack = "${candidate.title} ${candidate.snippet} ${candidate.url}".normalizeComparable()
+    val tokenScore = queryTokens.sumOf { token ->
+        when {
+            title.contains(token) -> 4
+            haystack.contains(token) -> 2
+            else -> 0
+        }
+    }
+    val phraseBonus = query.extractLikelyTitlePhrase()?.let { phrase ->
+        if (title.contains(phrase.normalizeComparable())) 12 else 0
+    } ?: 0
+    val eventPageBonus = if (candidate.url.contains(Regex("(?i)/(event|events|agenda|programmation)/"))) 4 else 0
+    val pdfPenalty = if (candidate.url.contains(Regex("(?i)\\.pdf($|[?#])"))) 6 else 0
+    val rankPenalty = candidate.rank
+    return tokenScore + phraseBonus + eventPageBonus - pdfPenalty - rankPenalty
+}
+
+private val SEARCH_STOP_WORDS = setOf(
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "this",
+    "that",
+    "event",
+    "flyer",
+    "poster",
+    "schedule",
+    "series",
+    "les",
+    "des",
+    "une",
+    "pour",
+    "avec",
+    "dans",
+    "sur",
+    "par",
+    "aux",
+    "est",
+    "sont",
+    "soirée",
+    "concert"
+)
+
+private fun String.normalizeSearchTokens(): List<String> {
+    return lowercase()
+        .replace(Regex("[^a-z0-9à-öø-ÿ]+"), " ")
+        .split(Regex("\\s+"))
+        .map { it.trim() }
+        .filter { it.length >= 3 }
+}
+
+private fun String.normalizeComparable(): String {
+    return lowercase().replace(Regex("[^a-z0-9à-öø-ÿ]+"), " ")
+}
+
+private fun String.extractLikelyTitlePhrase(): String? {
+    return split(Regex("\\s+"))
+        .takeWhile { token -> !token.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) }
+        .joinToString(" ")
+        .trim()
+        .takeIf { it.length >= 6 }
 }
