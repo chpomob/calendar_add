@@ -109,7 +109,7 @@
         "description": "Everyone in the US has constitutional rights regardless of immigration status. RSVP for lunch.",
         "startTime": "2026-04-14T12:45:00-05:00",
         "endTime": "2026-04-14T14:00:00-05:00",
-        "location": "Room 105, the Law Building",
+        "location": "Room 105, Law Building",
         "attendees": []
       }
     },
@@ -326,6 +326,119 @@
           "startTime": "2026-04-24T13:15:00-04:00",
           "endTime": "2026-04-24T14:15:00-04:00",
           "location": "Conference Center",
+          "attendees": []
+        }
+      ]
+    },
+    {
+      "id": "conference_sophie_montreuil_fr",
+      "sourceTitle": "Conférence de Sophie Montreuil : « L’édition savante en français, au cœur des priorités de l’Acfas »",
+      "sourceUrl": "https://www.usherbrooke.ca/flsh/actualites/evenements/details/57438",
+      "context": {
+        "datetime": "2026-02-18T09:00:00+01:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "flyerText": {
+        "title": "Conférence de Sophie Montreuil : « L’édition savante en français, au cœur des priorités de l’Acfas »",
+        "date": "Jeudi 19 février 2026",
+        "time": "18 h 30 - 19 h 30",
+        "location": "Local L1-4660 du campus de Longueuil de l’Université de Sherbrooke et en ligne sur Teams",
+        "description": "Le GRÉLQ et le CRIHN vous invitent à la conférence de Sophie Montreuil."
+      },
+      "imageFile": "conference_sophie_montreuil_fr/flyer.png",
+      "expectedEvent": {
+        "title": "Conférence de Sophie Montreuil : « L’édition savante en français, au cœur des priorités de l’Acfas »",
+        "description": "Le GRÉLQ et le CRIHN vous invitent à la conférence de Sophie Montreuil.",
+        "startTime": "2026-02-19T18:30:00+01:00",
+        "endTime": "2026-02-19T19:30:00+01:00",
+        "location": "Local L1-4660 du campus de Longueuil de l’Université de Sherbrooke et en ligne sur Teams",
+        "attendees": []
+      }
+    },
+    {
+      "id": "rencontre_ca_secrit_ca_se_prononce",
+      "sourceTitle": "Rencontre - « Ça s’écrit comme ça se prononce ! »",
+      "sourceUrl": "https://www.unistra.fr/fr/agenda/2026/rencontre-ca-secrit-ca-se-prononce",
+      "context": {
+        "datetime": "2026-03-03T09:00:00+01:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "flyerText": {
+        "title": "Ça s’écrit comme ça se prononce !",
+        "date": "Mercredi 4 mars 2026",
+        "time": "14 h 00 - 16 h 30",
+        "location": "Amphithéâtre Beretz, campus de l’Esplanade",
+        "description": "Rencontre grand public sur l’écriture et la prononciation du français."
+      },
+      "imageFile": "rencontre_ca_secrit_ca_se_prononce/flyer.png",
+      "expectedEvent": {
+        "title": "Ça s’écrit comme ça se prononce !",
+        "description": "Rencontre grand public sur l’écriture et la prononciation du français.",
+        "startTime": "2026-03-04T14:00:00+01:00",
+        "endTime": "2026-03-04T16:30:00+01:00",
+        "location": "Amphithéâtre Beretz, campus de l’Esplanade",
+        "attendees": []
+      }
+    },
+    {
+      "id": "seminaire_sls_programme_fr",
+      "sourceTitle": "Séminaire Sourds et Langues des Signes",
+      "sourceUrl": "https://www.sfl.cnrs.fr/fr/seminaire-lsg",
+      "context": {
+        "datetime": "2026-03-01T09:00:00+01:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "flyerText": {
+        "title": "Séminaire Sourds et Langues des Signes",
+        "date": "",
+        "time": "",
+        "location": "CNRS Pouchet et à distance par Zoom",
+        "description": "Séminaire mensuel avec interprétation LSF-français ou LSF-anglais."
+      },
+      "imageFile": "seminaire_sls_programme_fr/flyer.png",
+      "scheduleRows": [
+        {
+          "date": "Lundi 16 février 2026",
+          "title": "Réunion interne",
+          "time": "14 h 00 - 16 h 00"
+        },
+        {
+          "date": "Lundi 23 mars 2026",
+          "title": "Suelen Silva de Oliveira et Alain Bacci",
+          "time": "14 h 00 - 16 h 00"
+        },
+        {
+          "date": "Lundi 13 avril 2026",
+          "title": "Sandra Recollon et Kelig Bertin",
+          "time": "15 h 00 - 17 h 00"
+        }
+      ],
+      "expectedEvents": [
+        {
+          "title": "Réunion interne",
+          "description": "Séminaire mensuel avec interprétation LSF-français ou LSF-anglais.",
+          "startTime": "2026-02-16T14:00:00+01:00",
+          "endTime": "2026-02-16T16:00:00+01:00",
+          "location": "CNRS Pouchet et à distance par Zoom",
+          "attendees": []
+        },
+        {
+          "title": "Suelen Silva de Oliveira et Alain Bacci",
+          "description": "Séminaire mensuel avec interprétation LSF-français ou LSF-anglais.",
+          "startTime": "2026-03-23T14:00:00+01:00",
+          "endTime": "2026-03-23T16:00:00+01:00",
+          "location": "CNRS Pouchet et à distance par Zoom",
+          "attendees": []
+        },
+        {
+          "title": "Sandra Recollon et Kelig Bertin",
+          "description": "Séminaire mensuel avec interprétation LSF-français ou LSF-anglais.",
+          "startTime": "2026-04-13T15:00:00+02:00",
+          "endTime": "2026-04-13T17:00:00+02:00",
+          "location": "CNRS Pouchet et à distance par Zoom",
           "attendees": []
         }
       ]
@@ -674,6 +787,84 @@
       },
       "imageFile": "event_flyer_content_guidelines/flyer.png",
       "expectedEvents": []
+    },
+    {
+      "id": "kilowatt_theya_vinyl_release_party",
+      "sourceTitle": "Theya Vinyl Release Party",
+      "sourceUrl": "https://events.extrachill.com/events/theya-vinyl-release-party",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-07:00",
+        "timezone": "America/Los_Angeles",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Theya Vinyl Release Party",
+        "date": "Saturday, April 25, 2026",
+        "time": "7:00 PM - 11:00 PM",
+        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
+        "description": "Theya celebrates the release of their vinyl with live sets from Hazzard’s Cure, Magic Ov Spell, and DJ Cristy Bubbles. Presented by Kilowatt."
+      },
+      "imageFile": "kilowatt_theya_vinyl_release_party/flyer.png",
+      "expectedEvent": {
+        "title": "Theya Vinyl Release Party",
+        "description": "Theya celebrates the release of their vinyl with live sets from Hazzard’s Cure, Magic Ov Spell, and DJ Cristy Bubbles. Presented by Kilowatt.",
+        "startTime": "2026-04-25T19:00:00-07:00",
+        "endTime": "2026-04-25T23:00:00-07:00",
+        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
+        "attendees": []
+      }
+    },
+    {
+      "id": "kilowatt_ex_heir_spiralteeth_55_castles",
+      "sourceTitle": "Ex Heir, Spiralteeth and 55 Castles",
+      "sourceUrl": "https://events.extrachill.com/events/ex-heir-spiralteeth-and-55-castles",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-07:00",
+        "timezone": "America/Los_Angeles",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Ex Heir, Spiralteeth and 55 Castles",
+        "date": "Sunday, April 26, 2026",
+        "time": "8:00 PM - 12:00 AM",
+        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
+        "description": "FREE LIVE MUSIC AT KILOWATT. Presented by Kilowatt. This is a 21+ event."
+      },
+      "imageFile": "kilowatt_ex_heir_spiralteeth_55_castles/flyer.png",
+      "expectedEvent": {
+        "title": "Ex Heir, Spiralteeth and 55 Castles",
+        "description": "FREE LIVE MUSIC AT KILOWATT. Presented by Kilowatt. This is a 21+ event.",
+        "startTime": "2026-04-26T20:00:00-07:00",
+        "endTime": "2026-04-27T00:00:00-07:00",
+        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
+        "attendees": []
+      }
+    },
+    {
+      "id": "kilowatt_dreamscape_dj_night",
+      "sourceTitle": "Dreamscape DJ Night",
+      "sourceUrl": "https://events.extrachill.com/events/dreamscape-dj-night-2",
+      "context": {
+        "datetime": "2026-04-27T09:00:00-07:00",
+        "timezone": "America/Los_Angeles",
+        "language": "en"
+      },
+      "flyerText": {
+        "title": "Dreamscape DJ Night",
+        "date": "Friday, May 1, 2026",
+        "time": "10:00 PM - 2:00 AM",
+        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
+        "description": "with Galine, Krill Keleev, and May Day Marxist. Presented by Kilowatt."
+      },
+      "imageFile": "kilowatt_dreamscape_dj_night/flyer.png",
+      "expectedEvent": {
+        "title": "Dreamscape DJ Night",
+        "description": "with Galine, Krill Keleev, and May Day Marxist. Presented by Kilowatt.",
+        "startTime": "2026-05-01T22:00:00-07:00",
+        "endTime": "2026-05-02T02:00:00-07:00",
+        "location": "Kilowatt · 3160 16th Street, San Francisco, CA 94103",
+        "attendees": []
+      }
     }
   ]
 }

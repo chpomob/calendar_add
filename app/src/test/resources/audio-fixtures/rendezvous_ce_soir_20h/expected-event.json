@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Rendez-vous",
+      "description": "On pourrait se fixer un rendez-vous ce soir à 20h.",
+      "startTime": "2026-04-27T20:00:00+02:00",
+      "endTime": "",
+      "location": "",
+      "attendees": []
+    }
+  ]
+}

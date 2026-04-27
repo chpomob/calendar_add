@@ -15,3 +15,7 @@ refresh the rendered flyers after updating the manifest.
 
 The suite now includes a multi-row workshop series case to exercise schedules
 with multiple explicit dates and titles.
+
+The corpus also includes French-language conference, seminar, and schedule
+cases so the prompt has coverage for accented text, virtual locations, and
+row-based flyers in another language.

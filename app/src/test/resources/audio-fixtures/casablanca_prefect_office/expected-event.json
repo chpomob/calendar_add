@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "title": "Rendez-vous au bureau du préfet",
+      "description": "A demain à 10 heures, au bureau du préfet.",
+      "startTime": "2026-04-28T10:00:00+02:00",
+      "endTime": "",
+      "location": "bureau du préfet",
+      "attendees": []
+    }
+  ]
+}

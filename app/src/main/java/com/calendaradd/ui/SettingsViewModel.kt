@@ -34,6 +34,9 @@ class SettingsViewModel(
     private val _isHeavyAnalysisEnabled = MutableStateFlow(preferencesManager.isHeavyAnalysisEnabled)
     val isHeavyAnalysisEnabled: StateFlow<Boolean> = _isHeavyAnalysisEnabled.asStateFlow()
 
+    private val _isWebVerificationEnabled = MutableStateFlow(preferencesManager.isWebVerificationEnabled)
+    val isWebVerificationEnabled: StateFlow<Boolean> = _isWebVerificationEnabled.asStateFlow()
+
     private val _isFailureJsonDebugEnabled = MutableStateFlow(preferencesManager.isFailureJsonDebugEnabled)
     val isFailureJsonDebugEnabled: StateFlow<Boolean> = _isFailureJsonDebugEnabled.asStateFlow()
 
@@ -83,5 +86,10 @@ class SettingsViewModel(
     fun setHeavyAnalysisEnabled(enabled: Boolean) {
         preferencesManager.isHeavyAnalysisEnabled = enabled
         _isHeavyAnalysisEnabled.value = enabled
+    }
+
+    fun setWebVerificationEnabled(enabled: Boolean) {
+        preferencesManager.isWebVerificationEnabled = enabled
+        _isWebVerificationEnabled.value = enabled
     }
 }

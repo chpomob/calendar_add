@@ -6,6 +6,9 @@ Format
 - `manifest.json` describes every case.
 - Each case lives in its own directory.
 - `transcript.txt` stores the transcript text used to synthesize the sample.
+- `spoken.txt` stores the speech-safe text actually fed to the local TTS
+  generator when the original transcript contains characters the synthesizer
+  handles poorly.
 - `expected-event.json` stores the expected normalized event payload.
 - `audio.wav` is a generated 16 kHz mono PCM fixture.
 
@@ -18,3 +21,6 @@ device share path and exercise the real audio analysis flow.
 Hard-case coverage currently includes a negative incidental-time sample. The
 model can still over-trigger on bare time mentions and invent a generic
 `Meeting`, which is a known prompt/model limitation.
+
+The corpus also includes French event clips and mixed-language source pages so
+the prompt and normalization path are exercised beyond English-only examples.

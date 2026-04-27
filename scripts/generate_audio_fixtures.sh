@@ -17,25 +17,28 @@ fi
 
 generate_case() {
   local case_json="$1"
-  local id transcript audio_file case_dir transcript_file expected_file audio_path
+  local id transcript spoken_text audio_file case_dir transcript_file spoken_file expected_file audio_path
   id="$(jq -r '.id' <<<"$case_json")"
   transcript="$(jq -r '.transcript' <<<"$case_json")"
+  spoken_text="$(jq -r '.spokenText // .transcript' <<<"$case_json")"
   audio_file="$(jq -r '.audioFile' <<<"$case_json")"
 
   case_dir="$FIXTURE_ROOT/$(dirname "$audio_file")"
   transcript_file="$case_dir/transcript.txt"
+  spoken_file="$case_dir/spoken.txt"
   expected_file="$case_dir/expected-event.json"
   audio_path="$FIXTURE_ROOT/$audio_file"
 
   mkdir -p "$case_dir"
   printf '%s\n' "$transcript" >"$transcript_file"
+  printf '%s\n' "$spoken_text" >"$spoken_file"
   if jq -e '.expectedEvents != null' >/dev/null <<<"$case_json"; then
     jq '{events: .expectedEvents}' <<<"$case_json" >"$expected_file"
   else
     jq '{events: [.expectedEvent]}' <<<"$case_json" >"$expected_file"
   fi
   ffmpeg -hide_banner -loglevel error -y \
-    -f lavfi -i "flite=textfile='$transcript_file':voice=slt" \
+    -f lavfi -i "flite=textfile='$spoken_file':voice=slt" \
     -ar 16000 -ac 1 "$audio_path"
   echo "Generated $id -> $audio_path"
 }

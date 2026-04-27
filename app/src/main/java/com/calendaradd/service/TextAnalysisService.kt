@@ -8,9 +8,14 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.Instant
+import java.time.ZonedDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -19,7 +24,9 @@ import kotlinx.coroutines.withContext
  */
 class TextAnalysisService(
     private val gemmaLlmService: EventJsonExtractor,
-    private val preferencesManager: PreferencesManager? = null
+    private val preferencesManager: PreferencesManager? = null,
+    private val ocrService: OcrService? = null,
+    private val webVerificationService: WebVerificationService? = null
 ) {
     companion object {
         private const val TAG = "TextAnalysisService"
@@ -79,6 +86,11 @@ class TextAnalysisService(
             appendLine("Treat visible virtual-location text such as Online, Virtual, Zoom, or Teams as a real location value.")
             appendLine("Do not guess missing details.")
             appendLine("If the image contains a schedule table or a flyer series with multiple explicit date/time rows, return one event per row when the rows clearly describe separate occurrences.")
+            appendLine("Do not merge distinct schedule rows into one generic event just because they share the same date, venue, or series title.")
+            appendLine("For schedule rows, use the row's own visible title as the event title and do not prefix it with the flyer or series title.")
+            appendLine("The flyer banner title is not the event title for individual schedule rows.")
+            appendLine("Copy the row title exactly as visible and do not add extra words, adjectives, or paraphrases.")
+            appendLine("When copying locations, preserve spaces, punctuation, and parentheses as visible instead of compressing them.")
             appendLine("If the image contains relative date or time phrases, resolve them using the reference local datetime above.")
             append(buildFinalEventJsonInstructions())
         }
@@ -118,8 +130,9 @@ class TextAnalysisService(
         bitmap: Bitmap,
         context: InputContext
     ): List<EventExtraction> {
+        val ocrText = extractImageText(bitmap)
         val observations = gemmaLlmService.extractEventJson(
-            text = buildHeavyImageObservationPrompt(context),
+            text = buildHeavyImageObservationPrompt(context, ocrText),
             image = bitmap
         )
         if (observations.isNullOrBlank()) {
@@ -159,7 +172,8 @@ class TextAnalysisService(
                 rawResponse = combineHeavyModeResponses(observations, temporalResolution, finalJson)
             )
         }
-        return results
+        val refinedResults = refineHeavyImageResults(results, ocrText, context)
+        return maybeApplyWebVerification(refinedResults, ocrText, context)
     }
 
     private suspend fun analyzeAudioHeavy(
@@ -253,10 +267,25 @@ class TextAnalysisService(
             appendLine("Treat visible virtual-location text such as Online, Virtual, Zoom, or Teams as a real location value.")
             appendLine("Do not invent details that are not visible.")
             appendLine("If the image shows a schedule table or recurring series with multiple explicit date/time rows, keep one candidate per row when the rows clearly describe separate occurrences.")
+            appendLine("Do not merge distinct schedule rows into one generic observation just because they share the same date, venue, or series title.")
+            appendLine("For schedule rows, keep the row's own visible title separate from the flyer or series title.")
+            appendLine("The flyer banner title is not the event title for individual schedule rows.")
+            appendLine("Copy the row title exactly as visible and do not add extra words, adjectives, or paraphrases.")
+            appendLine("When copying locations, preserve spaces, punctuation, and parentheses as visible instead of compressing them.")
             appendLine("Return ONLY JSON in this exact shape:")
             appendLine("{ \"events\": [ { \"titleCandidates\": [], \"descriptionCandidates\": [], \"locationCandidates\": [], \"dateCandidates\": [], \"timeCandidates\": [], \"supportingText\": [], \"notes\": [] } ], \"globalNotes\": [] }")
             appendLine("Keep multiple candidate dates or times if the image is ambiguous.")
             appendLine("Copy visible phrases as they appear when useful. Do not output final ISO timestamps yet.")
+        }
+    }
+
+    private fun buildHeavyImageObservationPrompt(context: InputContext, ocrText: String?): String {
+        return buildString {
+            append(buildHeavyImageObservationPrompt(context))
+            if (!ocrText.isNullOrBlank()) {
+                appendLine("OCR text extracted from the image:")
+                appendLine(normalizeVisibleText(ocrText))
+            }
         }
     }
 
@@ -317,6 +346,206 @@ class TextAnalysisService(
             appendLine("Temporal-resolution JSON:")
             appendLine(temporalResolution)
         }
+    }
+
+    private suspend fun extractImageText(bitmap: Bitmap): String? {
+        return ocrService?.extractText(bitmap)
+    }
+
+    private suspend fun maybeApplyWebVerification(
+        results: List<EventExtraction>,
+        ocrText: String?,
+        context: InputContext
+    ): List<EventExtraction> {
+        if (results.isEmpty()) return results
+        if (preferencesManager?.isWebVerificationEnabled != true) return results
+        return webVerificationService?.refineImageEvents(results, ocrText, context) ?: results
+    }
+
+    private fun parseOcrScheduleRows(ocrText: String, timezone: String): List<HeavyImageScheduleRow> {
+        val lines = ocrText.lineSequence()
+            .map { normalizeVisibleText(it) }
+            .filter { it.isNotBlank() }
+            .toList()
+        if (lines.isEmpty()) return emptyList()
+
+        val rows = mutableListOf<HeavyImageScheduleRow>()
+        var index = 0
+        while (index < lines.size) {
+            val line = lines[index]
+            if (!looksLikeDateLine(line)) {
+                index++
+                continue
+            }
+
+            val title = findNextMeaningfulLine(lines, index + 1)
+            val timeLine = findNextTimeLine(lines, index + 1)
+            if (title != null && timeLine != null) {
+                val timeRange = parseTimeRange(timeLine) ?: run {
+                    index++
+                    continue
+                }
+                val date = parseDateLine(line) ?: run {
+                    index++
+                    continue
+                }
+                val location = findLikelyLocationLine(lines, 0, index)
+                val start = ZonedDateTime.of(date, timeRange.start, ZoneId.of(timezone)).format(promptDateTimeFormatter)
+                val end = ZonedDateTime.of(date, timeRange.end, ZoneId.of(timezone)).format(promptDateTimeFormatter)
+                rows += HeavyImageScheduleRow(
+                    title = title,
+                    location = location.orEmpty(),
+                    startTime = start,
+                    endTime = end
+                )
+            }
+            index++
+        }
+        return rows
+    }
+
+    private fun findNextMeaningfulLine(lines: List<String>, startIndex: Int): String? {
+        for (index in startIndex until lines.size) {
+            val line = lines[index]
+            if (looksLikeDateLine(line) || looksLikeTimeLine(line) || line.equals("Event flyer", ignoreCase = true)) {
+                continue
+            }
+            return line
+        }
+        return null
+    }
+
+    private fun findNextTimeLine(lines: List<String>, startIndex: Int): String? {
+        for (index in startIndex until lines.size) {
+            val line = lines[index]
+            if (looksLikeDateLine(line)) return null
+            if (looksLikeTimeLine(line)) return line
+        }
+        return null
+    }
+
+    private fun findLikelyLocationLine(lines: List<String>, startIndex: Int, endIndexExclusive: Int): String? {
+        for (index in startIndex until endIndexExclusive) {
+            val line = lines[index]
+            if (looksLikeLocationLine(line)) {
+                return line
+            }
+        }
+        return null
+    }
+
+    private fun parseDateLine(value: String): java.time.LocalDate? {
+        val formatters = listOf(
+            DateTimeFormatter.ofPattern("EEEE, MMMM d, uuuu", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("MMMM d, uuuu", Locale.ENGLISH)
+        )
+        return formatters.firstNotNullOfOrNull { formatter ->
+            try {
+                LocalDate.parse(value, formatter)
+            } catch (_: DateTimeParseException) {
+                null
+            }
+        }
+    }
+
+    private fun parseTimeRange(value: String): TimeRange? {
+        val pattern = Regex("""(?i)^\s*(.+?)\s*[-–]\s*(.+?)\s*$""")
+        val match = pattern.matchEntire(value) ?: return null
+        val start = parseClockTime(match.groupValues[1]) ?: return null
+        val end = parseClockTime(match.groupValues[2]) ?: return null
+        return TimeRange(start, end)
+    }
+
+    private fun parseClockTime(value: String): LocalTime? {
+        val trimmed = normalizeVisibleText(value).replace(".", "")
+        val formatters = listOf(
+            DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("h a", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("hh a", Locale.ENGLISH)
+        )
+        return formatters.firstNotNullOfOrNull { formatter ->
+            try {
+                LocalTime.parse(trimmed.uppercase(Locale.ENGLISH), formatter)
+            } catch (_: DateTimeParseException) {
+                null
+            }
+        }
+    }
+
+    private fun looksLikeDateLine(value: String): Boolean {
+        return value.matches(Regex("(?i)^(mon|tues|wednes|thurs|fri|satur|sun)day,?\\s+.*$")) ||
+            value.matches(Regex("(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{1,2},\\s+\\d{4}$")) ||
+            value.matches(Regex("(?i)^(mon|tues|wednes|thurs|fri|satur|sun)day,?\\s+(january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{1,2},\\s+\\d{4}$"))
+    }
+
+    private fun looksLikeTimeLine(value: String): Boolean {
+        return value.matches(Regex("(?i)^\\d{1,2}(:\\d{2})?\\s*[ap]m\\s*[-–]\\s*\\d{1,2}(:\\d{2})?\\s*[ap]m$"))
+    }
+
+    private fun looksLikeLocationLine(value: String): Boolean {
+        return value.contains("(") ||
+            value.contains(")") ||
+            value.contains(Regex("(?i)\\b(online|virtual|zoom|teams|meet|room|suite|hall|center|centre|building|campus|auditorium|library|office|floor)\\b"))
+    }
+
+    private fun normalizeVisibleText(value: String): String {
+        return value.trim()
+            .replace('’', '\'')
+            .replace('“', '"')
+            .replace('”', '"')
+            .replace('–', '-')
+            .replace('—', '-')
+            .replace(Regex("\\s+"), " ")
+    }
+
+    private data class TimeRange(
+        val start: LocalTime,
+        val end: LocalTime
+    )
+
+    private data class HeavyImageScheduleRow(
+        val title: String,
+        val location: String,
+        val startTime: String,
+        val endTime: String
+    )
+
+    private fun refineHeavyImageResults(
+        results: List<EventExtraction>,
+        ocrText: String?,
+        context: InputContext
+    ): List<EventExtraction> {
+        val scheduleRows = ocrText?.let { parseOcrScheduleRows(it, context.timezone) }.orEmpty()
+        if (scheduleRows.isEmpty()) {
+            return results
+        }
+
+        if (results.size == 1 && scheduleRows.size > 1) {
+            val base = results.first()
+            return scheduleRows.map { row ->
+                base.copy(
+                    title = row.title,
+                    startTime = row.startTime,
+                    endTime = row.endTime,
+                    location = row.location.takeIf { it.isNotBlank() } ?: base.location
+                )
+            }
+        }
+
+        if (scheduleRows.size >= results.size) {
+            return results.mapIndexed { index, event ->
+                val row = scheduleRows.getOrNull(index) ?: return@mapIndexed event
+                event.copy(
+                    title = row.title,
+                    startTime = row.startTime.takeIf { it.isNotBlank() } ?: event.startTime,
+                    endTime = row.endTime.takeIf { it.isNotBlank() } ?: event.endTime,
+                    location = row.location.takeIf { it.isNotBlank() } ?: event.location
+                )
+            }
+        }
+
+        return results
     }
 
     private fun parseJsonToExtractions(jsonString: String?, traceId: String): List<EventExtraction> {

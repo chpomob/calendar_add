@@ -163,11 +163,11 @@ app/src/main/java/com/calendaradd/
 app/src/test/java/
   JVM tests for services, worker helpers, and use cases
 app/src/test/resources/audio-fixtures/
-  synthetic audio samples, transcripts, and expected event payloads for regression tests
+  synthetic audio samples, transcripts, speech-safe synthesis text, and expected event payloads for regression tests
 app/src/test/resources/image-fixtures/
-  synthetic flyer images, source metadata, and expected event payloads for regression tests
+  synthetic flyer images, source metadata, and expected event payloads for regression tests, including French-language flyers and schedule pages
 scripts/
-  `generate_audio_fixtures.sh`, `run_audio_fixture_on_device.sh`, `generate_image_fixtures.sh`, and `check_image_flyer_cases.sh`
+  `generate_audio_fixtures.sh`, `run_audio_fixture_on_device.sh`, `generate_image_fixtures.sh`, `check_image_flyer_cases.sh`, `benchmark_image_modes.sh`, and `benchmark_audio_modes.sh`
 docs/
   release, privacy, model, and submission notes
 ```
@@ -179,6 +179,7 @@ docs/
 - Android notifications matter for the background UX; if notifications are disabled, analysis may appear silent.
 - App preferences are kept out of Android cloud backup rules.
 - Release signing and Play submission scaffolding are present in the repo, but store assets and final publication work still need ongoing attention.
+- The benchmark scripts report classic-vs-heavy metrics across the full image and audio corpora, and they will automatically cover new fixtures as the manifests grow.
 
 ## Documentation
 

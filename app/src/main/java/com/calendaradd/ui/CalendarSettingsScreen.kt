@@ -40,6 +40,7 @@ fun CalendarSettingsScreen(
     val availableCalendars by viewModel.availableCalendars.collectAsState()
     val isAutoAddEnabled by viewModel.isAutoAddEnabled.collectAsState()
     val isHeavyAnalysisEnabled by viewModel.isHeavyAnalysisEnabled.collectAsState()
+    val isWebVerificationEnabled by viewModel.isWebVerificationEnabled.collectAsState()
     val isFailureJsonDebugEnabled by viewModel.isFailureJsonDebugEnabled.collectAsState()
     val selectedModelId by viewModel.selectedModelId.collectAsState()
     val selectedCalendarId by viewModel.selectedCalendarId.collectAsState()
@@ -219,6 +220,22 @@ fun CalendarSettingsScreen(
                             Switch(
                                 checked = isHeavyAnalysisEnabled,
                                 onCheckedChange = { viewModel.setHeavyAnalysisEnabled(it) }
+                            )
+                        }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    ListItem(
+                        headlineContent = { Text("Late web lookup") },
+                        supportingContent = {
+                            Text(
+                                "When image OCR exposes event hints, optionally search public pages to confirm or improve the extracted event. Off by default."
+                            )
+                        },
+                        leadingContent = { Icon(Icons.Default.Language, contentDescription = null) },
+                        trailingContent = {
+                            Switch(
+                                checked = isWebVerificationEnabled,
+                                onCheckedChange = { viewModel.setWebVerificationEnabled(it) }
                             )
                         }
                     )

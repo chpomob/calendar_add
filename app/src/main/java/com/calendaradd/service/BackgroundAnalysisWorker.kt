@@ -74,7 +74,14 @@ class BackgroundAnalysisWorker(
         val modelDownloadManager = ModelDownloadManager(applicationContext, preferencesManager)
         val backgroundAnalysisScheduler = BackgroundAnalysisScheduler(applicationContext)
         val gemmaLlmService = GemmaLlmService(applicationContext)
-        val textAnalysisService = TextAnalysisService(gemmaLlmService, preferencesManager)
+        val ocrService = OcrService()
+        val webVerificationService = WebVerificationService()
+        val textAnalysisService = TextAnalysisService(
+            gemmaLlmService = gemmaLlmService,
+            preferencesManager = preferencesManager,
+            ocrService = ocrService,
+            webVerificationService = webVerificationService
+        )
         val calendarUseCase = CalendarUseCase(
             textAnalysisService = textAnalysisService,
             eventDatabase = EventDatabase.getDatabase(applicationContext),

@@ -1,6 +1,6 @@
 # Calendar Add AI - LiteRT-LM Model Integration
 
-Last updated: 2026-04-26
+Last updated: 2026-04-27
 
 ## Overview
 
@@ -86,7 +86,14 @@ Current parity choices based on `LlmChatModelHelper`:
 - use `scripts/generate_audio_fixtures.sh` to refresh transcript-backed WAV samples
 - use `scripts/run_audio_fixture_on_device.sh <fixture-id>` to push a fixture into app-specific storage and exercise the real share path on-device
 - use `scripts/check_image_flyer_cases.sh` to validate the synthetic flyer suite against local Gemma 4
+- use `scripts/benchmark_image_modes.sh` to compare classic vs heavy image scoring across the full corpus
+- use `scripts/benchmark_audio_modes.sh` to compare classic vs heavy audio prompt scoring from transcript proxies
+- optional late web lookup is available for image heavy mode when OCR exposes event hints; it stays off by default and only runs after local extraction
+- use `scripts/benchmark_web_lookup_queries.sh` to compare heuristic vs model-generated web search queries on the image corpus before adding more web-planning logic
+- use `scripts/generate_web_lookup_fixtures.sh` to snapshot live metadata from public event pages into `app/src/test/resources/web-lookup-fixtures/`
+- use `scripts/benchmark_web_lookup_live.sh` to compare query planners against live DuckDuckGo results on the snapshot corpus
 - pin Gemma downloads to Gallery's Hugging Face commit hashes and exact file sizes
+- follow `docs/PROMPT_POLICY.md` when deciding whether a failure belongs in the prompt, the parser, or the corpus
 
 Known limitations from the hard-case suite:
 

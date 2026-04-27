@@ -1,0 +1,94 @@
+{
+  "cases": [
+    {
+      "id": "unlv_state_of_the_university_address",
+      "sourceTitle": "2026 State of the University Address",
+      "sourceUrl": "https://www.unlv.edu/event/2026-state-university-address"
+    },
+    {
+      "id": "engage_2026",
+      "sourceTitle": "Engage 2026",
+      "sourceUrl": "https://tech.asu.edu/events/engage2026"
+    },
+    {
+      "id": "mlk_health_sciences_event",
+      "sourceTitle": "2026 MLK Health Sciences Event",
+      "sourceUrl": "https://nursing.umich.edu/about/events-calendar/2026-mlk-health-sciences-event-250910"
+    },
+    {
+      "id": "onehr_2026",
+      "sourceTitle": "OneHR 2026",
+      "sourceUrl": "https://www.harrisburgu.edu/events/onehr-2026/"
+    },
+    {
+      "id": "unistra_doctorat_ce_quil_faut_savoir",
+      "sourceTitle": "Conférence « Faire un doctorat, ce qu’il faut savoir »",
+      "sourceUrl": "https://www.unistra.fr/fr/agenda/2026/faire-doctorat-ce-quil-faut-savoir"
+    },
+    {
+      "id": "unistra_hacking_health_camp_2026",
+      "sourceTitle": "Hacking Health Camp 2026",
+      "sourceUrl": "https://www.unistra.fr/fr/agenda/2026/hacking-health-camp-2026"
+    },
+    {
+      "id": "unistra_nuit_de_leurope_2026",
+      "sourceTitle": "Nuit de l'Europe 2026",
+      "sourceUrl": "https://www.unistra.fr/fr/agenda/2026/nuit-leurope-2026"
+    },
+    {
+      "id": "unistra_elles_vous_rencontrent",
+      "sourceTitle": "« ELLES vous rencontrent ! »",
+      "sourceUrl": "https://www.unistra.fr/fr/agenda/2026/elles-vous-rencontrent"
+    },
+    {
+      "id": "unistra_quantum_week_2026",
+      "sourceTitle": "Journée portes ouvertes au Centre Européen de Sciences Quantiques (CESQ)",
+      "sourceUrl": "https://www.unistra.fr/fr/agenda/2026/quantum-week-2026"
+    },
+    {
+      "id": "unistra_festival_usias",
+      "sourceTitle": "Festival USIAS - « Regards sur le passé, perspectives d’avenir »",
+      "sourceUrl": "https://en.unistra.fr/fr/agenda/2026/festival-usias-regards-passe-perspectives-davenir"
+    },
+    {
+      "id": "kilowatt_vinylissimo_oct_2025",
+      "sourceTitle": "VINYLISSIMO",
+      "sourceUrl": "https://ra.co/events/2253189"
+    },
+    {
+      "id": "kilowatt_vinylissimo_dec_2025",
+      "sourceTitle": "VINYLISSIMO",
+      "sourceUrl": "https://ra.co/events/2298975"
+    },
+    {
+      "id": "kilowatt_honey_channel_2026",
+      "sourceTitle": "Honey Channel",
+      "sourceUrl": "https://ra.co/events/2376222"
+    },
+    {
+      "id": "kilowatt_bounce_mija_2026",
+      "sourceTitle": "Bounce SF + Never B Alone pres: Mija SOLD OUT",
+      "sourceUrl": "https://ra.co/events/2343707"
+    },
+    {
+      "id": "kilowatt_planet_synth_2025",
+      "sourceTitle": "Planet Synth: Holiday Soiree",
+      "sourceUrl": "https://ra.co/events/2305329"
+    },
+    {
+      "id": "kilowatt_ex_heir_2026",
+      "sourceTitle": "Ex Heir, Spiralteeth and 55 Castles",
+      "sourceUrl": "https://events.extrachill.com/events/ex-heir-spiralteeth-and-55-castles"
+    },
+    {
+      "id": "kilowatt_theya_vinyl_release_party_2026",
+      "sourceTitle": "Theya Vinyl Release Party",
+      "sourceUrl": "https://events.extrachill.com/events/theya-vinyl-release-party"
+    },
+    {
+      "id": "kilowatt_dreamscape_dj_night_2026",
+      "sourceTitle": "Dreamscape DJ Night",
+      "sourceUrl": "https://events.extrachill.com/events/dreamscape-dj-night-2"
+    }
+  ]
+}

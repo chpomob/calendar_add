@@ -451,6 +451,69 @@
       "transcript": "I'll see you soon.",
       "audioFile": "see_you_soon_generic/audio.wav",
       "expectedEvents": []
+    },
+    {
+      "id": "casablanca_prefect_office",
+      "sourceTitle": "Casablanca - A demain à 10 heures",
+      "sourceUrl": "https://clip.cafe/casablanca-1942/a-very-puzzling-fellow-rick-what-sort-he/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "transcript": "A demain à 10 heures, au bureau du préfet. Nous y serons.",
+      "spokenText": "A demain a 10 heures, au bureau du prefect. Nous y serons.",
+      "audioFile": "casablanca_prefect_office/audio.wav",
+      "expectedEvent": {
+        "title": "Rendez-vous au bureau du préfet",
+        "description": "A demain à 10 heures, au bureau du préfet.",
+        "startTime": "2026-04-28T10:00:00+02:00",
+        "endTime": "",
+        "location": "bureau du préfet",
+        "attendees": []
+      }
+    },
+    {
+      "id": "rendezvous_ce_soir_20h",
+      "sourceTitle": "Life Is Beautiful - On pourrait se fixer un rendez-vous",
+      "sourceUrl": "https://clip.cafe/life-is-beautiful-1997/vai-tu-vai-tu-vai-tu/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "transcript": "On pourrait se fixer un rendez-vous. Ce soir à 20h.",
+      "spokenText": "On pourrait se fixer un rendez vous. Ce soir a 20h.",
+      "audioFile": "rendezvous_ce_soir_20h/audio.wav",
+      "expectedEvent": {
+        "title": "Rendez-vous",
+        "description": "On pourrait se fixer un rendez-vous ce soir à 20h.",
+        "startTime": "2026-04-27T20:00:00+02:00",
+        "endTime": "",
+        "location": "",
+        "attendees": []
+      }
+    },
+    {
+      "id": "rendezvous_hutte_17",
+      "sourceTitle": "Chicken Run - Rendez vous ce soir hutte 17",
+      "sourceUrl": "https://clip.cafe/chicken-run-2000/weve-got-get-out-of-here-s3/",
+      "context": {
+        "datetime": "2026-04-27T09:00:00+02:00",
+        "timezone": "Europe/Paris",
+        "language": "fr"
+      },
+      "transcript": "Passe le mot Mac. Rendez-vous ce soir hutte 17.",
+      "spokenText": "Passe le mot Mac. Rendez vous ce soir hutte 17.",
+      "audioFile": "rendezvous_hutte_17/audio.wav",
+      "expectedEvent": {
+        "title": "Rendez-vous",
+        "description": "Rendez-vous ce soir hutte 17.",
+        "startTime": "",
+        "endTime": "",
+        "location": "hutte 17",
+        "attendees": []
+      }
     }
   ]
 }

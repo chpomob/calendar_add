@@ -41,6 +41,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var backgroundAnalysisScheduler: BackgroundAnalysisScheduler
     private lateinit var systemCalendarService: SystemCalendarService
     private lateinit var preferencesManager: PreferencesManager
+    private lateinit var ocrService: OcrService
+    private lateinit var webVerificationService: WebVerificationService
 
     // State to hold shared content for navigation
     private val sharedText = mutableStateOf<String?>(null)
@@ -76,8 +78,15 @@ class MainActivity : ComponentActivity() {
         modelDownloadManager = ModelDownloadManager(this, preferencesManager)
         backgroundAnalysisScheduler = BackgroundAnalysisScheduler(this)
         systemCalendarService = SystemCalendarService(this)
+        ocrService = OcrService()
+        webVerificationService = WebVerificationService()
 
-        val textAnalysisService = TextAnalysisService(gemmaLlmService, preferencesManager)
+        val textAnalysisService = TextAnalysisService(
+            gemmaLlmService,
+            preferencesManager,
+            ocrService,
+            webVerificationService
+        )
         calendarUseCase = CalendarUseCase(
             textAnalysisService = textAnalysisService,
             eventDatabase = eventDatabase,

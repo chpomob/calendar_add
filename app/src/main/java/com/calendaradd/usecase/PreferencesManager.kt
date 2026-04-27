@@ -16,6 +16,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_TARGET_CALENDAR_NAME = "target_calendar_name"
         private const val KEY_SELECTED_MODEL_ID = "selected_model_id"
         private const val KEY_HEAVY_ANALYSIS = "heavy_analysis"
+        private const val KEY_WEB_VERIFICATION = "web_verification"
         private const val KEY_DEBUG_FAILURE_JSON = "debug_failure_json"
     }
 
@@ -39,6 +40,10 @@ class PreferencesManager(context: Context) {
     var isHeavyAnalysisEnabled: Boolean
         get() = prefs.getBoolean(KEY_HEAVY_ANALYSIS, false)
         set(value) = prefs.edit().putBoolean(KEY_HEAVY_ANALYSIS, value).apply()
+
+    var isWebVerificationEnabled: Boolean
+        get() = prefs.getBoolean(KEY_WEB_VERIFICATION, false)
+        set(value) = prefs.edit().putBoolean(KEY_WEB_VERIFICATION, value).apply()
 
     var isFailureJsonDebugEnabled: Boolean
         get() = prefs.getBoolean(KEY_DEBUG_FAILURE_JSON, false)
