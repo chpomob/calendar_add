@@ -10,13 +10,16 @@ import java.net.URL
  * Service for creating link previews.
  */
 class LinkPreviewService {
+    companion object {
+        private const val TAG = "LinkPreviewService"
+    }
 
     suspend fun getLinkPreview(url: String): LinkPreview? = withContext(Dispatchers.IO) {
         try {
             val document = fetchAndParseUrl(url)
             extractLinkInfo(document, url)
         } catch (e: Exception) {
-            e.printStackTrace()
+            AppLog.w(TAG, "Failed to build link preview url=$url", e)
             null
         }
     }

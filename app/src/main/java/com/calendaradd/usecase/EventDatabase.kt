@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import java.util.Date
 
 /**
  * Room database for storing calendar events.
@@ -14,7 +13,6 @@ import java.util.Date
     version = 2,
     exportSchema = false
 )
-@TypeConverters(Converters::class)
 abstract class EventDatabase : RoomDatabase() {
 
     abstract fun eventDao(): EventDao
@@ -44,20 +42,5 @@ abstract class EventDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE events ADD COLUMN sourceAttachmentName TEXT NOT NULL DEFAULT ''")
             }
         }
-    }
-}
-
-/**
- * Type converters for Room.
- */
-class Converters {
-    @TypeConverter
-    fun fromTimestamp(value: Long?): Date? {
-        return value?.let { Date(it) }
-    }
-
-    @TypeConverter
-    fun dateToTimestamp(date: Date?): Long? {
-        return date?.time
     }
 }

@@ -9,20 +9,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.calendaradd.navigation.Screen
-import com.calendaradd.service.LiteRtModelConfig
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
 
@@ -89,7 +88,7 @@ fun CalendarSettingsScreen(
                 title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -368,97 +367,4 @@ fun CalendarSettingsScreen(
             }
         )
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun WebSearchProviderSettings(
-    provider: String,
-    braveApiKey: String,
-    onProviderChange: (String) -> Unit,
-    onBraveApiKeyChange: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val providerLabel = when (provider) {
-        "brave" -> "Brave Search API"
-        else -> "DuckDuckGo HTML fallback"
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
-        ) {
-            OutlinedTextField(
-                value = providerLabel,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Experimental search provider") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth()
-            )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Brave Search API") },
-                    onClick = {
-                        onProviderChange("brave")
-                        expanded = false
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("DuckDuckGo HTML fallback") },
-                    onClick = {
-                        onProviderChange("duckduckgo")
-                        expanded = false
-                    }
-                )
-            }
-        }
-
-        if (provider == "brave") {
-            OutlinedTextField(
-                value = braveApiKey,
-                onValueChange = onBraveApiKeyChange,
-                label = { Text("Brave Search API key") },
-                supportingText = {
-                    Text("Stored locally on this device. If empty or rejected, lookup falls back to DuckDuckGo HTML.")
-                },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
-
-@Composable
-private fun ModelOptionRow(
-    model: LiteRtModelConfig,
-    selected: Boolean,
-    onSelect: () -> Unit
-) {
-    ListItem(
-        headlineContent = { Text(model.displayName) },
-        supportingContent = {
-            Text("${model.capabilitySummary} • ${model.sizeLabel}\n${model.description}")
-        },
-        leadingContent = { RadioButton(selected = selected, onClick = onSelect) },
-        trailingContent = {
-            if (selected) {
-                AssistChip(onClick = onSelect, label = { Text("Selected") })
-            }
-        },
-        modifier = Modifier.clickable(onClick = onSelect)
-            .padding(horizontal = 4.dp)
-    )
 }

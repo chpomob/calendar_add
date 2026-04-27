@@ -3,6 +3,7 @@ package com.calendaradd.service
 import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
+import com.calendaradd.util.AppLog
 import com.calendaradd.util.hasCalendarPermissions
 import java.util.TimeZone
 
@@ -10,6 +11,9 @@ import java.util.TimeZone
  * Service for interacting with the Android System Calendar.
  */
 class SystemCalendarService(private val context: Context) {
+    companion object {
+        private const val TAG = "SystemCalendarService"
+    }
 
     data class CalendarInfo(val id: Long, val name: String, val accountName: String, val isPrimary: Boolean)
 
@@ -49,7 +53,7 @@ class SystemCalendarService(private val context: Context) {
             }
             calendars
         } catch (e: SecurityException) {
-            e.printStackTrace()
+            AppLog.w(TAG, "Missing calendar permission while querying calendars", e)
             emptyList()
         }
     }
@@ -67,7 +71,7 @@ class SystemCalendarService(private val context: Context) {
         location: String = ""
     ): Long? {
         if (!hasCalendarPermissions()) {
-            android.util.Log.e("SystemCalendarService", "Missing calendar permissions")
+            AppLog.e(TAG, "Missing calendar permissions")
             return null
         }
         
@@ -84,11 +88,11 @@ class SystemCalendarService(private val context: Context) {
         return try {
             val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
             if (uri == null) {
-                android.util.Log.e("SystemCalendarService", "Failed to insert event: uri is null")
+                AppLog.e(TAG, "Failed to insert event: uri is null")
             }
             uri?.lastPathSegment?.toLong()
         } catch (e: Exception) {
-            android.util.Log.e("SystemCalendarService", "Error inserting calendar event", e)
+            AppLog.e(TAG, "Error inserting calendar event", e)
             null
         }
     }
