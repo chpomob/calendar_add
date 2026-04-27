@@ -4,8 +4,7 @@ import com.calendaradd.usecase.InputContext
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.LinkPreview
 import com.calendaradd.util.LinkPreviewService
-import java.net.URLDecoder
-import java.net.URLEncoder
+import android.net.Uri
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -214,7 +213,7 @@ interface WebSearchClient {
 class DuckDuckGoWebSearchClient : WebSearchClient {
     override suspend fun findFirstResultUrl(query: String): String? = withContext(Dispatchers.IO) {
         try {
-            val searchUrl = "https://html.duckduckgo.com/html/?q=${URLEncoder.encode(query, StandardCharsets.UTF_8)}"
+            val searchUrl = "https://html.duckduckgo.com/html/?q=${Uri.encode(query)}"
             val document = Jsoup.connect(searchUrl)
                 .timeout(10000)
                 .userAgent("Mozilla/5.0")
@@ -232,7 +231,7 @@ class DuckDuckGoWebSearchClient : WebSearchClient {
         if (href.startsWith("http")) return href
         val redirectMatch = Regex("[?&]uddg=([^&]+)").find(href)
         if (redirectMatch != null) {
-            return URLDecoder.decode(redirectMatch.groupValues[1], StandardCharsets.UTF_8)
+            return Uri.decode(redirectMatch.groupValues[1])
         }
         return if (href.startsWith("//")) "https:$href" else "https://duckduckgo.com$href"
     }
