@@ -9,11 +9,14 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 
 class CalendarUseCaseTest {
 
@@ -100,6 +103,59 @@ class CalendarUseCaseTest {
         assertEquals("Lunch", result.events[0].title)
         assertEquals("Dentist", result.events[1].title)
         coVerify(exactly = 2) { eventDao.insert(any()) }
+    }
+
+    @Test
+    fun `createEventFromImage should persist source attachment metadata`() = runBlocking {
+        val bitmap = mockk<Bitmap>(relaxed = true)
+        val insertedEvent = slot<Event>()
+        coEvery { eventDao.insert(capture(insertedEvent)) } returns 42L
+        coEvery { textAnalysisService.analyzeImage(bitmap, any()) } returns listOf(
+            EventExtraction(
+                title = "Flyer concert",
+                description = "Original flyer should be linked",
+                startTime = "2026-05-07T19:30:00",
+                endTime = "",
+                location = "Venue",
+                attendees = emptyList()
+            )
+        )
+        val sourceAttachment = SourceAttachment(
+            path = "/app/source/source-image.jpg",
+            mimeType = "image/jpeg",
+            displayName = "shared-flyer.jpg"
+        )
+
+        val result = useCase.createEventFromImage(bitmap, sourceAttachment = sourceAttachment)
+
+        assertTrue(result is EventResult.Success)
+        result as EventResult.Success
+        assertEquals("/app/source/source-image.jpg", insertedEvent.captured.sourceAttachmentPath)
+        assertEquals("image/jpeg", insertedEvent.captured.sourceAttachmentMimeType)
+        assertEquals("shared-flyer.jpg", insertedEvent.captured.sourceAttachmentName)
+        assertEquals("/app/source/source-image.jpg", result.event.sourceAttachmentPath)
+    }
+
+    @Test
+    fun `deleteEvent should delete unreferenced source attachment file`() = runBlocking {
+        val sourceFile = File.createTempFile("calendar-add-source", ".jpg").apply {
+            writeText("source")
+        }
+        coEvery { eventDao.getEventById(7L) } returns Event(
+            id = 7L,
+            title = "Source event",
+            startTime = 1L,
+            endTime = 2L,
+            sourceAttachmentPath = sourceFile.absolutePath,
+            sourceAttachmentMimeType = "image/jpeg",
+            sourceAttachmentName = "source.jpg"
+        )
+        coEvery { eventDao.deleteEvent(7L) } returns Unit
+        coEvery { eventDao.countEventsWithSourceAttachmentPath(sourceFile.absolutePath) } returns 0
+
+        useCase.deleteEvent(7L)
+
+        assertFalse(sourceFile.exists())
     }
 
     @Test

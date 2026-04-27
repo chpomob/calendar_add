@@ -27,6 +27,9 @@ data class Event(
 
     // Source of event creation
     val sourceType: String = "manual", // manual, text, audio, image
+    val sourceAttachmentPath: String = "",
+    val sourceAttachmentMimeType: String = "",
+    val sourceAttachmentName: String = "",
 
     // AI extraction data
     val aiConfidence: Float = 1.0f,

@@ -69,6 +69,7 @@ Slow model runs are queued into a foreground `WorkManager` worker.
 Current behavior:
 
 - queued jobs survive normal app restarts more reliably because inputs are stored in app-private no-backup storage
+- created events keep a link to the app-private image or audio source file when the event came from media input
 - the app shows foreground progress notifications while analysis is running
 - result notifications are separated from progress notifications
 - repeated worker restarts are labeled as retries

@@ -24,6 +24,7 @@ import com.calendaradd.usecase.EventDatabase
 import com.calendaradd.usecase.EventResult
 import com.calendaradd.usecase.InputContext
 import com.calendaradd.usecase.PreferencesManager
+import com.calendaradd.usecase.SourceAttachment
 import com.calendaradd.util.AppLog
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -88,6 +89,8 @@ class BackgroundAnalysisWorker(
             systemCalendarService = SystemCalendarService(applicationContext),
             preferencesManager = preferencesManager
         )
+        var sourceAttachment: SourceAttachment? = null
+        var keepSourceAttachment = false
 
         try {
             AppLog.i(
@@ -133,6 +136,7 @@ class BackgroundAnalysisWorker(
 
             val traceId = "bg-${System.currentTimeMillis().toString(16)}"
             val inputContext = InputContext(traceId = traceId)
+            sourceAttachment = backgroundAnalysisScheduler.promoteInputToEventSource(inputFile, inputType)
             val result = try {
                 withTimeout(BACKGROUND_ANALYSIS_TIMEOUT_MS) {
                     when (inputType) {
@@ -146,7 +150,7 @@ class BackgroundAnalysisWorker(
                             val bitmap = decodeQueuedImage(inputFile)
                                 ?: return@withTimeout EventResult.Failure("Unable to decode the queued image.")
                             try {
-                                calendarUseCase.createEventFromImage(bitmap, inputContext)
+                                calendarUseCase.createEventFromImage(bitmap, inputContext, sourceAttachment)
                             } finally {
                                 if (!bitmap.isRecycled) {
                                     bitmap.recycle()
@@ -155,7 +159,7 @@ class BackgroundAnalysisWorker(
                         }
                         AnalysisInputType.AUDIO -> {
                             setForeground(createForegroundInfo(buildProgressMessage("Analyzing audio with ${modelConfig.shortName}...", runAttemptCount)))
-                            calendarUseCase.createEventFromAudio(inputFile.readBytes(), inputContext)
+                            calendarUseCase.createEventFromAudio(inputFile.readBytes(), inputContext, sourceAttachment)
                         }
                     }
                 }
@@ -166,6 +170,7 @@ class BackgroundAnalysisWorker(
 
             return when (result) {
                 is EventResult.Success -> {
+                    keepSourceAttachment = true
                     val message = if (result.events.size == 1) {
                         "Created event: ${result.event.title}"
                     } else {
@@ -204,6 +209,9 @@ class BackgroundAnalysisWorker(
             return Result.failure(workDataOf(KEY_ERROR to (e.message ?: "Unexpected background analysis error.")))
         } finally {
             gemmaLlmService.close()
+            if (!keepSourceAttachment) {
+                sourceAttachment?.path?.let { File(it).deleteQuietly() }
+            }
             inputFile.deleteQuietly()
         }
     }

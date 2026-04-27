@@ -32,6 +32,9 @@ interface EventDao {
     @Query("SELECT * FROM events WHERE title LIKE '%' || :search || '%' OR description LIKE '%' || :search || '%'")
     suspend fun searchEvents(search: String): List<Event>
 
+    @Query("SELECT COUNT(*) FROM events WHERE sourceAttachmentPath = :path")
+    suspend fun countEventsWithSourceAttachmentPath(path: String): Int
+
     @Query("DELETE FROM events")
     suspend fun deleteAll()
 }

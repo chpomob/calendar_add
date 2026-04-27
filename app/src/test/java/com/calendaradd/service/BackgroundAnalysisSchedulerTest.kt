@@ -10,6 +10,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import java.io.File
 import java.util.UUID
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -32,6 +33,7 @@ class BackgroundAnalysisSchedulerTest {
 
         every { context.applicationContext } returns context
         every { context.noBackupFilesDir } returns inputDir
+        every { context.filesDir } returns inputDir
     }
 
     @Test
@@ -76,6 +78,21 @@ class BackgroundAnalysisSchedulerTest {
         assertTrue(status.hasPendingWork)
         assertFalse(status.clearedStaleWork)
         verify(exactly = 0) { workManager.cancelUniqueWork(any()) }
+    }
+
+    @Test
+    fun `promoteInputToEventSource should copy image into durable source folder`() {
+        val inputFile = File(inputDir, "queued-image.jpg").apply { writeText("image-bytes") }
+        val scheduler = BackgroundAnalysisScheduler(context, workManager)
+
+        val source = scheduler.promoteInputToEventSource(inputFile, AnalysisInputType.IMAGE)
+
+        requireNotNull(source)
+        assertEquals("image/jpeg", source.mimeType)
+        assertEquals("queued-image.jpg", source.displayName)
+        assertTrue(File(source.path).exists())
+        assertEquals("image-bytes", File(source.path).readText())
+        assertTrue(source.path.contains("event-source-files"))
     }
 
     private fun mockWorkInfo(

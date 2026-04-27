@@ -1,25 +1,35 @@
 package com.calendaradd.ui
 
+import android.graphics.BitmapFactory
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.calendaradd.usecase.CalendarUseCase
+import com.calendaradd.usecase.Event
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.io.File
 
 /**
  * Screen displaying details of a single calendar event.
@@ -73,6 +83,7 @@ fun CalendarEventDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -87,6 +98,8 @@ fun CalendarEventDetailScreen(
                 if (e.location.isNotBlank()) {
                     Text("Location: ${e.location}", style = MaterialTheme.typography.bodyMedium)
                 }
+
+                SourceAttachmentSection(e)
 
                 Button(
                     onClick = {
@@ -136,6 +149,66 @@ fun CalendarEventDetailScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun SourceAttachmentSection(event: Event) {
+    if (event.sourceAttachmentPath.isBlank()) return
+    val context = LocalContext.current
+    val sourceFile = remember(event.sourceAttachmentPath) { File(event.sourceAttachmentPath) }
+    if (!sourceFile.exists()) return
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Created from", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                event.sourceAttachmentName.ifBlank { sourceFile.name },
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                event.sourceAttachmentMimeType.ifBlank { event.sourceType },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (event.sourceAttachmentMimeType.startsWith("image/")) {
+                val bitmap = remember(event.sourceAttachmentPath) {
+                    BitmapFactory.decodeFile(event.sourceAttachmentPath)
+                }
+                bitmap?.let {
+                    Image(
+                        bitmap = it.asImageBitmap(),
+                        contentDescription = "Original image source",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                    )
+                }
+            }
+            OutlinedButton(
+                onClick = {
+                    val uri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        sourceFile
+                    )
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, event.sourceAttachmentMimeType.ifBlank { "*/*" })
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    runCatching {
+                        context.startActivity(Intent.createChooser(intent, "Open original source"))
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Open original source")
+            }
+        }
     }
 }
 

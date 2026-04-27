@@ -7,6 +7,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.calendaradd.usecase.SourceAttachment
 import com.calendaradd.util.AppLog
 import java.io.File
 import java.io.FileOutputStream
@@ -16,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private const val ANALYSIS_INPUT_DIR = "background-analysis-inputs"
+private const val EVENT_SOURCE_DIR = "event-source-files"
 private const val MODEL_TAG_PREFIX = "calendaradd-model:"
 private const val INPUT_TAG_PREFIX = "calendaradd-input:"
 
@@ -59,6 +61,35 @@ class BackgroundAnalysisScheduler(
     fun enqueueAudio(audioData: ByteArray, model: LiteRtModelConfig): UUID {
         val inputFile = persistBytes(audioData, "audio", ".bin")
         return enqueueWork(AnalysisInputType.AUDIO, inputFile, model)
+    }
+
+    fun promoteInputToEventSource(inputFile: File, inputType: AnalysisInputType): SourceAttachment? {
+        if (inputType != AnalysisInputType.IMAGE && inputType != AnalysisInputType.AUDIO) return null
+        if (!inputFile.exists()) return null
+
+        val extension = when (inputType) {
+            AnalysisInputType.IMAGE -> ".jpg"
+            AnalysisInputType.AUDIO -> ".bin"
+            AnalysisInputType.TEXT -> ".txt"
+        }
+        val prefix = when (inputType) {
+            AnalysisInputType.IMAGE -> "source-image"
+            AnalysisInputType.AUDIO -> "source-audio"
+            AnalysisInputType.TEXT -> "source-text"
+        }
+        val mimeType = when (inputType) {
+            AnalysisInputType.IMAGE -> "image/jpeg"
+            AnalysisInputType.AUDIO -> "audio/*"
+            AnalysisInputType.TEXT -> "text/plain"
+        }
+        val targetDir = eventSourceStorageDir().apply { mkdirs() }
+        val targetFile = File.createTempFile(prefix, extension, targetDir)
+        inputFile.copyTo(targetFile, overwrite = true)
+        return SourceAttachment(
+            path = targetFile.absolutePath,
+            mimeType = mimeType,
+            displayName = inputFile.name
+        )
     }
 
     suspend fun hasPendingWork(): Boolean {
@@ -160,6 +191,10 @@ class BackgroundAnalysisScheduler(
 
     private fun inputStorageDir(): File {
         return File(appContext.noBackupFilesDir, ANALYSIS_INPUT_DIR)
+    }
+
+    private fun eventSourceStorageDir(): File {
+        return File(appContext.filesDir, EVENT_SOURCE_DIR)
     }
 
     private fun clearPersistedInputs() {

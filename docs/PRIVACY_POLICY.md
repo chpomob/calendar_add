@@ -59,9 +59,10 @@ The app stores data locally on the device, including:
 - created events in the app's local database
 - app preferences such as selected model and calendar-sync settings
 - downloaded AI model files
+- image and audio source files linked from created event details
 - temporary cached analysis input files during processing
 
-The app's own preference file is not opted into Android cloud backup or device-transfer backup rules.
+The app's own preference file and linked event source files are not opted into Android cloud backup or device-transfer backup rules.
 
 ## Calendar Integration
 

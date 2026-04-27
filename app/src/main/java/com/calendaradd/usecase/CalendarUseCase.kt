@@ -3,6 +3,7 @@ package com.calendaradd.usecase
 import android.graphics.Bitmap
 import com.calendaradd.service.*
 import com.calendaradd.util.AppLog
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -38,12 +39,13 @@ class CalendarUseCase(
 
     suspend fun createEventFromImage(
         bitmap: Bitmap,
-        context: InputContext = InputContext()
+        context: InputContext = InputContext(),
+        sourceAttachment: SourceAttachment? = null
     ): EventResult {
         return try {
             AppLog.i(TAG, "[${context.traceId}] createEventFromImage bitmap=${bitmap.width}x${bitmap.height}")
             val analyses = textAnalysisService.analyzeImage(bitmap, context)
-            saveAndSyncExtractions(analyses, "image", context)
+            saveAndSyncExtractions(analyses, "image", context, sourceAttachment)
         } catch (e: Exception) {
             AppLog.e(TAG, "[${context.traceId}] Image event creation failed", e)
             EventResult.Failure(e.message ?: "Unknown error")
@@ -52,12 +54,13 @@ class CalendarUseCase(
 
     suspend fun createEventFromAudio(
         audioData: ByteArray,
-        context: InputContext = InputContext()
+        context: InputContext = InputContext(),
+        sourceAttachment: SourceAttachment? = null
     ): EventResult {
         return try {
             AppLog.i(TAG, "[${context.traceId}] createEventFromAudio bytes=${audioData.size}")
             val analyses = textAnalysisService.analyzeAudio(audioData, context)
-            saveAndSyncExtractions(analyses, "audio", context)
+            saveAndSyncExtractions(analyses, "audio", context, sourceAttachment)
         } catch (e: Exception) {
             AppLog.e(TAG, "[${context.traceId}] Audio event creation failed", e)
             EventResult.Failure(e.message ?: "Unknown error")
@@ -67,7 +70,8 @@ class CalendarUseCase(
     private suspend fun saveAndSyncExtractions(
         analyses: List<EventExtraction>,
         sourceType: String,
-        context: InputContext
+        context: InputContext,
+        sourceAttachment: SourceAttachment? = null
     ): EventResult {
         val validAnalyses = analyses.filter { it.hasMeaningfulContent() }
         if (validAnalyses.isEmpty()) {
@@ -98,7 +102,7 @@ class CalendarUseCase(
                 "[${context.traceId}] Saving ${validAnalyses.size} extracted event(s) source=$sourceType autoSync=${preferredCalendarId != null}"
             )
             val savedEvents = validAnalyses.mapNotNull { analysis ->
-                val event = analysis.toEventOrNull(sourceType, ::parseIso8601)
+                val event = analysis.toEventOrNull(sourceType, sourceAttachment, ::parseIso8601)
                 if (event == null) {
                     AppLog.w(
                         TAG,
@@ -228,13 +232,22 @@ class CalendarUseCase(
 
     fun getAllEvents() = eventDatabase.eventDao().getAllEvents()
     
-    suspend fun deleteEvent(id: Long) = eventDatabase.eventDao().deleteEvent(id)
+    suspend fun deleteEvent(id: Long) {
+        val dao = eventDatabase.eventDao()
+        val event = dao.getEventById(id)
+        dao.deleteEvent(id)
+        val sourcePath = event?.sourceAttachmentPath?.takeIf { it.isNotBlank() } ?: return
+        if (dao.countEventsWithSourceAttachmentPath(sourcePath) == 0) {
+            File(sourcePath).delete()
+        }
+    }
     
     fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
 }
 
 private fun EventExtraction.toEventOrNull(
     sourceType: String,
+    sourceAttachment: SourceAttachment?,
     parseIso8601: (String?) -> Long?
 ): Event? {
     val startTimeMillis = parseIso8601(startTime) ?: return null
@@ -253,9 +266,18 @@ private fun EventExtraction.toEventOrNull(
         location = location,
         attendees = attendees.joinToString(", "),
         sourceType = sourceType,
+        sourceAttachmentPath = sourceAttachment?.path.orEmpty(),
+        sourceAttachmentMimeType = sourceAttachment?.mimeType.orEmpty(),
+        sourceAttachmentName = sourceAttachment?.displayName.orEmpty(),
         aiConfidence = confidence ?: 1.0f
     )
 }
+
+data class SourceAttachment(
+    val path: String,
+    val mimeType: String,
+    val displayName: String
+)
 
 /**
  * Result of event creation operation.

@@ -3,4 +3,7 @@
     <cache-path
         name="captured_images"
         path="captured-images/" />
+    <files-path
+        name="event_source_files"
+        path="event-source-files/" />
 </paths>
