@@ -36,13 +36,7 @@ class TextAnalysisService(
     ): List<EventExtraction> = withContext(Dispatchers.IO) {
         clearDebugSnapshot()
         AppLog.i(TAG, "[${context.traceId}] Analyzing text chars=${input.length}")
-        val promptText = buildString {
-            append(buildReferencePrompt(context))
-            appendLine("Input type: text")
-            appendLine("Extract calendar events from this user text.")
-            append(buildFinalEventJsonInstructions())
-            appendLine("User input: $input")
-        }
+        val promptText = buildTextPrompt(input, context)
         val jsonString = gemmaLlmService.extractEventJson(text = promptText)
         parseJsonToExtractions(jsonString, context.traceId)
     }
@@ -63,22 +57,7 @@ class TextAnalysisService(
             AppLog.i(TAG, "[${context.traceId}] Heavy analysis enabled for image input")
             return@withContext analyzeImageHeavy(bitmap, context)
         }
-        val promptText = buildString {
-            append(buildReferencePrompt(context))
-            appendLine("Input type: image")
-            appendLine("Extract calendar events from this flyer, poster, screenshot, or event notice.")
-            appendLine("Use the exact visible event title, date, time, and location when they are present.")
-            appendLine("Treat visible virtual-location text such as Online, Virtual, Zoom, or Teams as a real location value.")
-            appendLine("Do not guess missing details.")
-            appendLine("If the image contains a schedule table or a flyer series with multiple explicit date/time rows, return one event per row when the rows clearly describe separate occurrences.")
-            appendLine("Do not merge distinct schedule rows into one generic event just because they share the same date, venue, or series title.")
-            appendLine("For schedule rows, use the row's own visible title as the event title and do not prefix it with the flyer or series title.")
-            appendLine("The flyer banner title is not the event title for individual schedule rows.")
-            appendLine("Copy the row title exactly as visible and do not add extra words, adjectives, or paraphrases.")
-            appendLine("When copying locations, preserve spaces, punctuation, and parentheses as visible instead of compressing them.")
-            appendLine("If the image contains relative date or time phrases, resolve them using the reference local datetime above.")
-            append(buildFinalEventJsonInstructions())
-        }
+        val promptText = buildImagePrompt(context)
         val jsonString = gemmaLlmService.extractEventJson(text = promptText, image = bitmap)
         parseJsonToExtractions(jsonString, context.traceId)
     }
@@ -96,17 +75,7 @@ class TextAnalysisService(
             AppLog.i(TAG, "[${context.traceId}] Heavy analysis enabled for audio input")
             return@withContext analyzeAudioHeavy(audioData, context)
         }
-        val promptText = buildString {
-            append(buildReferencePrompt(context))
-            appendLine("Input type: audio")
-            appendLine("Extract the intended calendar event from this audio only when the speaker clearly proposes, confirms, schedules, or reschedules a concrete calendar item.")
-            appendLine("Ignore incidental mentions of time, generic future statements, or status updates that are not actual calendar commitments.")
-            appendLine("If the audio only mentions a time or date without naming an event, do not invent a generic title like Meeting.")
-            appendLine("The audio may contain filler words, background noise, repeated fragments, and ASR mistakes.")
-            appendLine("Use the intended meaning of the speech, not the noisy transcription artifacts.")
-            appendLine("If the speaker says relative dates or times, resolve them using the reference local datetime above.")
-            append(buildFinalEventJsonInstructions())
-        }
+        val promptText = buildAudioPrompt(context)
         val jsonString = gemmaLlmService.extractEventJson(text = promptText, audio = audioData)
         parseJsonToExtractions(jsonString, context.traceId)
     }

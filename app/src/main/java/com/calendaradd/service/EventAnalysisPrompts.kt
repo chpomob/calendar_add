@@ -29,10 +29,59 @@ internal fun buildReferencePrompt(context: InputContext): String {
     }
 }
 
+internal fun buildTextPrompt(input: String, context: InputContext): String {
+    return buildString {
+        append(buildReferencePrompt(context))
+        appendLine("Input type: text")
+        appendLine("Extract calendar events from this user text.")
+        append(buildFinalEventJsonInstructions())
+        appendLine("User input: $input")
+    }
+}
+
+internal fun buildImagePrompt(context: InputContext): String {
+    return buildString {
+        append(buildReferencePrompt(context))
+        appendLine("Input type: image")
+        appendLine("Extract calendar events from this flyer, poster, screenshot, or event notice.")
+        appendLine("Use the exact visible event title, date, time, and location when they are present.")
+        appendLine("Treat visible virtual-location text such as Online, Virtual, Zoom, or Teams as a real location value.")
+        appendLine("Ignore sponsor logos, ticketing boilerplate, social handles, QR labels, and page chrome.")
+        appendLine("Do not guess missing details.")
+        appendLine("If the image contains a schedule table or a flyer series with multiple explicit date/time rows, return one event per row when the rows clearly describe separate occurrences.")
+        appendLine("Do not merge distinct schedule rows into one generic event just because they share the same date, venue, or series title.")
+        appendLine("For schedule rows, use the row's own visible title as the event title and do not prefix it with the flyer or series title.")
+        appendLine("The flyer banner title is not the event title for individual schedule rows.")
+        appendLine("Copy the row title exactly as visible and do not add extra words, adjectives, or paraphrases.")
+        appendLine("When copying locations, preserve spaces, punctuation, and parentheses as visible instead of compressing them.")
+        appendLine("If the image contains relative date or time phrases, resolve them using the reference local datetime above.")
+        append(buildFinalEventJsonInstructions())
+    }
+}
+
+internal fun buildAudioPrompt(context: InputContext): String {
+    return buildString {
+        append(buildReferencePrompt(context))
+        appendLine("Input type: audio")
+        appendLine("Extract the intended calendar event from this audio only when the speaker clearly proposes, confirms, schedules, or reschedules a concrete calendar item.")
+        appendLine("Ignore incidental mentions of time, generic future statements, or status updates that are not actual calendar commitments.")
+        appendLine("If the audio only mentions a time or date without naming an event, do not invent a generic title like Meeting.")
+        appendLine("The audio may contain filler words, background noise, repeated fragments, and ASR mistakes.")
+        appendLine("Use the intended meaning of the speech, not the noisy transcription artifacts.")
+        appendLine("If the speaker says relative dates or times, resolve them using the reference local datetime above.")
+        append(buildFinalEventJsonInstructions())
+    }
+}
+
 internal fun buildFinalEventJsonInstructions(): String {
     return buildString {
+        appendLine("Use only input evidence; leave unknown fields empty.")
+        appendLine("Use a specific input title; if no named event or clear commitment exists, return no event instead of generic Meeting/Event/Concert/Reminder.")
         appendLine("If the input contains multiple fragments about the same event, merge them into one event.")
         appendLine("If the input contains multiple distinct events, return them all.")
+        appendLine("Fill endTime only with explicit end, duration, or range.")
+        appendLine("Attendees must be explicitly named participants or invitees.")
+        appendLine("Preserve proper nouns, accents, and input language.")
         appendLine("Return ONLY valid JSON in this exact shape: { \"events\": [ { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601 with timezone offset\", \"endTime\": \"ISO-8601 with timezone offset\", \"location\": \"\", \"attendees\": [] } ] }")
         appendLine("If there is only one event, still return it inside the events array.")
         appendLine("If there are no events, return { \"events\": [] }.")
@@ -100,6 +149,7 @@ internal fun buildTemporalResolutionPrompt(
         appendLine("Use the observation JSON below and focus only on dates, times, durations, and event boundaries.")
         appendLine("Return ONLY JSON in this exact shape:")
         appendLine("{ \"events\": [ { \"resolvedStartTime\": \"ISO-8601 or empty\", \"resolvedEndTime\": \"ISO-8601 or empty\", \"dateReasoning\": \"\", \"remainingAmbiguity\": \"\" } ] }")
+        appendLine("Preserve the observation event order and return one temporal object per observation event.")
         appendLine("If you cannot safely resolve a time, leave it empty instead of guessing.")
         appendLine("Observation JSON:")
         appendLine(observations)
@@ -119,6 +169,7 @@ internal fun buildFinalCompositionPrompt(
         appendLine("You are composing final events for a heavy $sourceType extraction pass.")
         appendLine("Use the observation JSON for titles, descriptions, locations, and attendees.")
         appendLine("Use the temporal-resolution JSON for startTime and endTime when available.")
+        appendLine("Match observation events to temporal-resolution events by array index; do not collapse separate rows in the final pass.")
         appendLine("Return ONLY valid JSON in this exact shape: { \"events\": [ { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601\", \"endTime\": \"ISO-8601\", \"location\": \"\", \"attendees\": [] } ] }")
         appendLine("Keep multiple distinct events if the earlier stages found them.")
         appendLine("If a date cannot be resolved safely, leave startTime and endTime empty rather than inventing one.")

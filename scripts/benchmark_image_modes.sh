@@ -58,11 +58,23 @@ Return absolute ISO-8601 values with timezone offsets in startTime and endTime. 
 Input type: image
 Extract calendar events from this flyer, poster, screenshot, or event notice.
 Use the exact visible event title, date, time, and location when they are present.
+Treat visible virtual-location text such as Online, Virtual, Zoom, or Teams as a real location value.
+Ignore sponsor logos, ticketing boilerplate, social handles, QR labels, and page chrome.
 Do not guess missing details.
 If the image contains a schedule table or a flyer series with multiple explicit date/time rows, return one event per row when the rows clearly describe separate occurrences.
+Do not merge distinct schedule rows into one generic event just because they share the same date, venue, or series title.
+For schedule rows, use the row's own visible title as the event title and do not prefix it with the flyer or series title.
+The flyer banner title is not the event title for individual schedule rows.
+Copy the row title exactly as visible and do not add extra words, adjectives, or paraphrases.
+When copying locations, preserve spaces, punctuation, and parentheses as visible instead of compressing them.
 If the image contains relative date or time phrases, resolve them using the reference local datetime above.
+Use only input evidence; leave unknown fields empty.
+Use a specific input title; if no named event or clear commitment exists, return no event instead of generic Meeting/Event/Concert/Reminder.
 If the input contains multiple fragments about the same event, merge them into one event.
 If the input contains multiple distinct events, return them all.
+Fill endTime only with explicit end, duration, or range.
+Attendees must be explicitly named participants or invitees.
+Preserve proper nouns, accents, and input language.
 Return ONLY valid JSON in this exact shape: { "events": [ { "title": "", "description": "", "startTime": "ISO-8601", "endTime": "ISO-8601", "location": "", "attendees": [] } ] }
 If there is only one event, still return it inside the events array.
 If there are no events, return { "events": [] }.
@@ -119,6 +131,7 @@ You are resolving temporal information for a heavy image extraction pass.
 Use the observation JSON below and focus only on dates, times, durations, and event boundaries.
 Return ONLY JSON in this exact shape:
 { "events": [ { "resolvedStartTime": "ISO-8601 or empty", "resolvedEndTime": "ISO-8601 or empty", "dateReasoning": "", "remainingAmbiguity": "" } ] }
+Preserve the observation event order and return one temporal object per observation event.
 If you cannot safely resolve a time, leave it empty instead of guessing.
 Observation JSON:
 ${observations}
@@ -142,6 +155,7 @@ Heavy mode stage 3/3: final event composition
 You are composing final events for a heavy image extraction pass.
 Use the observation JSON for titles, descriptions, locations, and attendees.
 Use the temporal-resolution JSON for startTime and endTime when available.
+Match observation events to temporal-resolution events by array index; do not collapse separate rows in the final pass.
 Return ONLY valid JSON in this exact shape: { "events": [ { "title": "", "description": "", "startTime": "ISO-8601", "endTime": "ISO-8601", "location": "", "attendees": [] } ] }
 Keep multiple distinct events if the earlier stages found them.
 If a date cannot be resolved safely, leave startTime and endTime empty rather than inventing one.
