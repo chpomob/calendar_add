@@ -1,38 +1,57 @@
 # Calendar Add
 
-`Calendar Add` is an Android app that turns rough text, photos, shared content, and short voice captures into calendar events using local LiteRT-LM models.
+[![Android CI](https://github.com/chpomob/calendar_add/actions/workflows/android.yml/badge.svg)](https://github.com/chpomob/calendar_add/actions/workflows/android.yml)
 
-The app is local-first after model download: extraction runs on-device, created events are stored locally, and optional sync to the Android system calendar is available.
+`Calendar Add` is an Android app that turns event information from text, flyers, shared images, and short voice captures into calendar events.
 
-## Current State
+The app is local-first after model download: AI extraction runs on-device with LiteRT-LM models, events are stored locally, and syncing to the Android system calendar is optional.
 
-This repo is active and buildable on `main`, but it is still best described as a solid beta rather than a polished finished product.
+## Install The Latest APK
 
-Implemented now:
+For non-technical Android testers, use the signed APK from GitHub Releases:
 
-- runtime download of LiteRT-LM models
-- model selection in Settings
-- text, image, audio, and Android share-intent import flows
-- direct camera capture from the home screen
-- press-and-hold microphone capture, limited to 30 seconds
-- background analysis through `WorkManager` with foreground notifications
-- multi-event extraction from a single input
-- optional heavy analysis mode for images and audio, using extra refinement rounds
-- local Room persistence
-- optional sync to the device calendar
-- opt-in diagnostics mode that can surface raw model JSON on extraction failure
+https://github.com/chpomob/calendar_add/releases/download/v0.2.0-alpha.1/calendar-add-v0.2.0-alpha.1-signed.apk
 
-Important limitations:
+Install steps:
 
-- no fallback extraction path when no model is installed
-- local inference can still be slow, especially on larger models
-- some model/input combinations are more reliable than others
-- event list and event detail remain basic: no search, edit, or delete UI
-- success/failure handling still leans heavily on notifications rather than rich in-app progress
+1. Open the link on an Android phone.
+2. Download the `.apk`.
+3. Tap the downloaded file.
+4. If Android asks, allow the browser to install unknown apps.
+5. Open `Calendar Add`.
 
-## Recommended Model State
+More details are available in [Install From GitHub](docs/GITHUB_INSTALL.md).
 
-The app currently exposes these models in [LiteRtModelCatalog.kt](app/src/main/java/com/calendaradd/service/LiteRtModelCatalog.kt):
+## What Works Today
+
+- Create calendar events from typed or pasted text.
+- Take a photo of a flyer directly from the app.
+- Import images and audio files from Android file pickers.
+- Record short voice notes with press-and-hold capture.
+- Share text, images, or audio into the app from another Android app.
+- Extract multiple events from one input when the model returns several events.
+- Run slow analysis jobs in the background with foreground notifications.
+- Store the original source image or audio file with created events for later review.
+- Optionally sync extracted events to the Android system calendar.
+- Enable heavy analysis mode for harder image and audio inputs.
+- Enable experimental web verification to refine public event details when online lookup succeeds.
+
+## Project Status
+
+This project is active and buildable on `main`, but it is still an alpha/beta-quality app rather than a finished consumer release.
+
+Known limitations:
+
+- A local model must be downloaded before extraction works.
+- Local inference can be slow on large multimodal models.
+- Image and audio accuracy depends strongly on the selected model and input quality.
+- The event list and event detail screens are still basic.
+- Progress and failure reporting still relies heavily on Android notifications.
+- Web verification is experimental and can be limited by search provider restrictions.
+
+## Recommended Models
+
+The app exposes these LiteRT-LM models in [LiteRtModelCatalog.kt](app/src/main/java/com/calendaradd/service/LiteRtModelCatalog.kt):
 
 | Model | Inputs | Notes |
 |------|--------|-------|
@@ -44,89 +63,22 @@ The app currently exposes these models in [LiteRtModelCatalog.kt](app/src/main/j
 
 Practical recommendation:
 
-- prefer the Gemma models for normal use
-- treat Qwen as experimental in this app
+- Use Gemma models for normal testing.
+- Treat Qwen as experimental in this app.
+- Prefer smaller Gemma variants on memory-constrained devices.
 
-Models are downloaded through Android `DownloadManager` into app-specific storage. When switching models, the app prunes older app-managed model files while preserving any model still required by queued background work.
+Models are downloaded through Android `DownloadManager` into app-specific storage. When switching models, the app prunes older app-managed model files while preserving models still needed by queued background work.
 
-## Real User Flows
+## Build Locally
 
-The app currently supports these entry points:
+Requirements:
 
-- Paste or type event text directly on the home screen
-- Take a photo with the camera
-- Pick an image from files
-- Record voice by pressing and holding the voice card
-- Pick an audio file
-- Share text, image, or audio into the app from another Android app
-
-When possible, shared content is queued directly into background analysis without forcing the full home-screen flow first.
-
-## Background Processing
-
-Slow model runs are queued into a foreground `WorkManager` worker.
-
-Current behavior:
-
-- queued jobs survive normal app restarts more reliably because inputs are stored in app-private no-backup storage
-- created events keep a link to the app-private image or audio source file when the event came from media input
-- the app shows foreground progress notifications while analysis is running
-- result notifications are separated from progress notifications
-- repeated worker restarts are labeled as retries
-- repeated background restarts are capped instead of replaying forever
-
-This means background analysis is usable today, but it is still an area to watch closely on slower devices or with large multimodal jobs.
-
-## Extraction Behavior
-
-The extraction pipeline is stricter than earlier versions:
-
-- multiple events can be returned and saved from one input
-- fragmented model output for the same event is merged when compatible
-- extracted events are only saved when a parseable absolute start date/time is present
-- malformed dates are rejected instead of silently defaulting to the current time
-- prompts now include an explicit local reference datetime and timezone so relative phrases like `tomorrow`, `tonight`, or `next Friday` are resolved more reliably
-
-If diagnostics mode is enabled in Settings, failed background extractions can reopen the app with the raw model JSON for inspection.
-
-For difficult images or audio, Settings now expose a heavy analysis mode. It keeps the expensive multimodal pass to one round, then runs extra text-only refinement passes for temporal resolution and final event composition.
-
-## LiteRT-LM Runtime Notes
-
-The current Gemma path was cross-checked against Google AI Edge Gallery. The app now sends multimodal requests in the same content order used there: image first, audio second, text last.
-
-Runtime choices:
-
-- Gemma 4 follows Gallery's `gpu,cpu` main backend order and uses GPU vision.
-- Gemma 3n follows Gallery's `cpu,gpu` main backend order and uses GPU vision.
-- Gemma audio uses CPU backend, matching Gallery's direct LiteRT-LM path.
-- Image, audio, and text jobs initialize only the matching LiteRT-LM modality backends, matching Gallery's task-specific setup.
-- Gemma 4 E4B image/audio jobs on devices below 16 GB RAM use CPU for the text backend and GPU for vision. This avoids a native GPU-main initialization kill observed on a 12 GB Pixel 8 Pro.
-- Gemma models keep Gallery's minimum device RAM guards before initialization.
-- Gemma downloads are pinned to Gallery's exact Hugging Face commits and exact file sizes.
-- Conversations use Gallery's sampler settings: topK 64, topP 0.95, temperature 1.0.
-- Gemma token windows match Gallery: 4000 for Gemma 4 and 4096 for Gemma 3n. Image prompts need the larger window because the image context is part of LiteRT-LM prefill.
-- Audio prompts now explicitly tell the model to ignore filler words, background noise, repeated fragments, and ASR mistakes.
-- Images are passed as PNG `ImageBytes` instead of temporary JPEG files.
-- In-app voice capture records 16 kHz mono PCM and sends WAV bytes to the model.
-- LiteRT-LM inference uses async callbacks so timeout/cancellation can call `cancelProcess()`.
-
-The local Gallery reference clone lives under `external/google-ai-edge-gallery/`. The `external/` directory is intentionally ignored by Git.
-
-## Requirements
-
-- Android 8.0+ (`minSdk 26`)
+- Android 8.0+ device or emulator for runtime testing
 - Android SDK configured in `local.properties`
 - JDK 21
-- enough free storage for the selected model
+- Enough free storage for the selected model
 
-Build configuration in [app/build.gradle.kts](app/build.gradle.kts):
-
-- `compileSdk = 35`
-- `targetSdk = 35`
-- `versionName = "0.2.0-alpha.1"`
-
-## Build And Test
+Common commands:
 
 ```bash
 ./gradlew test
@@ -134,64 +86,96 @@ Build configuration in [app/build.gradle.kts](app/build.gradle.kts):
 ./gradlew installDebug
 ```
 
-Useful extra commands:
+Full CI-style build:
 
 ```bash
-./gradlew bundleRelease
+./gradlew build
+```
+
+Quick local smoke check:
+
+```bash
 ./scripts/test_build.sh
 ```
 
-## GitHub Builds
+Current Android configuration in [app/build.gradle.kts](app/build.gradle.kts):
 
-The repository now exposes builds in two ways:
+- `compileSdk = 35`
+- `targetSdk = 35`
+- `minSdk = 26`
+- `versionName = "0.2.0-alpha.1"`
 
-- every successful push to `main` updates a rolling prerelease named `latest-main` with the current debug APK
-- alpha tags such as `v0.1.0-alpha.2` create draft prereleases with:
-  - debug APK
-  - unsigned release AAB
-- manually created GitHub releases can attach a locally signed release APK for non-Play-Store testers
+## Signed Releases
 
-For non-technical testers outside Play Store, prefer the signed APK attached to a GitHub release. See [Install From GitHub](docs/GITHUB_INSTALL.md).
+Release APKs are signed locally. Signing keys are not stored on GitHub and must stay out of version control.
 
-Signing keys stay local. See [GitHub Release Process](docs/GITHUB_RELEASE.md).
+For the maintainer release flow, see [GitHub Release Process](docs/GITHUB_RELEASE.md).
 
-## Project Layout
+For testers, use the APK attached to a GitHub release, not `Source code.zip` or `Source code.tar.gz`.
+
+## Architecture
 
 ```text
 app/src/main/java/com/calendaradd/
   service/     LiteRT-LM integration, model download, background workers, calendar services
-  ui/          Compose screens and view models
+  ui/          Compose screens, view models, and theme
   usecase/     business logic, Room database, preferences
   navigation/  app navigation
-  util/        image loading, recording, permissions, and helpers
+  util/        image loading, recording, permissions, helpers
+
 app/src/test/java/
   JVM tests for services, worker helpers, and use cases
-app/src/test/resources/audio-fixtures/
-  synthetic audio samples, transcripts, speech-safe synthesis text, and expected event payloads for regression tests
-app/src/test/resources/image-fixtures/
-  synthetic flyer images, source metadata, and expected event payloads for regression tests, including French-language flyers and schedule pages
+
+app/src/test/resources/
+  audio-fixtures/       audio transcripts, generated samples, expected events
+  image-fixtures/       flyer fixtures, metadata, expected events
+  web-lookup-fixtures/  public-event lookup fixtures
+
 scripts/
-  `generate_audio_fixtures.sh`, `run_audio_fixture_on_device.sh`, `generate_image_fixtures.sh`, `check_image_flyer_cases.sh`, `benchmark_image_modes.sh`, and `benchmark_audio_modes.sh`
+  fixture generation, benchmark, and device-test helpers
+
 docs/
-  release, privacy, model, and submission notes
+  release, install, privacy, model, and submission notes
 ```
 
-## Development Notes
+## Quality And Benchmarks
 
-- The app no longer eagerly initializes LiteRT-LM on home-screen launch.
-- Large local models can still feel slow even when they succeed.
-- Android notifications matter for the background UX; if notifications are disabled, analysis may appear silent.
-- App preferences are kept out of Android cloud backup rules.
-- Release signing and Play submission scaffolding are present in the repo, but store assets and final publication work still need ongoing attention.
-- The benchmark scripts report classic-vs-heavy metrics across the full image and audio corpora, and they will automatically cover new fixtures as the manifests grow.
+The project includes regression fixtures for text, image, audio, and web-lookup behavior. The fixture manifests are designed to grow over time so prompt and extraction changes can be evaluated against a broader corpus instead of isolated examples.
+
+Useful benchmark scripts:
+
+```bash
+scripts/benchmark_image_modes.sh
+scripts/benchmark_audio_modes.sh
+scripts/benchmark_web_lookup_queries.sh
+```
+
+These scripts compare classic mode, heavy mode, and web-assisted refinement where applicable.
+
+## LiteRT-LM Notes
+
+The Gemma integration was cross-checked against Google AI Edge Gallery.
+
+Current runtime choices:
+
+- Gemma 4 follows Gallery's `gpu,cpu` main backend order and uses GPU vision.
+- Gemma 3n follows Gallery's `cpu,gpu` main backend order and uses GPU vision.
+- Gemma audio uses CPU backend, matching Gallery's direct LiteRT-LM path.
+- Image, audio, and text jobs initialize only the required modality backends.
+- Gemma downloads are pinned to Gallery's Hugging Face commits and exact file sizes.
+- Conversations use Gallery's sampler settings: topK 64, topP 0.95, temperature 1.0.
+- Images are passed as PNG `ImageBytes`.
+- In-app voice capture records 16 kHz mono PCM and sends WAV bytes to the model.
+
+The local Gallery reference clone lives under `external/google-ai-edge-gallery/`. The `external/` directory is intentionally ignored by Git.
 
 ## Documentation
 
-- [Model Integration](docs/MODEL_INTEGRATION.md)
-- [Release Status](docs/RELEASE_STATUS.md)
-- [Release Notes](docs/RELEASE.md)
-- [GitHub Install Guide](docs/GITHUB_INSTALL.md)
+- [Install From GitHub](docs/GITHUB_INSTALL.md)
 - [GitHub Release Process](docs/GITHUB_RELEASE.md)
+- [Release Notes](docs/RELEASE.md)
+- [Release Status](docs/RELEASE_STATUS.md)
+- [Model Integration](docs/MODEL_INTEGRATION.md)
 - [Play Submission](docs/PLAY_SUBMISSION.md)
 - [Store Listing Draft](docs/STORE_LISTING.md)
 - [Privacy Policy Draft](docs/PRIVACY_POLICY.md)
