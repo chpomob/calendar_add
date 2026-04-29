@@ -169,6 +169,10 @@ Current runtime choices:
 
 The local Gallery reference clone lives under `external/google-ai-edge-gallery/`. The `external/` directory is intentionally ignored by Git.
 
+## License
+
+Calendar Add is released under the [WTFPL](LICENSE).
+
 ## Documentation
 
 - [Install From GitHub](docs/GITHUB_INSTALL.md)
