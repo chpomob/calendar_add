@@ -1,13 +1,13 @@
 # Release Notes
 
-Last updated: 2026-04-26
+Last updated: 2026-04-30
 
 ## Current Release Build Status
 
 - `compileSdk = 35`
 - `targetSdk = 35`
-- `versionCode = 3`
-- `versionName = "1.0.0"`
+- `versionCode = 4`
+- `versionName = "0.2.0-alpha.1"`
 - Release minify and shrink are enabled
 - Release Android App Bundle builds successfully
 - Release signing is wired through local `keystore.properties`
@@ -15,6 +15,7 @@ Last updated: 2026-04-26
 - Successful pushes to `main` update a rolling `latest-main` prerelease with the current debug APK
 - GitHub Actions publishes an unsigned release AAB for `v*` tags
 - Alpha tags like `v0.1.0-alpha.2` now draft a GitHub prerelease with attached build artifacts
+- GitHub Releases can also be created manually with a locally signed APK for testers outside the Play Store
 - Settings now expose an optional heavy analysis mode for staged image/audio extraction
 
 Current output after `./gradlew bundleRelease`:
@@ -36,6 +37,8 @@ Expected keys:
 - `keyPassword`
 
 Use `keystore.properties.example` as the template.
+
+For GitHub APK distribution, build and publish locally so the signing key never leaves the development machine. See [GitHub Release Process](GITHUB_RELEASE.md) and [Install From GitHub](GITHUB_INSTALL.md).
 
 ## Recommended Next Steps
 

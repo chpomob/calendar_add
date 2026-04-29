@@ -124,7 +124,7 @@ Build configuration in [app/build.gradle.kts](app/build.gradle.kts):
 
 - `compileSdk = 35`
 - `targetSdk = 35`
-- `versionName = "1.0.0"`
+- `versionName = "0.2.0-alpha.1"`
 
 ## Build And Test
 
@@ -149,8 +149,11 @@ The repository now exposes builds in two ways:
 - alpha tags such as `v0.1.0-alpha.2` create draft prereleases with:
   - debug APK
   - unsigned release AAB
+- manually created GitHub releases can attach a locally signed release APK for non-Play-Store testers
 
-So testers do not have to rely only on the `Actions` artifact view anymore.
+For non-technical testers outside Play Store, prefer the signed APK attached to a GitHub release. See [Install From GitHub](docs/GITHUB_INSTALL.md).
+
+Signing keys stay local. See [GitHub Release Process](docs/GITHUB_RELEASE.md).
 
 ## Project Layout
 
@@ -187,6 +190,8 @@ docs/
 - [Model Integration](docs/MODEL_INTEGRATION.md)
 - [Release Status](docs/RELEASE_STATUS.md)
 - [Release Notes](docs/RELEASE.md)
+- [GitHub Install Guide](docs/GITHUB_INSTALL.md)
+- [GitHub Release Process](docs/GITHUB_RELEASE.md)
 - [Play Submission](docs/PLAY_SUBMISSION.md)
 - [Store Listing Draft](docs/STORE_LISTING.md)
 - [Privacy Policy Draft](docs/PRIVACY_POLICY.md)
