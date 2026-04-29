@@ -8,7 +8,7 @@ vulnerability, please report it responsibly.
 ### How to Report
 
 1. **Do NOT** create a public GitHub issue
-2. Email: security@example.com
+2. Email: chpomob@gmail.com
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce

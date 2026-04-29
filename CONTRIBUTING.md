@@ -110,9 +110,9 @@ Coverage threshold: 80%
 ## Questions?
 
 - Join our [Discord](#)
-- Email [support@example.com](#)
+- Email [chpomob@gmail.com](mailto:chpomob@gmail.com)
 - Check [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the WTFPL.

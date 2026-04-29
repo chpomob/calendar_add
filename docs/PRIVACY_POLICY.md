@@ -2,7 +2,7 @@
 
 Last updated: 2026-04-20
 
-This draft is based on the current Calendar Add codebase and is intended as a release-preparation starting point. Replace the contact details and final legal wording before publication.
+This draft is based on the current Calendar Add codebase and is intended as a release-preparation starting point. Review the final legal wording before publication.
 
 ## Overview
 

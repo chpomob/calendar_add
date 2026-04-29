@@ -98,7 +98,7 @@ We may update this policy periodically. Changes will be posted on this page with
 
 ## Contact Us
 
-Questions? Email us at privacy@example.com
+Questions? Email us at chpomob@gmail.com
 
 ---
 
