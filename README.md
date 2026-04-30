@@ -173,10 +173,15 @@ The local Gallery reference clone lives under `external/google-ai-edge-gallery/`
 
 Calendar Add is released under the [WTFPL](LICENSE).
 
+In plain language: use it, copy it, fork it, modify it, publish it, sell it, or reuse parts of it without asking permission. This project is shared freely.
+
+Project guidelines such as the code of conduct, contributing guide, and security policy govern interaction with this repository. They do not add restrictions to the WTFPL license. See [Usage Freedom](docs/USAGE_FREEDOM.md).
+
 ## Documentation
 
 - [Install From GitHub](docs/GITHUB_INSTALL.md)
 - [GitHub Release Process](docs/GITHUB_RELEASE.md)
+- [Usage Freedom](docs/USAGE_FREEDOM.md)
 - [Release Notes](docs/RELEASE.md)
 - [Release Status](docs/RELEASE_STATUS.md)
 - [Model Integration](docs/MODEL_INTEGRATION.md)

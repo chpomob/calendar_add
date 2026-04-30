@@ -1,5 +1,12 @@
 # Security Policy
 
+## License Scope
+
+Calendar Add is released under the WTFPL. This security policy is a
+responsible-disclosure request for this repository; it is not a license
+restriction and does not limit your right to use, fork, modify, publish,
+redistribute, sell, or reuse the project under the WTFPL.
+
 ## Reporting a Vulnerability
 
 We take the security of Calendar Add AI seriously. If you discover a security

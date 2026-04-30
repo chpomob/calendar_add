@@ -1,5 +1,14 @@
 # Code of Conduct
 
+## Scope
+
+This code of conduct applies to participation in this repository's official
+project spaces, such as issues, pull requests, and maintainer discussions.
+
+It does not add restrictions to the project license. Calendar Add is released
+under the WTFPL, and you remain free to use, fork, modify, publish,
+redistribute, sell, or reuse the project under that license.
+
 ## Our Pledge
 
 We as members, contributors, and leaders pledge to make participation in our
@@ -26,14 +35,6 @@ and orientation.
 - Public or private harassment
 - Publishing others' private information
 - Other unethical or professionaly unacceptable conduct
-
-## Enforcement
-
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported by contacting the project team at [chpomob@gmail.com](mailto:chpomob@gmail.com).
-
-All complaints will be reviewed and investigated and will result in a response
-that is deemed necessary and appropriate to the circumstances.
 
 ## Attribution
 

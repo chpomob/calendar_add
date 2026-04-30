@@ -115,4 +115,8 @@ Coverage threshold: 80%
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the WTFPL.
+Calendar Add is shared under the WTFPL.
+
+By contributing changes that are accepted into this repository, you agree that those contributions are also shared under the WTFPL.
+
+These contribution guidelines only explain how to get changes merged here. They do not limit your right to fork, modify, publish, redistribute, sell, or use the project however you want under the WTFPL.
