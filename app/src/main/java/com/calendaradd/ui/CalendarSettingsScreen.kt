@@ -85,7 +85,16 @@ fun CalendarSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = {
+                    Column {
+                        Text("Control room")
+                        Text(
+                            "Model, sync, and extraction behavior",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -103,7 +112,7 @@ fun CalendarSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Text(
-                "AI Model",
+                "Local model",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -111,7 +120,7 @@ fun CalendarSettingsScreen(
             Card {
                 Column {
                     ListItem(
-                        headlineContent = { Text("Chosen Model") },
+                        headlineContent = { Text("Active engine") },
                         supportingContent = {
                             Text(
                                 availableModels.firstOrNull { it.id == selectedModelId }?.displayName
@@ -122,7 +131,7 @@ fun CalendarSettingsScreen(
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     Text(
-                        "Tap a model below to switch. The next analysis job will use the chosen model after it is downloaded.",
+                        "Pick the local model used for the next capture. Larger models can be more capable, but slower.",
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -142,7 +151,7 @@ fun CalendarSettingsScreen(
             }
 
             Text(
-                "System Calendar",
+                "Calendar handoff",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -156,7 +165,7 @@ fun CalendarSettingsScreen(
                         supportingContent = {
                             Text(
                                 if (hasCalendarPermissions.value) {
-                                    "Automatically push new events to your system calendar"
+                                    "Send new events straight to your chosen device calendar"
                                 } else {
                                     "Grant calendar permission to enable automatic sync"
                                 }
@@ -203,7 +212,7 @@ fun CalendarSettingsScreen(
             }
 
             Text(
-                "Analysis",
+                "Extraction style",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -214,7 +223,7 @@ fun CalendarSettingsScreen(
                         headlineContent = { Text("Heavy analysis mode") },
                         supportingContent = {
                             Text(
-                                "Uses extra extraction rounds for images and audio. Slower, but can improve difficult inputs."
+                                "Adds text-only refinement rounds after image and audio extraction. Slower, useful for hard inputs."
                             )
                         },
                         leadingContent = { Icon(Icons.Default.AutoFixHigh, contentDescription = null) },
@@ -230,7 +239,7 @@ fun CalendarSettingsScreen(
                         headlineContent = { Text("Experimental web lookup") },
                         supportingContent = {
                             Text(
-                                "Experimental. When image OCR exposes event hints, optionally search public pages to confirm or improve the extracted event. Off by default. Brave Search API is more reliable; DuckDuckGo HTML is only a fallback and may hit anti-bot pages."
+                                "Optional public-event lookup for ambiguous flyers. Experimental and provider-dependent."
                             )
                         },
                         leadingContent = { Icon(Icons.Default.Language, contentDescription = null) },
@@ -271,7 +280,7 @@ fun CalendarSettingsScreen(
 
             // About Section
             Text(
-                "App Info",
+                "App notes",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -280,7 +289,7 @@ fun CalendarSettingsScreen(
                 Column {
                     ListItem(
                         headlineContent = { Text("Version") },
-                        supportingContent = { Text("1.0.0 (LiteRT-LM Edition)") },
+                        supportingContent = { Text("0.3.0-alpha.0") },
                         leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))

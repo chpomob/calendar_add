@@ -78,4 +78,22 @@ class EventAnalysisPromptsTest {
         assertTrue(prompt.contains("Observation JSON:"))
         assertTrue(prompt.contains("Temporal-resolution JSON:"))
     }
+
+    @Test
+    fun `buildTemporalResolutionPrompt should allow conservative heavy day part inference`() {
+        val prompt = buildTemporalResolutionPrompt(
+            context = InputContext(),
+            stageLabel = HEAVY_IMAGE_STAGE_2,
+            sourceType = "image",
+            observations = """{"events":[{"titleCandidates":["Summer concert"],"dateCandidates":["2026-07-12"],"timeCandidates":[]}]}"""
+        )
+
+        assertTrue(prompt.contains("Explicit visible or spoken times always win."))
+        assertTrue(prompt.contains("If a date is known but no exact clock time is given"))
+        assertTrue(prompt.contains("concert/show/theatre/party 20:00"))
+        assertTrue(prompt.contains("picnic/market/family day 14:00"))
+        assertTrue(prompt.contains("Mention inferred day-part times in dateReasoning."))
+        assertTrue(prompt.contains("If the date is unknown"))
+        assertTrue(prompt.contains("all-day/open-hours item"))
+    }
 }

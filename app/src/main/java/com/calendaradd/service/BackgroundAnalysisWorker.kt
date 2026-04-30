@@ -97,25 +97,20 @@ class BackgroundAnalysisWorker(
                 TAG,
                 "Starting background analysis workId=$id attempt=$attemptNumber inputType=$inputType model=${modelConfig.shortName}"
             )
-            ensureNotificationChannels()
             if (hasExceededBackgroundAttemptLimit(runAttemptCount)) {
+                ensureNotificationChannels()
                 return failureResult(
                     "Background analysis restarted too many times before completion. " +
                         "Try a smaller model, a smaller image, or plain text input."
                 )
             }
 
-            setForeground(createForegroundInfo(buildProgressMessage("Initializing ${modelConfig.shortName}...", runAttemptCount)))
-
             if (!inputFile.exists()) {
-                notifyResult(
-                    "Analysis failed",
-                    "The queued input file is no longer available.",
-                    Screen.Home.route
-                )
+                AppLog.w(TAG, "Dropping stale background analysis workId=$id missing input=$inputPath")
                 return Result.failure(workDataOf(KEY_ERROR to "Queued input file is missing."))
             }
 
+            ensureNotificationChannels()
             if (!modelDownloadManager.isModelDownloaded(modelConfig)) {
                 notifyResult(
                     "Model missing",
@@ -124,6 +119,8 @@ class BackgroundAnalysisWorker(
                 )
                 return Result.failure(workDataOf(KEY_ERROR to "Selected model is no longer downloaded."))
             }
+
+            setForeground(createForegroundInfo(buildProgressMessage("Initializing ${modelConfig.shortName}...", runAttemptCount)))
 
             gemmaLlmService.initialize(
                 modelPath = modelDownloadManager.getModelFile(modelConfig).absolutePath,

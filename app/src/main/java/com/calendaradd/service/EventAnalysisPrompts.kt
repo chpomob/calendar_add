@@ -150,7 +150,10 @@ internal fun buildTemporalResolutionPrompt(
         appendLine("Return ONLY JSON in this exact shape:")
         appendLine("{ \"events\": [ { \"resolvedStartTime\": \"ISO-8601 or empty\", \"resolvedEndTime\": \"ISO-8601 or empty\", \"dateReasoning\": \"\", \"remainingAmbiguity\": \"\" } ] }")
         appendLine("Preserve the observation event order and return one temporal object per observation event.")
-        appendLine("If you cannot safely resolve a time, leave it empty instead of guessing.")
+        appendLine("Explicit visible or spoken times always win.")
+        appendLine("If a date is known but no exact clock time is given, heavy mode may infer a conservative day-part start time only when the event type strongly implies one.")
+        appendLine("Use conventional starts: morning class/appointment 09:00, lunch 12:00, picnic/market/family day 14:00, dinner 19:00, film/opening 19:30, concert/show/theatre/party 20:00.")
+        appendLine("Mention inferred day-part times in dateReasoning. If the date is unknown, the event type is generic, or the source indicates an all-day/open-hours item, leave resolvedStartTime empty.")
         appendLine("Observation JSON:")
         appendLine(observations)
     }

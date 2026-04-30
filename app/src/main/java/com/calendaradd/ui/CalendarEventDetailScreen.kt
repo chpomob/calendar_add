@@ -4,21 +4,28 @@ import android.graphics.BitmapFactory
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -68,56 +75,80 @@ fun CalendarEventDetailScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Event Details") },
+                title = {
+                    Column {
+                        Text("Event receipt")
+                        Text(
+                            "Check the details before syncing",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.92f)
+                )
             )
         }
     ) { padding ->
         event?.let { e ->
-            Column(
-                modifier = Modifier
+            Box(
+                modifier = modifier
                     .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.background,
+                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.26f),
+                                MaterialTheme.colorScheme.background
+                            )
+                        )
+                    )
                     .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(e.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Start: ${e.startTime.toDisplayDateTime()}", style = MaterialTheme.typography.bodyMedium)
-                Text("End: ${e.endTime.toDisplayDateTime()}", style = MaterialTheme.typography.bodyMedium)
-
-                if (e.description.isNotBlank()) {
-                    Text("Description: ${e.description}", style = MaterialTheme.typography.bodyMedium)
-                }
-
-                if (e.location.isNotBlank()) {
-                    Text("Location: ${e.location}", style = MaterialTheme.typography.bodyMedium)
-                }
-
-                SourceAttachmentSection(e)
-
-                Button(
-                    onClick = {
-                        if (context.hasCalendarPermissions()) {
-                            viewModel.syncToSystemCalendar()
-                        } else {
-                            calendarPermissionLauncher.launch(calendarPermissions)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = syncStatus !is SyncStatus.Syncing
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(when (syncStatus) {
-                        is SyncStatus.Syncing -> "Syncing..."
-                        is SyncStatus.Success -> "Synced to Calendar"
-                        else -> "Sync to System Calendar"
-                    })
+                    EventHeroCard(e)
+                    EventFactsCard(e)
+                    SourceAttachmentSection(e)
+
+                    Button(
+                        onClick = {
+                            if (context.hasCalendarPermissions()) {
+                                viewModel.syncToSystemCalendar()
+                            } else {
+                                calendarPermissionLauncher.launch(calendarPermissions)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        enabled = syncStatus !is SyncStatus.Syncing,
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            when (syncStatus) {
+                                is SyncStatus.Syncing -> "Syncing..."
+                                is SyncStatus.Success -> "Synced to calendar"
+                                else -> "Add to system calendar"
+                            }
+                        )
+                    }
                 }
             }
         } ?: Box(
@@ -154,27 +185,150 @@ fun CalendarEventDetailScreen(
 }
 
 @Composable
+private fun EventHeroCard(event: Event) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(36.dp),
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = CircleShape
+                ) {
+                    Icon(
+                        Icons.Default.EventAvailable,
+                        contentDescription = null,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+                Text(event.sourceType.ifBlank { "manual" }.uppercase(), style = MaterialTheme.typography.labelMedium)
+            }
+            Text(
+                text = event.title.ifBlank { "Untitled event" },
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = event.startTime.toDisplayDateTime(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EventFactsCard(event: Event) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            DetailRow(Icons.Default.Schedule, "Starts", event.startTime.toDisplayDateTime())
+            if (event.endTime > event.startTime) {
+                DetailRow(Icons.Default.Flag, "Ends", event.endTime.toDisplayDateTime())
+            }
+            if (event.location.isNotBlank()) {
+                DetailRow(Icons.Default.Place, "Place", event.location)
+            }
+            if (event.attendees.isNotBlank()) {
+                DetailRow(Icons.Default.Group, "People", event.attendees)
+            }
+            if (event.description.isNotBlank()) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+                Text("Notes", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    event.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.padding(10.dp).size(18.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
 private fun SourceAttachmentSection(event: Event) {
     if (event.sourceAttachmentPath.isBlank()) return
     val context = LocalContext.current
     val sourceFile = remember(event.sourceAttachmentPath) { File(event.sourceAttachmentPath) }
     if (!sourceFile.exists()) return
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+        )
+    ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("Created from", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                event.sourceAttachmentName.ifBlank { sourceFile.name },
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                event.sourceAttachmentMimeType.ifBlank { event.sourceType },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text("Original source", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Default.Attachment, contentDescription = null)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        event.sourceAttachmentName.ifBlank { sourceFile.name },
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        event.sourceAttachmentMimeType.ifBlank { event.sourceType },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             if (event.sourceAttachmentMimeType.startsWith("image/")) {
                 val bitmap = remember(event.sourceAttachmentPath) {
                     BitmapFactory.decodeFile(event.sourceAttachmentPath)
@@ -187,6 +341,10 @@ private fun SourceAttachmentSection(event: Event) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 320.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(24.dp)
+                            )
                     )
                 }
             }
@@ -207,6 +365,8 @@ private fun SourceAttachmentSection(event: Event) {
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
                 Text("Open original source")
             }
         }

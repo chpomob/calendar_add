@@ -40,8 +40,6 @@ import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
 import com.calendaradd.util.VoiceRecordingSession
-import com.calendaradd.util.calendarPermissions
-import com.calendaradd.util.hasCalendarPermissions
 import java.io.File
 import kotlin.math.max
 import kotlinx.coroutines.delay
@@ -189,18 +187,6 @@ fun CalendarHomeScreen(
         )
     }
 
-    // Permission Launchers
-    val calendarPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val allGranted = permissions.values.all { it }
-        if (!allGranted) {
-            scope.launch {
-                snackbarHostState.showSnackbar("Calendar permissions are needed to auto-sync events.")
-            }
-        }
-    }
-
     fun processAudioUri(uri: Uri, source: String) {
         AppLog.i(tag, "$source selected uri=$uri")
         try {
@@ -230,6 +216,18 @@ fun CalendarHomeScreen(
             scope.launch {
                 snackbarHostState.showSnackbar("Notification permission is recommended for background analysis updates.")
             }
+        }
+    }
+
+    fun requestOrOpenNotificationSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            context.startActivity(
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                }
+            )
         }
     }
 
@@ -313,15 +311,8 @@ fun CalendarHomeScreen(
         }
     }
 
-    // Check permissions on launch
     LaunchedEffect(Unit) {
         refreshNotificationState()
-        if (!context.hasCalendarPermissions()) {
-            calendarPermissionLauncher.launch(calendarPermissions)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -370,9 +361,9 @@ fun CalendarHomeScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Calendar Add")
+                        Text("Capture")
                         Text(
-                            "Offline capture for messy real-life plans",
+                            "Turn real-life mess into calendar time",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -389,17 +380,6 @@ fun CalendarHomeScreen(
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { navController.navigate(Screen.EventList.route) },
-                icon = {
-                    Icon(Icons.AutoMirrored.Filled.List, contentDescription = null)
-                },
-                text = { Text("Events") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
             )
         }
     ) { padding ->
@@ -426,8 +406,8 @@ fun CalendarHomeScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     HeroPanel(
-                        title = "Make a calendar from the chaos.",
-                        subtitle = "Run extraction on your phone, keep your schedule private, and let the heavy lifting happen in the background.",
+                        title = "Plans arrive messy. Keep them anyway.",
+                        subtitle = "Download one local model, then turn flyers, voice notes, screenshots, and pasted messages into events without sending them to a server.",
                         modelLabel = selectedModel.shortName,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -511,7 +491,11 @@ fun CalendarHomeScreen(
 
                     if (!notificationsEnabled) {
                         Spacer(Modifier.height(16.dp))
-                        NoticeCard("Android notifications are disabled for Calendar Add, so background progress and completion alerts may stay silent.")
+                        NoticeActionCard(
+                            message = "Notifications are optional, but useful when model setup or analysis keeps running in the background.",
+                            actionLabel = "Enable",
+                            onAction = { requestOrOpenNotificationSettings() }
+                        )
                     }
                 }
             } else {
@@ -524,8 +508,8 @@ fun CalendarHomeScreen(
                 ) {
                     Spacer(Modifier.height(8.dp))
                     HeroPanel(
-                        title = "Capture a flyer, a screenshot, or a thought.",
-                        subtitle = "Calendar Add turns rough inputs into structured events and keeps long analysis running in the background.",
+                        title = "Shoot it. Say it. Paste it. Done.",
+                        subtitle = "One calm capture desk for posters, screenshots, forwarded messages, and the half-remembered plan someone said out loud.",
                         modelLabel = selectedModel.shortName,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -535,55 +519,21 @@ fun CalendarHomeScreen(
                     }
 
                     if (!notificationsEnabled) {
-                        NoticeCard("Android notifications are disabled, so background analysis may run without a visible notification. Re-enable them in app notification settings.")
+                        NoticeActionCard(
+                            message = "Background analysis is easier to trust with notifications enabled. Turn them on when you want progress alerts.",
+                            actionLabel = "Enable",
+                            onAction = { requestOrOpenNotificationSettings() }
+                        )
                     }
 
                     HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "Describe it",
-                            style = MaterialTheme.typography.titleLarge
+                            text = "Capture from the world",
+                            style = MaterialTheme.typography.headlineSmall
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Paste a message, a copied invitation, or loose notes. The model can split one input into multiple events.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Column {
-                            OutlinedTextField(
-                                value = inputValue,
-                                onValueChange = { inputValue = it },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 140.dp, max = 320.dp),
-                                label = { Text("Event details") },
-                                placeholder = { Text("Lunch with Maria at 1pm tomorrow, then parent-teacher meeting at 6pm") },
-                                maxLines = 10,
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = { viewModel.processText(inputValue) },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = isModelReady && inputValue.isNotBlank(),
-                                shape = RoundedCornerShape(18.dp)
-                            ) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Analyze with ${selectedModel.shortName}")
-                            }
-                        }
-                    }
-
-                    HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Quick capture",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Use the fastest input method for the moment, and let the app finish the job in the background.",
+                            text = "Start with the thing you actually have: a poster, screenshot, voice note, or audio file. Slow work continues in the background.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -595,7 +545,7 @@ fun CalendarHomeScreen(
                             ActionCard(
                                 icon = Icons.Default.PhotoCamera,
                                 label = "Camera",
-                                caption = "Shoot a poster",
+                                caption = "Best for posters",
                                 accent = MaterialTheme.colorScheme.tertiaryContainer,
                                 onClick = {
                                     cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -605,7 +555,7 @@ fun CalendarHomeScreen(
                             ActionCard(
                                 icon = Icons.Default.Image,
                                 label = "Image",
-                                caption = "Pick from files",
+                                caption = "Flyer or screenshot",
                                 accent = MaterialTheme.colorScheme.primaryContainer,
                                 onClick = {
                                     imagePickerLauncher.launch("image/*")
@@ -628,7 +578,7 @@ fun CalendarHomeScreen(
                                 caption = when {
                                     !selectedModel.supportsAudio -> "Current model has no audio"
                                     activeVoiceRecording != null -> "Release to analyze • ${formatVoiceDuration(voiceRecordingElapsedMs)} / 00:30"
-                                    else -> "Press and hold"
+                                    else -> "Hold while talking"
                                 },
                                 accent = MaterialTheme.colorScheme.secondaryContainer,
                                 onHoldStart = {
@@ -650,7 +600,7 @@ fun CalendarHomeScreen(
                             ActionCard(
                                 icon = Icons.Default.LibraryMusic,
                                 label = "Audio File",
-                                caption = "Pick a recording",
+                                caption = "Import a message",
                                 accent = MaterialTheme.colorScheme.surfaceVariant,
                                 onClick = {
                                     if (selectedModel.supportsAudio) {
@@ -664,29 +614,65 @@ fun CalendarHomeScreen(
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        Spacer(Modifier.height(10.dp))
-                        ActionCard(
-                            icon = Icons.AutoMirrored.Filled.List,
-                            label = "Events",
-                            caption = "Review imports",
-                            accent = MaterialTheme.colorScheme.surfaceVariant,
-                            onClick = {
-                                navController.navigate(Screen.EventList.route)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
 
                     HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            "Current model",
-                            style = MaterialTheme.typography.titleMedium
+                            text = "Paste the messy bit",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Messages, copied invitations, schedule fragments. If there are several events, Calendar Add keeps them separate.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Column {
+                            OutlinedTextField(
+                                value = inputValue,
+                                onValueChange = { inputValue = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 140.dp, max = 320.dp),
+                                label = { Text("Event details") },
+                                placeholder = { Text("Friday: lunch with Maria at 1, then parent-teacher meeting at 6. Concert flyer says doors 20h at Le Kilowatt.") },
+                                maxLines = 10,
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { viewModel.processText(inputValue) },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = isModelReady && inputValue.isNotBlank(),
+                                shape = RoundedCornerShape(18.dp)
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Analyze with ${selectedModel.shortName}")
+                            }
+                        }
+                    }
+
+                    RouteCard(
+                        eyebrow = "Library",
+                        title = "Review created events",
+                        caption = "Everything extracted lands in one place",
+                        icon = Icons.AutoMirrored.Filled.List,
+                        onClick = { navController.navigate(Screen.EventList.route) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            "Local engine",
+                            style = MaterialTheme.typography.headlineSmall
                         )
                         Spacer(Modifier.height(8.dp))
                         ActionCard(
                             icon = Icons.Default.Tune,
                             label = selectedModel.displayName,
-                            caption = selectedModel.capabilitySummary,
+                            caption = "${selectedModel.capabilitySummary} • tap to tune behavior",
                             accent = MaterialTheme.colorScheme.primaryContainer,
                             onClick = {
                                 navController.navigate(Screen.Settings.route)
@@ -751,7 +737,7 @@ fun CalendarHomeScreen(
                             viewModel.resetState()
                             navController.navigate(Screen.EventList.route) 
                         }) {
-                            Text("View List")
+                            Text("Open Library")
                         }
                     },
                     dismissButton = {

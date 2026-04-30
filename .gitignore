@@ -54,6 +54,7 @@ keystore
 
 # Android Profiling
 *.hprof
+bugreport-*.zip
 
 # Gradle cache
 .gradle-version

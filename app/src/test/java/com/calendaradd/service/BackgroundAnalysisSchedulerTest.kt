@@ -81,6 +81,35 @@ class BackgroundAnalysisSchedulerTest {
     }
 
     @Test
+    fun `reconcilePendingWork should clear stale work with missing input file`() {
+        val missingInputFile = File(inputDir, "missing-image.jpg")
+        val persistedInputDir = File(inputDir, "background-analysis-inputs").apply { mkdirs() }
+        val stalePersistedInput = File(persistedInputDir, "old-image.jpg").apply { writeText("stale") }
+        val workInfo = mockWorkInfo(
+            state = WorkInfo.State.RUNNING,
+            tags = setOf(
+                BackgroundAnalysisScheduler.WORK_TAG,
+                "calendaradd-model:gemma-4-e2b",
+                "calendaradd-input:${missingInputFile.absolutePath}"
+            )
+        )
+        every {
+            workManager.getWorkInfosForUniqueWork(BackgroundAnalysisScheduler.UNIQUE_WORK_NAME)
+        } returns immediateFuture(listOf(workInfo))
+        every { workManager.cancelUniqueWork(BackgroundAnalysisScheduler.UNIQUE_WORK_NAME) } returns mockk<Operation>(relaxed = true)
+        every { workManager.pruneWork() } returns mockk<Operation>(relaxed = true)
+
+        val scheduler = BackgroundAnalysisScheduler(context, workManager)
+        val status = kotlinx.coroutines.runBlocking { scheduler.reconcilePendingWork() }
+
+        assertFalse(status.hasPendingWork)
+        assertTrue(status.clearedStaleWork)
+        assertFalse(stalePersistedInput.exists())
+        verify { workManager.cancelUniqueWork(BackgroundAnalysisScheduler.UNIQUE_WORK_NAME) }
+        verify { workManager.pruneWork() }
+    }
+
+    @Test
     fun `promoteInputToEventSource should copy image into durable source folder`() {
         val inputFile = File(inputDir, "queued-image.jpg").apply { writeText("image-bytes") }
         val scheduler = BackgroundAnalysisScheduler(context, workManager)

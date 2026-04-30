@@ -22,8 +22,11 @@ keyPassword=...
 
 ## Build Locally
 
+Make sure the Android SDK is configured through local `local.properties` or an
+exported `ANDROID_HOME`.
+
 ```bash
-ANDROID_HOME=/home/chpo/Android/Sdk ./gradlew clean test assembleRelease
+./gradlew clean test assembleRelease
 ```
 
 Signed APK output:
