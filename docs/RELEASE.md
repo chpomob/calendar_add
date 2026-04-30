@@ -6,8 +6,8 @@ Last updated: 2026-04-30
 
 - `compileSdk = 35`
 - `targetSdk = 35`
-- `versionCode = 4`
-- `versionName = "0.2.0-alpha.1"`
+- `versionCode = 5`
+- `versionName = "0.3.0-alpha.0"`
 - Release minify and shrink are enabled
 - Release Android App Bundle builds successfully
 - Release signing is wired through local `keystore.properties`
@@ -17,6 +17,7 @@ Last updated: 2026-04-30
 - Alpha tags like `v0.1.0-alpha.2` now draft a GitHub prerelease with attached build artifacts
 - GitHub Releases can also be created manually with a locally signed APK for testers outside the Play Store
 - Settings now expose an optional heavy analysis mode for staged image/audio extraction
+- `v0.3.0-alpha.0` is the pre-UI-revamp minor checkpoint release
 
 Current output after `./gradlew bundleRelease`:
 
