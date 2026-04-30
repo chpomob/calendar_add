@@ -22,11 +22,21 @@ if [ ! -f "./gradlew" ]; then
 fi
 
 # Test compile debug
+echo "Checking release documentation..."
+if ./scripts/check_release_docs.sh --quiet 2>&1; then
+    echo "Release documentation is current"
+else
+    echo "Release documentation check failed"
+    ./scripts/check_release_docs.sh
+    exit 1
+fi
+
+echo ""
 echo "Testing debug build..."
 if ./gradlew assembleDebug --quiet 2>&1; then
-    echo "✅ Debug build succeeded"
+    echo "Debug build succeeded"
 else
-    echo "❌ Debug build failed"
+    echo "Debug build failed"
     exit 1
 fi
 
@@ -34,9 +44,9 @@ fi
 echo ""
 echo "Running unit tests..."
 if ./gradlew test --quiet 2>&1; then
-    echo "✅ Unit tests passed"
+    echo "Unit tests passed"
 else
-    echo "❌ Tests failed"
+    echo "Tests failed"
 fi
 
 echo ""

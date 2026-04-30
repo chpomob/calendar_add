@@ -10,7 +10,7 @@ The app is local-first after model download: AI extraction runs on-device with L
 
 For non-technical Android testers, use the signed APK from GitHub Releases:
 
-https://github.com/chpomob/calendar_add/releases/download/v0.2.0-alpha.1/calendar-add-v0.2.0-alpha.1-signed.apk
+https://github.com/chpomob/calendar_add/releases/download/v0.3.0-alpha.0/calendar-add-v0.3.0-alpha.0-signed.apk
 
 Install steps:
 

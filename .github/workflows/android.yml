@@ -32,6 +32,9 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Check release documentation
+        run: scripts/check_release_docs.sh
+
       - name: Build with Gradle
         run: ./gradlew build
 

@@ -25,6 +25,13 @@ keyPassword=...
 Make sure the Android SDK is configured through local `local.properties` or an
 exported `ANDROID_HOME`.
 
+Before building a signed release, update `versionName` and the README signed APK
+link together, then run:
+
+```bash
+scripts/check_release_docs.sh
+```
+
 ```bash
 ./gradlew clean test assembleRelease
 ```
