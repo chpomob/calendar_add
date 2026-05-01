@@ -34,7 +34,6 @@ data class LiteRtModelConfig(
     val mainBackendOrder: List<ModelBackendKind> = listOf(ModelBackendKind.CPU),
     val visionBackend: ModelBackendKind? = null,
     val minimumDeviceMemoryGb: Int? = null,
-    val multimodalGpuMainMinimumMemoryGb: Int? = null,
     val requireExactSize: Boolean = false
 ) {
     val supportsText: Boolean get() = capabilities.contains(ModelCapability.TEXT)
@@ -63,7 +62,6 @@ data class LiteRtModelConfig(
 
 object LiteRtModelCatalog {
     const val DEFAULT_MODEL_ID = "gemma-4-e2b"
-    private const val GEMMA_EXTRACTION_MAX_TOKENS = 768
 
     val models: List<LiteRtModelConfig> = listOf(
         LiteRtModelConfig(
@@ -77,7 +75,7 @@ object LiteRtModelCatalog {
             sizeBytes = 2_583_085_056L,
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = GEMMA_EXTRACTION_MAX_TOKENS,
+            maxNumTokens = 4000,
             mainBackendOrder = listOf(ModelBackendKind.GPU, ModelBackendKind.CPU),
             visionBackend = ModelBackendKind.GPU,
             minimumDeviceMemoryGb = 8,
@@ -94,11 +92,10 @@ object LiteRtModelCatalog {
             sizeBytes = 3_654_467_584L,
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = GEMMA_EXTRACTION_MAX_TOKENS,
-            mainBackendOrder = listOf(ModelBackendKind.GPU, ModelBackendKind.CPU),
+            maxNumTokens = 4000,
+            mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
             visionBackend = ModelBackendKind.GPU,
             minimumDeviceMemoryGb = 12,
-            multimodalGpuMainMinimumMemoryGb = 16,
             requireExactSize = true
         ),
         LiteRtModelConfig(
@@ -112,7 +109,7 @@ object LiteRtModelCatalog {
             sizeBytes = 3_655_827_456L,
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = GEMMA_EXTRACTION_MAX_TOKENS,
+            maxNumTokens = 4096,
             mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
             visionBackend = ModelBackendKind.GPU,
             minimumDeviceMemoryGb = 8,
@@ -129,7 +126,7 @@ object LiteRtModelCatalog {
             sizeBytes = 4_919_541_760L,
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = GEMMA_EXTRACTION_MAX_TOKENS,
+            maxNumTokens = 4096,
             mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
             visionBackend = ModelBackendKind.GPU,
             minimumDeviceMemoryGb = 12,

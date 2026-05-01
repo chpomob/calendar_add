@@ -6,6 +6,9 @@
 -keep class com.calendaradd.service.EventExtraction { *; }
 -keep class com.calendaradd.service.ExtractionService { *; }
 
+# LiteRT-LM native code looks up Java classes and accessors by exact JNI names.
+-keep class com.google.ai.edge.litertlm.** { *; }
+
 # Keep Room database classes
 -keep class com.calendaradd.usecase.EventDatabase { *; }
 -keep class com.calendaradd.usecase.EventDao { *; }

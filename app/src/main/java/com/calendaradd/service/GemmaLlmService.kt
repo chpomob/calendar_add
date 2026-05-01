@@ -23,7 +23,10 @@ interface EventJsonExtractor {
     ): String?
 }
 
-open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
+open class GemmaLlmService(
+    private val context: Context,
+    private val gpuBackendAvailableOverride: Boolean? = null
+) : EventJsonExtractor {
     companion object {
         private const val TAG = "GemmaLlmService"
         private val processEngineGuard = Any()
@@ -34,6 +37,8 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
     private var activeBackendLabel: String? = null
     private var activeModelSignature: ActiveModelSignature? = null
     private var activeConversationConfig: ConversationConfig = ConversationConfig()
+    private var activeBackendProfiles: List<BackendProfile> = emptyList()
+    private var activeBackendIndex: Int? = null
     
     /**
      * Tracks the last successfully initialized backend.
@@ -48,6 +53,9 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
 
     protected open fun createConversation(engine: Engine): Conversation =
         engine.createConversation(activeConversationConfig)
+
+    protected open fun isGpuBackendAvailable(): Boolean =
+        gpuBackendAvailableOverride ?: context.hasOpenClLibrary()
 
     /**
      * Initializes the LiteRT-LM engine with a Gemma 4 model.
@@ -91,17 +99,21 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                 }
 
                 val cacheDirPath = liteRtCacheDir(context, modelPath)
+                val isGpuBackendAvailable = isGpuBackendAvailable()
+                if (!isGpuBackendAvailable) {
+                    AppLog.w(TAG, "OpenCL library not found; using CPU LiteRT-LM backends")
+                }
                 val backends = backendProfilesFor(
                     modelConfig = modelConfig,
                     enableImage = enableImage,
                     enableAudio = enableAudio,
-                    deviceMemoryGb = deviceMemoryGb
+                    isGpuBackendAvailable = isGpuBackendAvailable
                 )
 
                 var lastError: Throwable? = null
                 val attemptedBackends = mutableListOf<String>()
 
-                for (profile in backends) {
+                for ((index, profile) in backends.withIndex()) {
                     var initializedEngine: Engine? = null
                     try {
                         attemptedBackends += profile.label
@@ -125,6 +137,8 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                         activeBackendLabel = profile.label
                         activeModelSignature = requestedModelSignature
                         activeConversationConfig = conversationConfigFor(modelConfig)
+                        activeBackendProfiles = backends
+                        activeBackendIndex = index
                         lastBackendUsed = profile.label
                         lastInitializationFailure = null
                         activeService = this@GemmaLlmService
@@ -183,11 +197,10 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
         val requestJob = currentCoroutineContext()[Job]
 
         synchronized(mutex) {
-            val currentEngine = engine ?: run {
+            if (engine == null) {
                 AppLog.e(TAG, "[$requestId] Rejecting request because engine is not initialized")
-                return@withContext null
+                return@synchronized null
             }
-            var conversation: Conversation? = null
             var preparedImage: PreparedImageBytes? = null
 
             try {
@@ -209,17 +222,59 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
                     }
                     add(Content.Text(requestText))
                 }
-                conversation = createConversation(currentEngine)
-                AppLog.i(TAG, "[$requestId] Conversation created backend=${activeBackendLabel ?: "unknown"} mode=$mode")
-                AppLog.i(TAG, "[$requestId] Sending async message with ${requestContents.size} content blocks")
-                val result = conversation.awaitResponse(
-                    contents = Contents.of(requestContents),
-                    requestId = requestId,
-                    cancellationJob = requestJob
-                )
+                var retryCount = 0
+                var finalResult: String? = null
+                var isDone = false
+                while (!isDone) {
+                    val requestEngine = engine
+                    if (requestEngine == null) {
+                        AppLog.e(TAG, "[$requestId] Rejecting request because engine is not initialized")
+                        isDone = true
+                        continue
+                    }
+                    var conversation: Conversation? = null
+                    try {
+                        conversation = createConversation(requestEngine)
+                        AppLog.i(TAG, "[$requestId] Conversation created backend=${activeBackendLabel ?: "unknown"} mode=$mode")
+                        AppLog.i(TAG, "[$requestId] Sending async message with ${requestContents.size} content blocks")
+                        val result = conversation.awaitResponse(
+                            contents = Contents.of(requestContents),
+                            requestId = requestId,
+                            cancellationJob = requestJob
+                        )
 
-                AppLog.i(TAG, "[$requestId] Request completed responseChars=${result?.length ?: 0}")
-                return@synchronized result
+                        AppLog.i(TAG, "[$requestId] Request completed responseChars=${result?.length ?: 0}")
+                        finalResult = result
+                        isDone = true
+                    } catch (e: CancellationException) {
+                        AppLog.w(TAG, "[$requestId] LiteRT-LM request cancelled backend=${activeBackendLabel ?: "unknown"} mode=$mode")
+                        throw e
+                    } catch (e: IllegalStateException) {
+                        AppLog.e(TAG, "[$requestId] Invalid request state before LiteRT-LM call", e)
+                        isDone = true
+                    } catch (e: Exception) {
+                        val failedBackend = activeBackendLabel ?: "unknown"
+                        AppLog.e(
+                            TAG,
+                            "[$requestId] LiteRT-LM extraction failed backend=$failedBackend mode=$mode",
+                            e
+                        )
+                        val didSwitchBackend = retryCount == 0 && switchToNextBackendAfterRequestFailureLocked(
+                            requestId = requestId,
+                            failedBackend = failedBackend,
+                            cause = e
+                        )
+                        if (didSwitchBackend) {
+                            retryCount += 1
+                            AppLog.i(TAG, "[$requestId] Retrying request backend=${activeBackendLabel ?: "unknown"}")
+                            continue
+                        }
+                        isDone = true
+                    } finally {
+                        conversation?.close()
+                    }
+                }
+                finalResult
             } catch (e: CancellationException) {
                 AppLog.w(TAG, "[$requestId] LiteRT-LM request cancelled backend=${activeBackendLabel ?: "unknown"} mode=$mode")
                 throw e
@@ -229,15 +284,6 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
             } catch (e: OutOfMemoryError) {
                 AppLog.e(TAG, "[$requestId] Image preprocessing ran out of memory", e)
                 return@synchronized null
-            } catch (e: Exception) {
-                AppLog.e(
-                    TAG,
-                    "[$requestId] LiteRT-LM extraction failed backend=${activeBackendLabel ?: "unknown"} mode=$mode",
-                    e
-                )
-                return@synchronized null
-            } finally {
-                conversation?.close()
             }
         }
     }
@@ -271,5 +317,57 @@ open class GemmaLlmService(private val context: Context) : EventJsonExtractor {
         activeBackendLabel = null
         activeModelSignature = null
         activeConversationConfig = ConversationConfig()
+        activeBackendProfiles = emptyList()
+        activeBackendIndex = null
+    }
+
+    private fun switchToNextBackendAfterRequestFailureLocked(
+        requestId: String,
+        failedBackend: String,
+        cause: Exception
+    ): Boolean {
+        val profiles = activeBackendProfiles
+        val currentIndex = activeBackendIndex ?: return false
+        val signature = activeModelSignature ?: return false
+        if (currentIndex >= profiles.lastIndex) return false
+
+        val remainingProfiles = profiles.drop(currentIndex + 1)
+        engine?.close()
+        engine = null
+        activeBackendLabel = null
+        activeBackendIndex = null
+
+        var lastError: Throwable = cause
+        for ((offset, profile) in remainingProfiles.withIndex()) {
+            var initializedEngine: Engine? = null
+            try {
+                AppLog.w(TAG, "[$requestId] Switching LiteRT-LM backend after $failedBackend request failure to ${profile.label}")
+                val config = EngineConfig(
+                    modelPath = signature.modelPath,
+                    backend = profile.textBackend,
+                    visionBackend = profile.visionBackend,
+                    audioBackend = profile.audioBackend,
+                    maxNumTokens = signature.maxNumTokens,
+                    cacheDir = liteRtCacheDir(context, signature.modelPath)
+                )
+                initializedEngine = createEngine(config).apply {
+                    initialize()
+                }
+                engine = initializedEngine
+                activeBackendLabel = profile.label
+                activeBackendIndex = currentIndex + offset + 1
+                lastBackendUsed = profile.label
+                lastInitializationFailure = null
+                AppLog.i(TAG, "[$requestId] LiteRT-LM backend fallback ready backend=${profile.label}")
+                return true
+            } catch (fallbackError: Throwable) {
+                initializedEngine?.close()
+                lastError = fallbackError
+                AppLog.w(TAG, "[$requestId] LiteRT-LM backend fallback failed backend=${profile.label}", fallbackError)
+            }
+        }
+
+        lastInitializationFailure = "requestFailureBackend=$failedBackend fallbackError=${lastError::class.java.simpleName}: ${lastError.message.orEmpty()}"
+        return false
     }
 }

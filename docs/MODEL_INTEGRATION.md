@@ -53,7 +53,8 @@ After the selected model initializes successfully, the app removes older app-man
 `GemmaLlmService` selects backends from the chosen model:
 
 - `ACCELERATED_GEMMA`
-  - Gemma 4 text: GPU, then CPU
+  - Gemma 4 E2B text: GPU, then CPU
+  - Gemma 4 E4B text: CPU, then GPU
   - Gemma 3n text: CPU, then GPU
   - vision: GPU, then CPU
   - audio: CPU only for audio jobs when the model supports audio
@@ -62,11 +63,9 @@ After the selected model initializes successfully, the app removes older app-man
   - vision: CPU
   - audio: disabled
 
-The Gemma profile follows Google AI Edge Gallery's allowlist instead of using one hard-coded order for every Gemma model. Gemma 4 lists `gpu,cpu` with `visionAccelerator: gpu`; Gemma 3n lists `cpu,gpu`, uses GPU for vision, and uses CPU for audio. Like Gallery's Ask Image and Ask Audio tasks, the app initializes only the modality required by the queued job, so image jobs do not load the audio executor and audio jobs do not load the vision executor. The app also applies Gallery's minimum device RAM values before initialization: 8 GB for E2B models and 12 GB for E4B models.
+The Gemma profile follows Google AI Edge Gallery's allowlist where it has proven stable in this app instead of using one hard-coded order for every Gemma model. Gemma 4 E2B keeps Gallery's `gpu,cpu` text order, GPU vision, and 4000 max tokens. Gemma 4 E4B keeps Gallery's 4000-token window and 12 GB memory guard, but uses CPU-first text because Pixel release testing showed GPU generation failing after conversation creation with an OpenCL runtime error. Gemma 3n lists `cpu,gpu`, uses GPU for vision, CPU for audio, and 4096 max tokens. Like Gallery's Ask Image and Ask Audio tasks, the app initializes only the modality required by the queued job, so image jobs do not load the audio executor and audio jobs do not load the vision executor. The app applies Gallery's device RAM guards before initialization: 8 GB for E2B models and 12 GB for E4B models.
 
-Gemma 4 E4B has one additional app safety policy: on devices below 16 GB RAM, image/audio jobs start with CPU for the text backend and GPU for vision. A Pixel 8 Pro with 12 GB RAM was observed to kill the app during native E4B `GPU(text)+GPU(vision)` initialization before Kotlin fallback could run, even with audio disabled. The E2B model and 16 GB+ devices still keep Gemma 4's Gallery `gpu,cpu` text backend order.
-
-The app keeps conservative `maxNumTokens` values during engine creation to reduce compiled-model memory pressure on Android devices. Gemma models use a calendar-extraction cap of 768 tokens instead of Gallery's broader demo-window values, because WorkManager jobs can otherwise be killed by native memory pressure during LiteRT-LM initialization before Kotlin fallback code can run. Gemma conversations still use Gallery's sampler settings: topK 64, topP 0.95, temperature 1.0.
+Release builds keep `com.google.ai.edge.litertlm.**` from R8 renaming because LiteRT-LM native code looks up Java classes and accessors by JNI name. Without that keep rule, release builds can initialize the engine and then abort while creating a conversation.
 
 ## AI Edge Gallery Parity Notes
 
@@ -78,7 +77,8 @@ Current parity choices based on `LlmChatModelHelper`:
 - send audio as WAV/PCM bytes
 - order multimodal content as images, audio, then text
 - use async LiteRT-LM callbacks and cancel the conversation on coroutine cancellation
-- use per-model Gallery backend order with GPU vision and CPU audio
+- read generated chunks using `Message.toString()`, matching Gallery's callback path
+- use per-model backend order with GPU vision and CPU audio, with Gemma 4 E4B text forced CPU-first after Pixel release testing exposed GPU OpenCL generation failures
 - initialize image/audio/text jobs with only their required LiteRT-LM modality backends
 - tell audio prompts to ignore filler words, background noise, repeated fragments, and ASR mistakes
 - tell image prompts to treat flyers, posters, screenshots, and event notices as the main source of title/date/time/location data

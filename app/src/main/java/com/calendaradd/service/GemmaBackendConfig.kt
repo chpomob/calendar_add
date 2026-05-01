@@ -30,7 +30,7 @@ internal fun backendProfilesFor(
     modelConfig: LiteRtModelConfig?,
     enableImage: Boolean,
     enableAudio: Boolean,
-    deviceMemoryGb: Double?
+    isGpuBackendAvailable: Boolean = true
 ): List<BackendProfile> {
     return when (modelConfig?.executionProfile) {
         ModelExecutionProfile.CPU_ONLY_MULTIMODAL -> listOf(
@@ -41,7 +41,7 @@ internal fun backendProfilesFor(
                 audioBackend = if (enableAudio && modelConfig.supportsAudio) Backend.CPU() else null
             )
         )
-        else -> acceleratedBackendProfiles(modelConfig, enableImage, enableAudio, deviceMemoryGb)
+        else -> acceleratedBackendProfiles(modelConfig, enableImage, enableAudio, isGpuBackendAvailable)
     }
 }
 
@@ -49,12 +49,19 @@ private fun acceleratedBackendProfiles(
     modelConfig: LiteRtModelConfig?,
     enableImage: Boolean,
     enableAudio: Boolean,
-    deviceMemoryGb: Double?
+    isGpuBackendAvailable: Boolean
 ): List<BackendProfile> {
-    val mainBackends = mainBackendOrderFor(modelConfig, enableImage, enableAudio, deviceMemoryGb)
+    val mainBackends = modelConfig?.mainBackendOrder
+        ?.takeIf { it.isNotEmpty() }
+        ?: listOf(ModelBackendKind.GPU, ModelBackendKind.CPU)
+    val availableMainBackends = mainBackends
+        .filter { it != ModelBackendKind.GPU || isGpuBackendAvailable }
+        .ifEmpty { listOf(ModelBackendKind.CPU) }
     val visionBackends = if (enableImage && modelConfig?.supportsImage != false) {
         buildList {
-            modelConfig?.visionBackend?.let { add(it) }
+            modelConfig?.visionBackend
+                ?.takeIf { it != ModelBackendKind.GPU || isGpuBackendAvailable }
+                ?.let { add(it) }
             add(ModelBackendKind.CPU)
         }.distinct()
     } else {
@@ -62,7 +69,7 @@ private fun acceleratedBackendProfiles(
     }
     val audioBackend = if (enableAudio && modelConfig?.supportsAudio != false) Backend.CPU() else null
 
-    return mainBackends.flatMap { mainBackend ->
+    return availableMainBackends.flatMap { mainBackend ->
         visionBackends.map { visionBackend ->
             BackendProfile(
                 label = backendProfileLabel(mainBackend, visionBackend, audioBackend != null),
@@ -78,32 +85,6 @@ private fun acceleratedBackendProfiles(
             profile.audioBackend?.let { it::class.java.name }.orEmpty()
         )
     }
-}
-
-private fun mainBackendOrderFor(
-    modelConfig: LiteRtModelConfig?,
-    enableImage: Boolean,
-    enableAudio: Boolean,
-    deviceMemoryGb: Double?
-): List<ModelBackendKind> {
-    val configuredBackends = modelConfig?.mainBackendOrder
-        ?.takeIf { it.isNotEmpty() }
-        ?: listOf(ModelBackendKind.GPU, ModelBackendKind.CPU)
-    val multimodalGpuMainMinimumMemoryGb = modelConfig?.multimodalGpuMainMinimumMemoryGb
-    val isMultimodalJob = enableImage || enableAudio
-    val hasEnoughMemoryForMultimodalGpuMain = deviceMemoryGb == null ||
-        multimodalGpuMainMinimumMemoryGb == null ||
-        deviceMemoryGb >= multimodalGpuMainMinimumMemoryGb
-
-    return if (
-        isMultimodalJob &&
-        !hasEnoughMemoryForMultimodalGpuMain &&
-        configuredBackends.firstOrNull() == ModelBackendKind.GPU
-    ) {
-        listOf(ModelBackendKind.CPU, ModelBackendKind.GPU) + configuredBackends.drop(1)
-    } else {
-        configuredBackends
-    }.distinct()
 }
 
 private fun backendProfileLabel(
@@ -157,6 +138,10 @@ internal fun Context.deviceMemoryGb(): Double? {
     return totalBytes / BYTES_IN_GB
 }
 
+internal fun Context.hasOpenClLibrary(): Boolean {
+    return OPENCL_LIBRARY_PATHS.any { path -> java.io.File(path).exists() }
+}
+
 internal fun liteRtCacheDir(context: Context, modelPath: String): String? {
     return if (modelPath.startsWith("/data/local/tmp")) {
         context.getExternalFilesDir(null)?.absolutePath
@@ -178,3 +163,12 @@ internal fun conversationConfigFor(modelConfig: LiteRtModelConfig?): Conversatio
 private fun formatMemoryGb(value: Double): String = String.format("%.1f", value)
 
 private const val BYTES_IN_GB = 1024.0 * 1024.0 * 1024.0
+
+private val OPENCL_LIBRARY_PATHS = listOf(
+    "/vendor/lib64/libOpenCL.so",
+    "/vendor/lib/libOpenCL.so",
+    "/system/vendor/lib64/libOpenCL.so",
+    "/system/vendor/lib/libOpenCL.so",
+    "/system/lib64/libOpenCL.so",
+    "/system/lib/libOpenCL.so"
+)

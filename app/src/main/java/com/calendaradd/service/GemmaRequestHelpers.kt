@@ -1,7 +1,6 @@
 package com.calendaradd.service
 
 import android.graphics.Bitmap
-import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.Message
@@ -151,8 +150,5 @@ internal fun Conversation.awaitResponse(
 }
 
 private fun Message.textChunk(): String {
-    val contentText = contents.contents
-        .filterIsInstance<Content.Text>()
-        .joinToString("\n") { it.text }
-    return contentText.ifBlank { toString() }
+    return toString()
 }

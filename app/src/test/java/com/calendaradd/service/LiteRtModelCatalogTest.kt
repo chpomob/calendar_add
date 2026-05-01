@@ -45,15 +45,11 @@ class LiteRtModelCatalogTest {
     }
 
     @Test
-    fun `Gemma models use bounded generation for extraction`() {
-        val gemmaModels = LiteRtModelCatalog.models.filter {
-            it.executionProfile == ModelExecutionProfile.ACCELERATED_GEMMA
-        }
-
-        assertTrue(gemmaModels.isNotEmpty())
-        gemmaModels.forEach { model ->
-            assertEquals("${model.id} should use the extraction token cap", 768, model.maxNumTokens)
-        }
+    fun `Gemma models use AI Edge Gallery token windows`() {
+        assertEquals(4000, LiteRtModelCatalog.find("gemma-4-e2b").maxNumTokens)
+        assertEquals(4000, LiteRtModelCatalog.find("gemma-4-e4b").maxNumTokens)
+        assertEquals(4096, LiteRtModelCatalog.find("gemma-3n-e2b").maxNumTokens)
+        assertEquals(4096, LiteRtModelCatalog.find("gemma-3n-e4b").maxNumTokens)
     }
 
     @Test
@@ -69,10 +65,9 @@ class LiteRtModelCatalogTest {
         assertEquals(2_583_085_056L, gemma4E2b.sizeBytes)
         assertTrue(gemma4E2b.requireExactSize)
         assertTrue(gemma4E2b.downloadUrl.contains("/resolve/7fa1d78473894f7e736a21d920c3aa80f950c0db/"))
-        assertEquals(listOf(ModelBackendKind.GPU, ModelBackendKind.CPU), gemma4E4b.mainBackendOrder)
+        assertEquals(listOf(ModelBackendKind.CPU, ModelBackendKind.GPU), gemma4E4b.mainBackendOrder)
         assertEquals(ModelBackendKind.GPU, gemma4E4b.visionBackend)
         assertEquals(12, gemma4E4b.minimumDeviceMemoryGb)
-        assertEquals(16, gemma4E4b.multimodalGpuMainMinimumMemoryGb)
         assertEquals(3_654_467_584L, gemma4E4b.sizeBytes)
         assertTrue(gemma4E4b.requireExactSize)
         assertTrue(gemma4E4b.downloadUrl.contains("/resolve/9695417f248178c63a9f318c6e0c56cb917cb837/"))

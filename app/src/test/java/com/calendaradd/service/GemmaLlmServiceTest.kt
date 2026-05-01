@@ -12,6 +12,7 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
+import com.google.ai.edge.litertlm.Role
 import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.every
@@ -42,7 +43,7 @@ class GemmaLlmServiceTest {
         every { context.getSystemService(Context.ACTIVITY_SERVICE) } returns null
         engine = mockk(relaxed = true)
 
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine = engine
         }
         servicesToClose += service
@@ -65,7 +66,7 @@ class GemmaLlmServiceTest {
     @Test
     fun `initialize should prefer GPU for Gemma text and vision with CPU audio`() = runBlocking {
         var capturedConfig: EngineConfig? = null
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfig = config
                 return engine
@@ -86,9 +87,9 @@ class GemmaLlmServiceTest {
     }
 
     @Test
-    fun `initialize should disable audio backend for image-only Gemma work`() = runBlocking {
+    fun `initialize should use CPU backend when OpenCL is unavailable`() = runBlocking {
         var capturedConfig: EngineConfig? = null
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = false) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfig = config
                 return engine
@@ -98,7 +99,31 @@ class GemmaLlmServiceTest {
 
         service.initialize(
             modelPath = "/tmp/fake-model.litertlm",
-            modelConfig = LiteRtModelCatalog.find("gemma-4-e4b"),
+            modelConfig = LiteRtModelCatalog.find("gemma-4-e2b"),
+            enableImage = false,
+            enableAudio = false
+        )
+
+        val config = requireNotNull(capturedConfig)
+        assertEquals(Backend.CPU::class.java.name, config.backend::class.java.name)
+        assertEquals(null, config.visionBackend)
+        assertEquals("CPU(text)", service.lastBackendUsed)
+    }
+
+    @Test
+    fun `initialize should disable audio backend for image-only Gemma work`() = runBlocking {
+        var capturedConfig: EngineConfig? = null
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
+            override fun createEngine(config: EngineConfig): Engine {
+                capturedConfig = config
+                return engine
+            }
+        }
+        servicesToClose += service
+
+        service.initialize(
+            modelPath = "/tmp/fake-model.litertlm",
+            modelConfig = LiteRtModelCatalog.find("gemma-4-e2b"),
             enableImage = true,
             enableAudio = false
         )
@@ -111,7 +136,7 @@ class GemmaLlmServiceTest {
     }
 
     @Test
-    fun `initialize should avoid Gemma 4 E4B GPU text backend for multimodal work on 12GB devices`() = runBlocking {
+    fun `initialize should use CPU-first Gemma 4 E4B backend on 12GB devices`() = runBlocking {
         val activityManager = mockk<ActivityManager>()
         every { context.getSystemService(Context.ACTIVITY_SERVICE) } returns activityManager
         every { activityManager.getMemoryInfo(any()) } answers {
@@ -119,7 +144,7 @@ class GemmaLlmServiceTest {
             Unit
         }
         var capturedConfig: EngineConfig? = null
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfig = config
                 return engine
@@ -137,15 +162,14 @@ class GemmaLlmServiceTest {
         val config = requireNotNull(capturedConfig)
         assertEquals(Backend.CPU::class.java.name, config.backend::class.java.name)
         assertEquals(Backend.GPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
-        assertEquals(null, config.audioBackend)
-        assertEquals(768, config.maxNumTokens)
+        assertEquals(4000, config.maxNumTokens)
         assertEquals("CPU(text)+GPU(vision)", service.lastBackendUsed)
     }
 
     @Test
     fun `initialize should disable vision backend for audio-only Gemma work`() = runBlocking {
         var capturedConfig: EngineConfig? = null
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfig = config
                 return engine
@@ -161,16 +185,41 @@ class GemmaLlmServiceTest {
         )
 
         val config = requireNotNull(capturedConfig)
-        assertEquals(Backend.GPU::class.java.name, config.backend::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, config.backend::class.java.name)
         assertEquals(null, config.visionBackend)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(config.audioBackend)::class.java.name)
-        assertEquals("GPU(text)+CPU(audio)", service.lastBackendUsed)
+        assertEquals("CPU(text)+CPU(audio)", service.lastBackendUsed)
     }
 
     @Test
     fun `initialize should disable multimodal backends for text-only Gemma work`() = runBlocking {
         var capturedConfig: EngineConfig? = null
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
+            override fun createEngine(config: EngineConfig): Engine {
+                capturedConfig = config
+                return engine
+            }
+        }
+        servicesToClose += service
+
+        service.initialize(
+            modelPath = "/tmp/fake-model.litertlm",
+            modelConfig = LiteRtModelCatalog.find("gemma-4-e2b"),
+            enableImage = false,
+            enableAudio = false
+        )
+
+        val config = requireNotNull(capturedConfig)
+        assertEquals(Backend.GPU::class.java.name, config.backend::class.java.name)
+        assertEquals(null, config.visionBackend)
+        assertEquals(null, config.audioBackend)
+        assertEquals("GPU(text)", service.lastBackendUsed)
+    }
+
+    @Test
+    fun `initialize should use CPU-first text backend for text-only Gemma 4 E4B work when memory is unknown`() = runBlocking {
+        var capturedConfig: EngineConfig? = null
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfig = config
                 return engine
@@ -186,16 +235,16 @@ class GemmaLlmServiceTest {
         )
 
         val config = requireNotNull(capturedConfig)
-        assertEquals(Backend.GPU::class.java.name, config.backend::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, config.backend::class.java.name)
         assertEquals(null, config.visionBackend)
         assertEquals(null, config.audioBackend)
-        assertEquals("GPU(text)", service.lastBackendUsed)
+        assertEquals("CPU(text)", service.lastBackendUsed)
     }
 
     @Test
     fun `initialize should use Gallery backend order for Gemma 3n`() = runBlocking {
         var capturedConfig: EngineConfig? = null
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfig = config
                 return engine
@@ -215,9 +264,9 @@ class GemmaLlmServiceTest {
     }
 
     @Test
-    fun `initialize should apply Gemma extraction token cap`() = runBlocking {
+    fun `initialize should apply Gallery Gemma token window`() = runBlocking {
         var capturedConfig: EngineConfig? = null
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfig = config
                 return engine
@@ -230,7 +279,7 @@ class GemmaLlmServiceTest {
             modelConfig = LiteRtModelCatalog.find("gemma-4-e2b")
         )
 
-        assertEquals(768, requireNotNull(capturedConfig).maxNumTokens)
+        assertEquals(4000, requireNotNull(capturedConfig).maxNumTokens)
     }
 
     @Test
@@ -238,7 +287,7 @@ class GemmaLlmServiceTest {
         val firstEngine = mockk<Engine>(relaxed = true)
         val secondEngine = mockk<Engine>(relaxed = true)
         val capturedConfigs = mutableListOf<EngineConfig>()
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfigs += config
                 return if (capturedConfigs.size == 1) firstEngine else secondEngine
@@ -248,7 +297,7 @@ class GemmaLlmServiceTest {
 
         service.initialize(
             modelPath = "/tmp/fake-model.litertlm",
-            modelConfig = LiteRtModelCatalog.find("gemma-4-e4b"),
+            modelConfig = LiteRtModelCatalog.find("gemma-4-e2b"),
             enableImage = false,
             enableAudio = false
         )
@@ -269,7 +318,7 @@ class GemmaLlmServiceTest {
     @Test
     fun `initialize should fall back to CPU vision when GPU vision fails`() = runBlocking {
         val capturedConfigs = mutableListOf<EngineConfig>()
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfigs += config
                 if (capturedConfigs.size == 1) {
@@ -298,7 +347,7 @@ class GemmaLlmServiceTest {
     @Test
     fun `initialize should fall back to CPU when GPU loading fails`() = runBlocking {
         val capturedConfigs = mutableListOf<EngineConfig>()
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfigs += config
                 if (config.backend is Backend.GPU || config.visionBackend is Backend.GPU) {
@@ -332,7 +381,7 @@ class GemmaLlmServiceTest {
             firstArg<ActivityManager.MemoryInfo>().totalMem = 7L * 1024L * 1024L * 1024L
             Unit
         }
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 fail("Engine should not be created when device RAM is below the model minimum")
                 return engine
@@ -355,7 +404,7 @@ class GemmaLlmServiceTest {
     @Test
     fun `initialize should keep Qwen on CPU-only and omit audio backend`() = runBlocking {
         var capturedConfig: EngineConfig? = null
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 capturedConfig = config
                 return engine
@@ -377,7 +426,7 @@ class GemmaLlmServiceTest {
 
     @Test
     fun `initialize should record attempted backend summary on failure`() = runBlocking {
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
                 throw IllegalStateException("synthetic failure")
             }
@@ -404,10 +453,10 @@ class GemmaLlmServiceTest {
     fun `initialize should close a previously active service instance in the same process`() = runBlocking {
         val firstEngine = mockk<Engine>(relaxed = true)
         val secondEngine = mockk<Engine>(relaxed = true)
-        val firstService = object : GemmaLlmService(context) {
+        val firstService = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine = firstEngine
         }
-        val secondService = object : GemmaLlmService(context) {
+        val secondService = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine = secondEngine
         }
         servicesToClose += firstService
@@ -423,15 +472,13 @@ class GemmaLlmServiceTest {
     @Test
     fun `extractEventJson should collect async callback response`() = runBlocking {
         val conversation = mockk<Conversation>(relaxed = true)
-        val message = mockk<Message> {
-            every { contents } returns Contents.of(Content.Text("""{"events":[]}"""))
-        }
+        val message = modelMessage("""{"events":[]}""")
         every { conversation.sendMessageAsync(any<Contents>(), any(), any()) } answers {
             val callback = secondArg<MessageCallback>()
             callback.onMessage(message)
             callback.onDone()
         }
-        service = object : GemmaLlmService(context) {
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine = engine
             override fun createConversation(engine: Engine): Conversation = conversation
         }
@@ -445,12 +492,52 @@ class GemmaLlmServiceTest {
     }
 
     @Test
+    fun `extractEventJson should fall back to next backend when generation fails`() = runBlocking {
+        val firstEngine = mockk<Engine>(relaxed = true)
+        val secondEngine = mockk<Engine>(relaxed = true)
+        val firstConversation = mockk<Conversation>(relaxed = true)
+        val secondConversation = mockk<Conversation>(relaxed = true)
+        val capturedConfigs = mutableListOf<EngineConfig>()
+        every { firstEngine.createConversation(any()) } returns firstConversation
+        every { secondEngine.createConversation(any()) } returns secondConversation
+        every { firstConversation.sendMessageAsync(any<Contents>(), any(), any()) } answers {
+            secondArg<MessageCallback>().onError(RuntimeException("Can not find OpenCL library on this device"))
+        }
+        every { secondConversation.sendMessageAsync(any<Contents>(), any(), any()) } answers {
+            val callback = secondArg<MessageCallback>()
+            callback.onMessage(modelMessage("""{"events":[]}"""))
+            callback.onDone()
+        }
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
+            override fun createEngine(config: EngineConfig): Engine {
+                capturedConfigs += config
+                return if (capturedConfigs.size == 1) firstEngine else secondEngine
+            }
+        }
+        servicesToClose += service
+        service.initialize(
+            modelPath = "/tmp/fake-model.litertlm",
+            modelConfig = LiteRtModelCatalog.find("gemma-4-e2b"),
+            enableImage = false,
+            enableAudio = false
+        )
+
+        val result = service.extractEventJson("extract an event")
+
+        assertEquals("""{"events":[]}""", result)
+        assertEquals(2, capturedConfigs.size)
+        assertEquals(Backend.GPU::class.java.name, capturedConfigs[0].backend::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, capturedConfigs[1].backend::class.java.name)
+        assertEquals("CPU(text)", service.lastBackendUsed)
+        verify(exactly = 1) { firstEngine.close() }
+        verify(exactly = 1) { secondConversation.sendMessageAsync(any<Contents>(), any(), any()) }
+    }
+
+    @Test
     fun `extractEventJson should create conversations with Gallery sampler config`() = runBlocking {
         val conversation = mockk<Conversation>(relaxed = true)
         val conversationConfig = io.mockk.slot<ConversationConfig>()
-        val message = mockk<Message> {
-            every { contents } returns Contents.of(Content.Text("""{"events":[]}"""))
-        }
+        val message = modelMessage("""{"events":[]}""")
         every { engine.createConversation(capture(conversationConfig)) } returns conversation
         every { conversation.sendMessageAsync(any<Contents>(), any(), any()) } answers {
             val callback = secondArg<MessageCallback>()
@@ -469,5 +556,22 @@ class GemmaLlmServiceTest {
         assertEquals(64, samplerConfig.topK)
         assertEquals(0.95, samplerConfig.topP, 0.0)
         assertEquals(1.0, samplerConfig.temperature, 0.0)
+    }
+
+    private fun modelMessage(text: String): Message {
+        val constructor = Message::class.java.getDeclaredConstructor(
+            Role::class.java,
+            Contents::class.java,
+            List::class.java,
+            Map::class.java
+        )
+        constructor.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        return constructor.newInstance(
+            Role.MODEL,
+            Contents.of(Content.Text(text)),
+            emptyList<Any>(),
+            emptyMap<String, String>()
+        ) as Message
     }
 }

@@ -158,12 +158,14 @@ The Gemma integration was cross-checked against Google AI Edge Gallery.
 
 Current runtime choices:
 
-- Gemma 4 follows Gallery's `gpu,cpu` main backend order and uses GPU vision.
+- Gemma 4 E2B follows Gallery's `gpu,cpu` main backend order, GPU vision, and 4000 max tokens.
+- Gemma 4 E4B keeps Gallery's 4000-token window and 12 GB memory guard, but uses CPU-first text in this app because Pixel release testing showed GPU generation failing after conversation creation with an OpenCL runtime error.
 - Gemma 3n follows Gallery's `cpu,gpu` main backend order and uses GPU vision.
 - Gemma audio uses CPU backend, matching Gallery's direct LiteRT-LM path.
 - Image, audio, and text jobs initialize only the required modality backends.
 - Gemma downloads are pinned to Gallery's Hugging Face commits and exact file sizes.
 - Conversations use Gallery's sampler settings: topK 64, topP 0.95, temperature 1.0.
+- Release builds keep LiteRT-LM's JNI-facing classes from R8 renaming.
 - Images are passed as PNG `ImageBytes`.
 - In-app voice capture records 16 kHz mono PCM and sends WAV bytes to the model.
 
