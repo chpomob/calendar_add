@@ -66,7 +66,7 @@ The Gemma profile follows Google AI Edge Gallery's allowlist instead of using on
 
 Gemma 4 E4B has one additional app safety policy: on devices below 16 GB RAM, image/audio jobs start with CPU for the text backend and GPU for vision. A Pixel 8 Pro with 12 GB RAM was observed to kill the app during native E4B `GPU(text)+GPU(vision)` initialization before Kotlin fallback could run, even with audio disabled. The E2B model and 16 GB+ devices still keep Gemma 4's Gallery `gpu,cpu` text backend order.
 
-For Qwen models, the app keeps a conservative `maxNumTokens` value during engine creation to reduce compiled-model memory pressure on Android devices. Gemma token windows stay aligned with Gallery's model allowlist values: 4000 for Gemma 4 and 4096 for Gemma 3n. The larger token windows are required for image prompts because LiteRT-LM prefill can fail if the combined image and text context is smaller than the model needs. Gemma conversations use Gallery's sampler settings: topK 64, topP 0.95, temperature 1.0.
+The app keeps conservative `maxNumTokens` values during engine creation to reduce compiled-model memory pressure on Android devices. Gemma models use a calendar-extraction cap of 768 tokens instead of Gallery's broader demo-window values, because WorkManager jobs can otherwise be killed by native memory pressure during LiteRT-LM initialization before Kotlin fallback code can run. Gemma conversations still use Gallery's sampler settings: topK 64, topP 0.95, temperature 1.0.
 
 ## AI Edge Gallery Parity Notes
 

@@ -138,7 +138,7 @@ class GemmaLlmServiceTest {
         assertEquals(Backend.CPU::class.java.name, config.backend::class.java.name)
         assertEquals(Backend.GPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
         assertEquals(null, config.audioBackend)
-        assertEquals(4000, config.maxNumTokens)
+        assertEquals(768, config.maxNumTokens)
         assertEquals("CPU(text)+GPU(vision)", service.lastBackendUsed)
     }
 
@@ -230,7 +230,7 @@ class GemmaLlmServiceTest {
             modelConfig = LiteRtModelCatalog.find("gemma-4-e2b")
         )
 
-        assertEquals(4000, requireNotNull(capturedConfig).maxNumTokens)
+        assertEquals(768, requireNotNull(capturedConfig).maxNumTokens)
     }
 
     @Test

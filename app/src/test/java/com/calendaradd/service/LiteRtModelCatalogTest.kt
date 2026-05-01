@@ -45,17 +45,14 @@ class LiteRtModelCatalogTest {
     }
 
     @Test
-    fun `Gemma models use AI Edge Gallery aligned generation caps`() {
-        val gemma4Models = LiteRtModelCatalog.models.filter { it.id.startsWith("gemma-4") }
-        val gemma3nModels = LiteRtModelCatalog.models.filter { it.id.startsWith("gemma-3n") }
-
-        assertTrue(gemma4Models.isNotEmpty())
-        assertTrue(gemma3nModels.isNotEmpty())
-        gemma4Models.forEach { model ->
-            assertEquals("${model.id} should match the Gallery Gemma 4 cap", 4000, model.maxNumTokens)
+    fun `Gemma models use bounded generation for extraction`() {
+        val gemmaModels = LiteRtModelCatalog.models.filter {
+            it.executionProfile == ModelExecutionProfile.ACCELERATED_GEMMA
         }
-        gemma3nModels.forEach { model ->
-            assertEquals("${model.id} should match the Gallery Gemma 3n cap", 4096, model.maxNumTokens)
+
+        assertTrue(gemmaModels.isNotEmpty())
+        gemmaModels.forEach { model ->
+            assertEquals("${model.id} should use the extraction token cap", 768, model.maxNumTokens)
         }
     }
 

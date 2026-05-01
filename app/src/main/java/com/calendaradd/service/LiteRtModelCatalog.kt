@@ -63,6 +63,7 @@ data class LiteRtModelConfig(
 
 object LiteRtModelCatalog {
     const val DEFAULT_MODEL_ID = "gemma-4-e2b"
+    private const val GEMMA_EXTRACTION_MAX_TOKENS = 768
 
     val models: List<LiteRtModelConfig> = listOf(
         LiteRtModelConfig(
@@ -76,7 +77,7 @@ object LiteRtModelCatalog {
             sizeBytes = 2_583_085_056L,
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 4000,
+            maxNumTokens = GEMMA_EXTRACTION_MAX_TOKENS,
             mainBackendOrder = listOf(ModelBackendKind.GPU, ModelBackendKind.CPU),
             visionBackend = ModelBackendKind.GPU,
             minimumDeviceMemoryGb = 8,
@@ -93,7 +94,7 @@ object LiteRtModelCatalog {
             sizeBytes = 3_654_467_584L,
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 4000,
+            maxNumTokens = GEMMA_EXTRACTION_MAX_TOKENS,
             mainBackendOrder = listOf(ModelBackendKind.GPU, ModelBackendKind.CPU),
             visionBackend = ModelBackendKind.GPU,
             minimumDeviceMemoryGb = 12,
@@ -111,7 +112,7 @@ object LiteRtModelCatalog {
             sizeBytes = 3_655_827_456L,
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 4096,
+            maxNumTokens = GEMMA_EXTRACTION_MAX_TOKENS,
             mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
             visionBackend = ModelBackendKind.GPU,
             minimumDeviceMemoryGb = 8,
@@ -128,7 +129,7 @@ object LiteRtModelCatalog {
             sizeBytes = 4_919_541_760L,
             capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
             executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 4096,
+            maxNumTokens = GEMMA_EXTRACTION_MAX_TOKENS,
             mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
             visionBackend = ModelBackendKind.GPU,
             minimumDeviceMemoryGb = 12,
