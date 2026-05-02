@@ -9,6 +9,7 @@ Last updated: 2026-04-30
 - `versionCode = 5`
 - `versionName = "0.3.0-alpha.0"`
 - Release minify and shrink are enabled
+- Release minification runs without the previous Kotlin metadata warning after upgrading AGP/R8 to 8.13.2
 - Release Android App Bundle builds successfully
 - Release signing is wired through local `keystore.properties`
 - GitHub Actions publishes a debug APK on normal pushes
@@ -57,6 +58,5 @@ For GitHub APK distribution, build and publish locally so the signing key never 
 
 ## Known Release Debt
 
-- There is an R8 warning about Kotlin metadata compatibility during `bundleRelease`. It is currently non-blocking, but should be cleaned up before store publication.
 - Local multimodal inference can still be slow and may still be device-sensitive on large jobs.
 - Event list and detail UX remain basic.

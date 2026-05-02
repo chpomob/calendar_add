@@ -106,4 +106,3 @@ The public privacy policy should explicitly cover:
 
 - local multimodal speed and reliability still vary by device and model
 - event list/detail editing remains basic
-- R8 emits a non-blocking Kotlin metadata warning during release bundling
