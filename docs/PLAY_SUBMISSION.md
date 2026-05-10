@@ -6,8 +6,8 @@ This document is a release-prep scaffold based on the current codebase state.
 
 - App name: `Calendar Add`
 - Application ID: `com.calendaradd`
-- Version code: `3`
-- Version name: `1.0.0`
+- Version code: `5`
+- Version name: `0.3.0-alpha.0`
 - Contact email: `chpomob@gmail.com`
 
 ## Suggested Store Copy
@@ -87,6 +87,7 @@ Based on the current codebase:
 - there is no app backend, account system, analytics SDK, or crash reporting SDK currently wired in the project
 - shared text, images, audio, and calendar data are processed on-device for the app’s core functionality
 - the app optionally offers a heavier staged extraction mode for image/audio inputs, which stays on-device but may run longer
+- the app optionally offers experimental web verification; when enabled, event hints from OCR/extraction may be sent to the selected search provider to refine public event details
 
 This should still be reviewed carefully before filling the Play Console data safety form.
 
@@ -97,7 +98,7 @@ The public privacy policy should explicitly cover:
 - what input types the app can access: text, images, audio, calendar
 - that model downloads require network access
 - that event extraction is intended to happen on-device
-- whether any user content is sent off-device by the app
+- that optional web verification can send event-related search queries to third-party search providers when enabled
 - how calendar sync works and that it is optional
 - where downloaded models are stored
 - how users can remove app data and downloaded models

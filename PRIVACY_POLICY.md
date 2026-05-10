@@ -1,111 +1,78 @@
-# Privacy Policy for Calendar Add AI
+# Privacy Policy for Calendar Add
 
-Last updated: April 18, 2026
+Last updated: May 10, 2026
 
-## Introduction
+Calendar Add helps create calendar events from text, images, audio, and shared content. The app is local-first: core event extraction is designed to run on your Android device after the selected AI model has been downloaded.
 
-Calendar Add AI ("we", "our", "us") respects your privacy and is committed to protecting your personal data. This privacy policy explains how we handle your data.
+## Data The App May Access
 
-## Data Collection
+Depending on the features you use, Calendar Add may access:
 
-### What We Collect
+- text you type, paste, or share into the app
+- images you select, capture, or share into the app
+- microphone audio when you use live voice capture
+- audio files you share or import
+- your device calendars, if you enable calendar sync
+- app notifications for background analysis progress and results
+- network access for model downloads and optional web verification
 
-We **DO NOT collect**:
-- No personal data is sent to our servers
-- No analytics
-- No advertising IDs
-- No location tracking
+## How Data Is Used
 
-### Local-Only Processing
+Calendar Add uses this data to:
 
-All AI processing happens **entirely on your device**:
-- Text analysis (local model)
-- Audio transcription (local model)
-- Image recognition (local model)
+- extract event details from your input
+- save created events in the app's local database
+- optionally write events to your selected device calendar
+- download on-device AI model files
+- show background processing notifications
+- optionally verify public event details on the web when you enable that setting
 
-No data leaves your device.
+## On-Device Processing
 
-### Data You Control
+Core text, image, and audio extraction is intended to run on-device. The current app does not include a Calendar Add backend, account system, analytics SDK, advertising SDK, or crash reporting SDK.
 
-You control the data in our app:
-- Events you create
-- Notes and descriptions
-- Calendar entries
+## Network Use
 
-**You can export or delete all data at any time.**
+The app uses network access to download selected AI model files through Android's system download service.
 
-## Data Storage
+If you enable experimental web verification, the app may send event-related search queries to the selected search provider and fetch public page snippets to refine details such as venue names, addresses, dates, or times. Queries can be derived from OCR text, extracted event fields, URLs, or venue names. Web verification is optional and disabled by default.
 
-### On-Device Storage
+## Local Storage
 
-- Your data is stored locally on your device
-- We use Room database (encrypted by Android)
-- No cloud sync unless you enable it
+The app stores data locally on your device, including:
 
-### Third-Party Services
+- created events
+- app preferences such as selected model and calendar settings
+- downloaded AI model files
+- image and audio source files linked from created event details
+- temporary analysis input files while background work is running
 
-We may use:
-- Firebase Crashlytics (crash reports only - no user data)
-- Google Play Store (required for distribution)
+Data remains on your device unless you delete it, clear app storage, sync it to a calendar you choose, or enable optional web verification.
 
-See [Third-Party Links](#third-party-services) for details.
+## Calendar Integration
 
-## Your Rights
+Calendar sync is optional. If you grant calendar permission and enable sync, the app can read available calendars on the device and write created events to the selected calendar.
 
-You have the right to:
+## Sharing
 
-- **Access**: Request a copy of your data
-- **Rectification**: Correct inaccurate data
-- **Erasure**: Delete your data and account
-- **Data Portability**: Export your data
-- **Withdraw Consent**: Disable data collection
+Calendar Add does not sell your personal content or share it for advertising or analytics. If optional web verification is enabled, query text and normal network metadata may be visible to the selected search provider.
 
 ## Data Retention
 
-- We retain no data on servers
-- On-device data persists until you delete it
-- Export feature allows data portability
-
-## Third-Party Services
-
-### Firebase Crashlytics
-
-- Collects crash reports (anonymized)
-- No user content stored
-- [Privacy Policy](https://www.google.com/policies/privacy/)
-
-### Google Play Store
-
-- Required for app distribution
-- Handles billing
-- [Privacy Policy](https://policies.google.com/privacy)
+You can reduce or remove stored data by deleting events in the app, disabling calendar sync, clearing app storage from Android settings, deleting downloaded model files by clearing app data, or uninstalling the app.
 
 ## Security
 
-We implement reasonable security measures:
-
-- ProGuard obfuscation for release builds
-- Encrypted device storage
-- No data transmission to third parties
+The app relies on Android app sandboxing, app-private storage, and system permissions to protect locally stored content. No storage or processing method is perfect, so avoid using the app for highly sensitive information unless you are comfortable with local device storage and the optional features you enable.
 
 ## Children's Privacy
 
-Our app is not intended for children under 13. We do not knowingly collect data from children.
+The app is not specifically directed to children.
 
-## Changes to This Policy
+## Contact
 
-We may update this policy periodically. Changes will be posted on this page with the updated date.
+Questions can be sent to `chpomob@gmail.com`.
 
-## Contact Us
+## Changes
 
-Questions? Email us at chpomob@gmail.com
-
----
-
-## Privacy Dashboard (In-App)
-
-The app includes a privacy dashboard showing:
-- What data is stored locally
-- Export feature access
-- Permission status
-- Data deletion option
+This policy should be updated when the app's permissions, data flows, third-party services, or storage behavior materially change.

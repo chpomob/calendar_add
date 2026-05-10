@@ -1,10 +1,8 @@
-# ProGuard rules for Calendar Add AI
+# ProGuard rules for Calendar Add
 
-# Keep LLM Engine classes
--keep class com.calendaradd.model.LlmEngine { *; }
+# Keep extraction classes
 -keep class com.calendaradd.service.TextAnalysisService { *; }
 -keep class com.calendaradd.service.EventExtraction { *; }
--keep class com.calendaradd.service.ExtractionService { *; }
 
 # LiteRT-LM native code looks up Java classes and accessors by exact JNI names.
 -keep class com.google.ai.edge.litertlm.** { *; }
@@ -16,9 +14,7 @@
 
 # Keep data classes
 -keep class com.calendaradd.usecase.InputContext { *; }
--keep class com.calendaradd.usecase.UserPreferences { *; }
 -keep class com.calendaradd.usecase.EventResult { *; }
--keep class com.calendaradd.model.ModelInfo { *; }
 
 # Keep coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory

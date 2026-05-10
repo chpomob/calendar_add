@@ -1,4 +1,4 @@
-# Calendar Add AI - LiteRT-LM Model Integration
+# Calendar Add - LiteRT-LM Model Integration
 
 Last updated: 2026-04-27
 

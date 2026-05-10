@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Test build script for Calendar Add AI
+# Test build script for Calendar Add
 # Tests gradle build and reports results
 
 set -e
@@ -9,7 +9,7 @@ APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$APP_DIR"
 
 echo "=================================="
-echo "Calendar Add AI - Build Test"
+echo "Calendar Add - Build Test"
 echo "=================================="
 echo ""
 

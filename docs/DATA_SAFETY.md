@@ -1,6 +1,6 @@
 # Data Safety Checklist
 
-Last reviewed: 2026-04-20
+Last reviewed: 2026-05-10
 
 This document is an engineering checklist based on the current codebase. It is not legal advice and should be reviewed before submission in Play Console.
 
@@ -13,6 +13,7 @@ Likely assessment from the current app code:
 - there are no analytics, ads, or crash reporting SDKs wired in the app
 - the app downloads AI model files from external URLs
 - the app can optionally read device calendar metadata and write calendar events when the user enables that feature
+- the app can optionally send event-related search queries to a selected search provider when experimental web verification is enabled
 
 ## Data Types Touched By The App
 
@@ -24,6 +25,7 @@ The codebase can handle:
 - calendar data on the device
 - app preferences
 - downloaded model files
+- event hints used for optional web verification queries
 
 ## Likely Play Console Notes
 
@@ -36,6 +38,8 @@ Engineering view:
 
 This suggests the likely answer may be that the app does **not** collect user data off-device for its own backend processing.
 
+Exception to review: if experimental web verification is enabled, the app may send search queries derived from OCR text, event titles, dates, locations, URLs, or venue names to the selected search provider. That flow is optional, disabled by default, and used to refine public event details.
+
 ### Data Shared
 
 Engineering view:
@@ -43,6 +47,8 @@ Engineering view:
 - no evidence of advertising SDKs or third-party sharing SDKs in the current codebase
 
 This suggests the likely answer may be that the app does **not** share user data with third parties as part of the app's business logic.
+
+Exception to review: optional web verification can disclose query text and network metadata to the selected search provider.
 
 ### Data Processed Only On Device
 
@@ -52,6 +58,10 @@ Likely yes for:
 - imported or captured images
 - imported audio
 - event extraction results
+
+Not always on-device when enabled:
+
+- optional web verification queries and fetched public page snippets
 
 ### Calendar Data
 
@@ -67,6 +77,7 @@ This is optional and only relevant if the user enables calendar integration and 
 The app uses network access for:
 
 - downloading selected AI model files through Android `DownloadManager`
+- optional web verification through the selected search provider
 
 Review whether Play Console declarations should mention any provider-side logging associated with those downloads.
 
@@ -75,6 +86,7 @@ Review whether Play Console declarations should mention any provider-side loggin
 ### `INTERNET`
 
 - used to download AI model files
+- used for optional web verification
 
 ### `POST_NOTIFICATIONS`
 
@@ -106,3 +118,4 @@ Review these points carefully:
 2. Confirm whether Android backup behavior for shared preferences should be mentioned in policy text.
 3. Confirm the final answers with whoever is responsible for legal/privacy review.
 4. Re-check this document if analytics, crash reporting, sign-in, cloud sync, or server APIs are added later.
+5. Re-check this document if web verification defaults, providers, query contents, or fetched page handling changes.

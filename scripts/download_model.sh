@@ -5,7 +5,7 @@ set -euo pipefail
 cat <<'EOF'
 This script is deprecated.
 
-Calendar Add AI no longer uses manual GGUF downloads into app assets.
+Calendar Add no longer uses manual GGUF downloads into app assets.
 The app now downloads LiteRT-LM .litertlm models at runtime with Android DownloadManager.
 
 Use the app itself:

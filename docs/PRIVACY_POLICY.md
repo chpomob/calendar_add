@@ -1,6 +1,6 @@
 # Privacy Policy Draft
 
-Last updated: 2026-04-20
+Last updated: 2026-05-10
 
 This draft is based on the current Calendar Add codebase and is intended as a release-preparation starting point. Review the final legal wording before publication.
 
@@ -18,7 +18,7 @@ Depending on which features you use, the app may access:
 - audio you share into the app
 - your device calendar, if you enable calendar sync
 - app notifications, to show progress and completion for background analysis
-- network access, only to download AI model files
+- network access, to download AI model files and, if enabled, perform optional web verification
 
 ## How Your Data Is Used
 
@@ -28,6 +28,7 @@ Calendar Add uses your data only to provide its core functionality:
 - storing created events locally inside the app
 - optionally writing created events into your device calendar
 - downloading the on-device AI model you choose
+- optionally checking public web search/page results to refine event details when web verification is enabled
 - showing background processing notifications
 
 ## On-Device Processing
@@ -35,12 +36,14 @@ Calendar Add uses your data only to provide its core functionality:
 Based on the current app implementation:
 
 - event extraction is intended to run locally on your Android device
-- pasted text, imported images, shared files, and extracted event data are processed on-device by the app
+- pasted text, imported images, shared files, and extracted event data are processed on-device by the app during the core extraction flow
 - temporary files may be created in app-private cache storage while background analysis is running
 
 ## Network Use
 
 The app uses network access to download AI model files selected by the user. Those downloads are performed with Android's system download service into app-specific storage.
+
+If you enable experimental web verification, the app may send event-related search queries to the selected search provider and fetch public page snippets to refine details such as venue names, addresses, dates, or times. Queries can be derived from OCR text, extracted event fields, URLs, or venue names. Web verification is optional and disabled by default.
 
 The current app code does not include:
 
@@ -76,6 +79,8 @@ Calendar sync is optional and controlled by the user.
 ## Sharing
 
 Based on the current codebase, Calendar Add does not intentionally sell or share your personal content with third parties for advertising or analytics purposes.
+
+If optional web verification is enabled, query text and normal network metadata may be visible to the selected search provider.
 
 ## Data Retention
 
