@@ -32,7 +32,9 @@ More details are available in [Install From GitHub](docs/GITHUB_INSTALL.md).
 - Extract multiple events from one input when the model returns several events.
 - Run slow analysis jobs in the background with foreground notifications.
 - Store the original source image or audio file with created events for later review.
+- Edit extracted events before syncing them to the Android system calendar.
 - Optionally sync extracted events to the Android system calendar.
+- Update an already-synced Android calendar event after local edits without creating a duplicate.
 - Enable heavy analysis mode for harder image and audio inputs.
 - Enable experimental web verification to refine public event details when online lookup succeeds.
 
@@ -45,7 +47,7 @@ Known limitations:
 - A local model must be downloaded before extraction works.
 - Local inference can be slow on large multimodal models.
 - Image and audio accuracy depends strongly on the selected model and input quality.
-- The event list and event detail screens are still basic.
+- The event list is still basic and does not yet have search, filters, or delete actions.
 - Progress and failure reporting still relies heavily on Android notifications.
 - Web verification is experimental and can be limited by search provider restrictions.
 

@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -62,7 +63,20 @@ fun CalendarEventDetailScreen(
     
     val event by viewModel.event.collectAsState()
     val syncStatus by viewModel.syncStatus.collectAsState()
+    val editStatus by viewModel.editStatus.collectAsState()
     var permissionMessage by remember { mutableStateOf<String?>(null) }
+    var isEditing by remember { mutableStateOf(false) }
+    var editDraft by remember { mutableStateOf(EventEditDraft()) }
+
+    LaunchedEffect(event?.id) {
+        event?.let { editDraft = DetailViewModel.draftFrom(it) }
+    }
+
+    LaunchedEffect(editStatus) {
+        if (editStatus is EditStatus.Success) {
+            isEditing = false
+        }
+    }
 
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -80,9 +94,9 @@ fun CalendarEventDetailScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Event receipt")
+                        Text(if (isEditing) "Edit event" else "Event receipt")
                         Text(
-                            "Check the details before syncing",
+                            if (isEditing) "Save changes before calendar sync" else "Check the details before syncing",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -91,6 +105,38 @@ fun CalendarEventDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    event?.let { currentEvent ->
+                        if (isEditing) {
+                            IconButton(
+                                onClick = {
+                                    editDraft = DetailViewModel.draftFrom(currentEvent)
+                                    isEditing = false
+                                    viewModel.resetEditStatus()
+                                },
+                                enabled = editStatus !is EditStatus.Saving
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Cancel edit")
+                            }
+                            IconButton(
+                                onClick = { viewModel.saveEdits(editDraft) },
+                                enabled = editStatus !is EditStatus.Saving
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = "Save changes")
+                            }
+                        } else {
+                            IconButton(
+                                onClick = {
+                                    editDraft = DetailViewModel.draftFrom(currentEvent)
+                                    viewModel.resetEditStatus()
+                                    isEditing = true
+                                }
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit event")
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -121,33 +167,45 @@ fun CalendarEventDetailScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    EventHeroCard(e)
-                    EventFactsCard(e)
-                    SourceAttachmentSection(e)
-
-                    Button(
-                        onClick = {
-                            if (context.hasCalendarPermissions()) {
-                                viewModel.syncToSystemCalendar()
-                            } else {
-                                calendarPermissionLauncher.launch(calendarPermissions)
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        enabled = syncStatus !is SyncStatus.Syncing,
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            when (syncStatus) {
-                                is SyncStatus.Syncing -> "Syncing..."
-                                is SyncStatus.Success -> "Synced to calendar"
-                                else -> "Add to system calendar"
-                            }
+                    if (isEditing) {
+                        EventEditCard(
+                            draft = editDraft,
+                            onDraftChange = { editDraft = it },
+                            isSaving = editStatus is EditStatus.Saving
                         )
+                    } else {
+                        EventHeroCard(e)
+                        EventFactsCard(e)
+                        SourceAttachmentSection(e)
+
+                        Button(
+                            onClick = {
+                                if (context.hasCalendarPermissions()) {
+                                    viewModel.syncToSystemCalendar()
+                                } else {
+                                    calendarPermissionLauncher.launch(calendarPermissions)
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            enabled = syncStatus !is SyncStatus.Syncing,
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                when (syncStatus) {
+                                    is SyncStatus.Syncing -> "Syncing..."
+                                    is SyncStatus.Success -> "Synced to calendar"
+                                    else -> if (e.systemCalendarEventId != null) {
+                                        "Update system calendar"
+                                    } else {
+                                        "Add to system calendar"
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -170,6 +228,28 @@ fun CalendarEventDetailScreen(
         )
     }
 
+    when (val status = editStatus) {
+        is EditStatus.Error -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.resetEditStatus() },
+                title = { Text("Could not save") },
+                text = { Text(status.message) },
+                confirmButton = { TextButton(onClick = { viewModel.resetEditStatus() }) { Text("OK") } }
+            )
+        }
+        is EditStatus.Success -> {
+            status.warning?.let { warning ->
+                AlertDialog(
+                    onDismissRequest = { viewModel.resetEditStatus() },
+                    title = { Text("Event saved") },
+                    text = { Text(warning) },
+                    confirmButton = { TextButton(onClick = { viewModel.resetEditStatus() }) { Text("OK") } }
+                )
+            }
+        }
+        else -> Unit
+    }
+
     permissionMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { permissionMessage = null },
@@ -181,6 +261,88 @@ fun CalendarEventDetailScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun EventEditCard(
+    draft: EventEditDraft,
+    onDraftChange: (EventEditDraft) -> Unit,
+    isSaving: Boolean
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = draft.title,
+                onValueChange = { onDraftChange(draft.copy(title = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving,
+                singleLine = true,
+                label = { Text("Title") },
+                leadingIcon = { Icon(Icons.Default.EventAvailable, contentDescription = null) }
+            )
+            OutlinedTextField(
+                value = draft.startTime,
+                onValueChange = { onDraftChange(draft.copy(startTime = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving,
+                singleLine = true,
+                label = { Text("Starts") },
+                supportingText = { Text("YYYY-MM-DD HH:mm") },
+                leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null) }
+            )
+            OutlinedTextField(
+                value = draft.endTime,
+                onValueChange = { onDraftChange(draft.copy(endTime = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving,
+                singleLine = true,
+                label = { Text("Ends") },
+                supportingText = { Text("YYYY-MM-DD HH:mm") },
+                leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null) }
+            )
+            OutlinedTextField(
+                value = draft.location,
+                onValueChange = { onDraftChange(draft.copy(location = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving,
+                singleLine = true,
+                label = { Text("Place") },
+                leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) }
+            )
+            OutlinedTextField(
+                value = draft.attendees,
+                onValueChange = { onDraftChange(draft.copy(attendees = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving,
+                label = { Text("People") },
+                minLines = 1,
+                maxLines = 3,
+                leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) }
+            )
+            OutlinedTextField(
+                value = draft.description,
+                onValueChange = { onDraftChange(draft.copy(description = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving,
+                label = { Text("Notes") },
+                minLines = 3,
+                maxLines = 6,
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Notes, contentDescription = null) }
+            )
+            if (isSaving) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        }
     }
 }
 

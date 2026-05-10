@@ -2,6 +2,7 @@ package com.calendaradd.service
 
 import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
 import android.provider.CalendarContract
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.hasCalendarPermissions
@@ -94,6 +95,43 @@ class SystemCalendarService(private val context: Context) {
         } catch (e: Exception) {
             AppLog.e(TAG, "Error inserting calendar event", e)
             null
+        }
+    }
+
+    fun updateEvent(
+        systemEventId: Long,
+        calendarId: Long,
+        title: String,
+        description: String,
+        startTimeMillis: Long,
+        endTimeMillis: Long,
+        location: String = ""
+    ): Boolean {
+        if (!hasCalendarPermissions()) {
+            AppLog.e(TAG, "Missing calendar permissions")
+            return false
+        }
+
+        val values = ContentValues().apply {
+            put(CalendarContract.Events.DTSTART, startTimeMillis)
+            put(CalendarContract.Events.DTEND, endTimeMillis)
+            put(CalendarContract.Events.TITLE, title)
+            put(CalendarContract.Events.DESCRIPTION, description)
+            put(CalendarContract.Events.CALENDAR_ID, calendarId)
+            put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+            put(CalendarContract.Events.EVENT_LOCATION, location)
+        }
+
+        return try {
+            val uri = Uri.withAppendedPath(CalendarContract.Events.CONTENT_URI, systemEventId.toString())
+            val updatedRows = context.contentResolver.update(uri, values, null, null)
+            if (updatedRows <= 0) {
+                AppLog.w(TAG, "No system calendar event updated for id=$systemEventId")
+            }
+            updatedRows > 0
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Error updating calendar event", e)
+            false
         }
     }
 

@@ -26,6 +26,7 @@ Use it to:
 - take a photo of a flyer or schedule
 - import an image from files
 - share text, images, or audio from other apps
+- edit extracted event details
 - review extracted events before syncing them to your calendar
 
 Core behavior:
@@ -106,4 +107,5 @@ The public privacy policy should explicitly cover:
 ## Open Release Risks
 
 - local multimodal speed and reliability still vary by device and model
-- event list/detail editing remains basic
+- event list search/filter/delete remains basic
+- event editing uses text-entry date/time fields and still needs picker polish

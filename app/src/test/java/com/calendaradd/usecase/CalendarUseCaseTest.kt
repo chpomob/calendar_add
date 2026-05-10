@@ -10,6 +10,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -103,6 +104,44 @@ class CalendarUseCaseTest {
         assertEquals("Lunch", result.events[0].title)
         assertEquals("Dentist", result.events[1].title)
         coVerify(exactly = 2) { eventDao.insert(any()) }
+    }
+
+    @Test
+    fun `createEventFromText should remember system calendar id when auto sync inserts event`() = runBlocking {
+        every { preferencesManager.isAutoAddEnabled } returns true
+        every { systemCalendarService.hasCalendarPermissions() } returns true
+        every { systemCalendarService.getAvailableCalendars() } returns listOf(
+            SystemCalendarService.CalendarInfo(id = 4L, name = "Main", accountName = "local", isPrimary = true)
+        )
+        coEvery { eventDao.insert(any()) } returns 9L
+        coEvery { eventDao.update(any()) } returns Unit
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            EventExtraction(
+                title = "Auto synced",
+                description = "",
+                startTime = "2026-04-20T12:00:00",
+                endTime = "2026-04-20T13:00:00",
+                location = "HQ",
+                attendees = emptyList()
+            )
+        )
+        every {
+            systemCalendarService.insertEvent(
+                calendarId = 4L,
+                title = "Auto synced",
+                description = "",
+                startTimeMillis = any(),
+                endTimeMillis = any(),
+                location = "HQ"
+            )
+        } returns 88L
+
+        val result = useCase.createEventFromText("Auto synced lunch")
+
+        assertTrue(result is EventResult.Success)
+        result as EventResult.Success
+        assertEquals(88L, result.event.systemCalendarEventId)
+        coVerify(exactly = 1) { eventDao.update(match { it.id == 9L && it.systemCalendarEventId == 88L }) }
     }
 
     @Test
@@ -244,5 +283,135 @@ class CalendarUseCaseTest {
         assertEquals(1, result.events.size)
         assertEquals("Valid lunch", result.events.single().title)
         coVerify(exactly = 1) { eventDao.insert(any()) }
+    }
+
+    @Test
+    fun `syncEventToSystem should insert first system event and store calendar event id`() = runBlocking {
+        val updatedEvent = slot<Event>()
+        coEvery { eventDao.update(capture(updatedEvent)) } returns Unit
+        every {
+            systemCalendarService.insertEvent(
+                calendarId = 4L,
+                title = "Planning",
+                description = "Quarterly planning",
+                startTimeMillis = 1000L,
+                endTimeMillis = 2000L,
+                location = "HQ"
+            )
+        } returns 88L
+
+        val result = useCase.syncEventToSystem(
+            Event(
+                id = 9L,
+                title = "Planning",
+                description = "Quarterly planning",
+                startTime = 1000L,
+                endTime = 2000L,
+                location = "HQ"
+            ),
+            calendarId = 4L
+        )
+
+        assertEquals(88L, result)
+        assertEquals(88L, updatedEvent.captured.systemCalendarEventId)
+        verify(exactly = 1) { systemCalendarService.insertEvent(any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { systemCalendarService.updateEvent(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `syncEventToSystem should update existing system event without inserting duplicate`() = runBlocking {
+        every {
+            systemCalendarService.updateEvent(
+                systemEventId = 88L,
+                calendarId = 4L,
+                title = "Updated planning",
+                description = "Quarterly planning",
+                startTimeMillis = 1000L,
+                endTimeMillis = 2000L,
+                location = "HQ"
+            )
+        } returns true
+
+        val result = useCase.syncEventToSystem(
+            Event(
+                id = 9L,
+                title = "Updated planning",
+                description = "Quarterly planning",
+                startTime = 1000L,
+                endTime = 2000L,
+                location = "HQ",
+                systemCalendarEventId = 88L
+            ),
+            calendarId = 4L
+        )
+
+        assertEquals(88L, result)
+        verify(exactly = 1) { systemCalendarService.updateEvent(any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { systemCalendarService.insertEvent(any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { eventDao.update(any()) }
+    }
+
+    @Test
+    fun `updateEvent should save locally and update existing system calendar event when auto sync is enabled`() = runBlocking {
+        val localUpdate = slot<Event>()
+        every { preferencesManager.isAutoAddEnabled } returns true
+        every { systemCalendarService.hasCalendarPermissions() } returns true
+        every { systemCalendarService.getAvailableCalendars() } returns listOf(
+            SystemCalendarService.CalendarInfo(id = 4L, name = "Main", accountName = "local", isPrimary = true)
+        )
+        coEvery { eventDao.update(capture(localUpdate)) } returns Unit
+        every {
+            systemCalendarService.updateEvent(
+                systemEventId = 88L,
+                calendarId = 4L,
+                title = "Edited planning",
+                description = "Edited notes",
+                startTimeMillis = 1000L,
+                endTimeMillis = 2000L,
+                location = "HQ"
+            )
+        } returns true
+
+        val result = useCase.updateEvent(
+            Event(
+                id = 9L,
+                title = "Edited planning",
+                description = "Edited notes",
+                startTime = 1000L,
+                endTime = 2000L,
+                location = "HQ",
+                systemCalendarEventId = 88L
+            )
+        )
+
+        assertTrue(result is EventUpdateResult.Success)
+        result as EventUpdateResult.Success
+        assertTrue(result.syncedToSystem)
+        assertEquals(88L, result.event.systemCalendarEventId)
+        assertEquals("Edited planning", localUpdate.captured.title)
+        verify(exactly = 1) { systemCalendarService.updateEvent(any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { systemCalendarService.insertEvent(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `updateEvent should save locally without calendar sync when auto sync is disabled`() = runBlocking {
+        coEvery { eventDao.update(any()) } returns Unit
+
+        val result = useCase.updateEvent(
+            Event(
+                id = 9L,
+                title = "Local edit",
+                startTime = 1000L,
+                endTime = 2000L,
+                systemCalendarEventId = 88L
+            )
+        )
+
+        assertTrue(result is EventUpdateResult.Success)
+        result as EventUpdateResult.Success
+        assertFalse(result.syncedToSystem)
+        coVerify(exactly = 1) { eventDao.update(match { it.title == "Local edit" }) }
+        verify(exactly = 0) { systemCalendarService.updateEvent(any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { systemCalendarService.insertEvent(any(), any(), any(), any(), any(), any()) }
     }
 }

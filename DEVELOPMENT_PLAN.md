@@ -10,7 +10,7 @@ Calendar Add is a single-module Android app that creates calendar events from te
 
 Current implementation:
 
-- Jetpack Compose UI with home, settings, event list, event detail, and privacy screens
+- Jetpack Compose UI with home, settings, event list, editable event detail, and privacy screens
 - Room database for locally saved events
 - WorkManager foreground jobs for slow analysis
 - runtime LiteRT-LM `.litertlm` model downloads through Android `DownloadManager`
@@ -18,7 +18,7 @@ Current implementation:
 - local text, image, and audio extraction pipeline
 - optional heavy image/audio analysis mode
 - optional experimental web verification for public event details
-- optional sync to the Android system calendar
+- optional sync to the Android system calendar, including updates to already-synced events after local edits
 - GitHub Actions for build, test, lint, security scan, and debug APK artifacts
 
 Current Gradle release identity:
@@ -54,7 +54,7 @@ Regression coverage currently focuses on:
 1. Keep release documentation synchronized with Gradle version values and model behavior.
 2. Add device-level smoke tests for model download, background analysis, share intents, and calendar sync.
 3. Add Compose UI tests for the primary capture, settings, list, and detail flows.
-4. Improve event list and detail workflows with search, filtering, delete actions, and edit support.
+4. Improve event list and detail workflows with search, filtering, delete actions, and date/time picker polish.
 5. Consolidate manual service wiring into a small app container or dependency injection layer.
 6. Expand model/backend runtime verification across supported devices.
 
@@ -65,7 +65,8 @@ Regression coverage currently focuses on:
 - Play Console data-safety review for optional web verification
 - device matrix notes for each supported model/backend combination
 - stronger UX for failed or partial extraction results
-- final event editing/search/delete workflow polish
+- final event search/delete workflow polish
+- date/time picker polish for event editing
 
 ## Product Guardrails
 

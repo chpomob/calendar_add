@@ -1,6 +1,6 @@
 # Release Notes
 
-Last updated: 2026-04-30
+Last updated: 2026-05-10
 
 ## Current Release Build Status
 
@@ -19,6 +19,8 @@ Last updated: 2026-04-30
 - GitHub Releases can also be created manually with a locally signed APK for testers outside the Play Store
 - Settings now expose an optional heavy analysis mode for staged image/audio extraction
 - `v0.3.0-alpha.0` is the pre-UI-revamp minor checkpoint release
+- Event details can now be edited before system-calendar sync
+- Re-syncing an edited event updates the stored Android Calendar event instead of creating a duplicate
 
 Current output after `./gradlew bundleRelease`:
 
@@ -59,4 +61,5 @@ For GitHub APK distribution, build and publish locally so the signing key never 
 ## Known Release Debt
 
 - Local multimodal inference can still be slow and may still be device-sensitive on large jobs.
-- Event list and detail UX remain basic.
+- Event list UX remains basic.
+- Event editing uses text-entry date/time fields and still needs picker polish.

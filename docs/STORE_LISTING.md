@@ -1,6 +1,6 @@
 # Store Listing Draft
 
-Last updated: 2026-04-26
+Last updated: 2026-05-10
 
 ## App Identity
 
@@ -23,6 +23,7 @@ Use Calendar Add to:
 - import an image from your files
 - share text, images, or audio from other apps
 - extract multiple events from a single input
+- edit extracted events before syncing
 - review the results before optionally syncing them to your calendar
 
 Why it is different:
@@ -30,7 +31,7 @@ Why it is different:
 - local-first event extraction after the model download
 - background processing with Android notifications
 - support for text, image, and shared content workflows
-- optional system calendar sync
+- optional system calendar sync that updates already-synced events after edits
 
 The app downloads an AI model the first time you use it. After that, extraction is designed to run on-device.
 
@@ -42,7 +43,7 @@ Phone screenshots to capture:
 2. Camera/image quick capture section
 3. Background analysis notification flow
 4. Event list screen
-5. Event detail screen
+5. Event detail edit screen
 6. Settings model selection screen
 7. Privacy & data screen
 

@@ -113,18 +113,11 @@ class CalendarUseCase(
                 val internalId = eventDatabase.eventDao().insert(event)
                 val savedEvent = event.copy(id = internalId)
 
-                if (preferredCalendarId != null) {
-                    systemCalendarService.insertEvent(
-                        calendarId = preferredCalendarId,
-                        title = savedEvent.title,
-                        description = savedEvent.description,
-                        startTimeMillis = savedEvent.startTime,
-                        endTimeMillis = savedEvent.endTime,
-                        location = savedEvent.location
-                    )
+                val systemCalendarEventId = preferredCalendarId?.let { calendarId ->
+                    syncEventToSystem(savedEvent, calendarId)
                 }
 
-                savedEvent
+                savedEvent.copy(systemCalendarEventId = systemCalendarEventId)
             }
 
             if (savedEvents.isEmpty()) {
@@ -188,15 +181,78 @@ class CalendarUseCase(
         )
     }
 
-    fun syncEventToSystem(event: Event, calendarId: Long): Long? {
-        return systemCalendarService.insertEvent(
+    suspend fun syncEventToSystem(event: Event, calendarId: Long): Long? {
+        event.systemCalendarEventId?.let { existingSystemEventId ->
+            val updated = systemCalendarService.updateEvent(
+                systemEventId = existingSystemEventId,
+                calendarId = calendarId,
+                title = event.title,
+                description = event.description,
+                startTimeMillis = event.startTime,
+                endTimeMillis = event.endTime,
+                location = event.location
+            )
+            if (updated) {
+                return existingSystemEventId
+            }
+            return null
+        }
+
+        val newSystemEventId = systemCalendarService.insertEvent(
             calendarId = calendarId,
             title = event.title,
             description = event.description,
             startTimeMillis = event.startTime,
             endTimeMillis = event.endTime,
             location = event.location
-        )
+        ) ?: return null
+
+        if (event.id != 0L && event.systemCalendarEventId != newSystemEventId) {
+            eventDatabase.eventDao().update(event.copy(systemCalendarEventId = newSystemEventId))
+        }
+
+        return newSystemEventId
+    }
+
+    suspend fun updateEvent(event: Event): EventUpdateResult {
+        val updatedEvent = event.copy(updatedAt = System.currentTimeMillis())
+        eventDatabase.eventDao().update(updatedEvent)
+
+        if (!preferencesManager.isAutoAddEnabled) {
+            return EventUpdateResult.Success(updatedEvent, syncedToSystem = false)
+        }
+
+        if (!systemCalendarService.hasCalendarPermissions()) {
+            return EventUpdateResult.Success(
+                event = updatedEvent,
+                syncedToSystem = false,
+                warning = "Saved locally. Calendar permission is required to update the system calendar."
+            )
+        }
+
+        val calendars = systemCalendarService.getAvailableCalendars()
+        val preferredCalendarId = preferencesManager.targetCalendarId
+            .takeIf { id -> id != -1L && calendars.any { it.id == id } }
+            ?: calendars.find { it.isPrimary }?.id
+            ?: calendars.firstOrNull()?.id
+
+        if (preferredCalendarId == null) {
+            return EventUpdateResult.Success(
+                event = updatedEvent,
+                syncedToSystem = false,
+                warning = "Saved locally. No system calendar was found for auto-sync."
+            )
+        }
+
+        val systemEventId = syncEventToSystem(updatedEvent, preferredCalendarId)
+            ?: return EventUpdateResult.Success(
+                event = updatedEvent,
+                syncedToSystem = false,
+                warning = "Saved locally. System calendar update failed."
+            )
+
+        val syncedEvent = updatedEvent.copy(systemCalendarEventId = systemEventId)
+        return EventUpdateResult.Success(syncedEvent, syncedToSystem = true)
     }
 
     /**
@@ -278,6 +334,14 @@ data class SourceAttachment(
     val mimeType: String,
     val displayName: String
 )
+
+sealed class EventUpdateResult {
+    data class Success(
+        val event: Event,
+        val syncedToSystem: Boolean,
+        val warning: String? = null
+    ) : EventUpdateResult()
+}
 
 /**
  * Result of event creation operation.

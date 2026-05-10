@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [Event::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class EventDatabase : RoomDatabase() {
@@ -29,6 +29,7 @@ abstract class EventDatabase : RoomDatabase() {
                     "calendar_add_database"
                 )
                     .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance
@@ -40,6 +41,12 @@ abstract class EventDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE events ADD COLUMN sourceAttachmentPath TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE events ADD COLUMN sourceAttachmentMimeType TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE events ADD COLUMN sourceAttachmentName TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE events ADD COLUMN systemCalendarEventId INTEGER")
             }
         }
     }

@@ -33,7 +33,10 @@ data class Event(
 
     // AI extraction data
     val aiConfidence: Float = 1.0f,
-    val aiSourceModel: String = ""
+    val aiSourceModel: String = "",
+
+    // Android Calendar row created by optional system-calendar sync.
+    val systemCalendarEventId: Long? = null
 )
 
 /**
