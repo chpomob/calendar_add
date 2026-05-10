@@ -32,6 +32,7 @@ Why it is different:
 - background processing with Android notifications
 - support for text, image, and shared content workflows
 - optional system calendar sync that updates already-synced events after edits
+- conservative Gemma compact profile for constrained text/image testing
 
 The app downloads an AI model the first time you use it. After that, extraction is designed to run on-device.
 
@@ -69,3 +70,4 @@ Suggested direction:
 
 - Avoid claiming server-side AI or cloud extraction because the current product direction is local-first.
 - Avoid overclaiming reliability or speed on large local multimodal jobs because device performance still varies.
+- Avoid claiming the compact Gemma profile is a complete fallback until it is validated on target phones.

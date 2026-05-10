@@ -82,6 +82,23 @@ object LiteRtModelCatalog {
             requireExactSize = true
         ),
         LiteRtModelConfig(
+            id = "gemma-4-e2b-compact",
+            displayName = "Gemma 4 E2B Compact",
+            shortName = "Gemma 4 E2B Compact",
+            description = "Conservative Gemma 4 E2B profile for constrained devices. Reuses the E2B model file with CPU-only text/image and a smaller token window. No audio.",
+            source = "LiteRT Community / Google",
+            downloadUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/7fa1d78473894f7e736a21d920c3aa80f950c0db/gemma-4-E2B-it.litertlm?download=true",
+            fileName = "gemma-4-E2B-it.litertlm",
+            sizeBytes = 2_583_085_056L,
+            capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE),
+            executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
+            maxNumTokens = 1024,
+            mainBackendOrder = listOf(ModelBackendKind.CPU),
+            visionBackend = ModelBackendKind.CPU,
+            minimumDeviceMemoryGb = 5,
+            requireExactSize = true
+        ),
+        LiteRtModelConfig(
             id = "gemma-4-e4b",
             displayName = "Gemma 4 E4B",
             shortName = "Gemma 4 E4B",

@@ -38,6 +38,24 @@ class LiteRtModelCatalogTest {
     }
 
     @Test
+    fun `Gemma compact profile reuses E2B file with text and image only`() {
+        val normal = LiteRtModelCatalog.find("gemma-4-e2b")
+        val compact = LiteRtModelCatalog.find("gemma-4-e2b-compact")
+
+        assertEquals("Gemma 4 E2B Compact", compact.displayName)
+        assertEquals(normal.downloadUrl, compact.downloadUrl)
+        assertEquals(normal.fileName, compact.fileName)
+        assertEquals(normal.sizeBytes, compact.sizeBytes)
+        assertTrue(compact.supportsText)
+        assertTrue(compact.supportsImage)
+        assertFalse(compact.supportsAudio)
+        assertEquals(1024, compact.maxNumTokens)
+        assertEquals(listOf(ModelBackendKind.CPU), compact.mainBackendOrder)
+        assertEquals(ModelBackendKind.CPU, compact.visionBackend)
+        assertEquals(5, compact.minimumDeviceMemoryGb)
+    }
+
+    @Test
     fun `Qwen model uses conservative token cap`() {
         val qwen = LiteRtModelCatalog.find("qwen-3_5-0_8b")
 
@@ -47,6 +65,7 @@ class LiteRtModelCatalogTest {
     @Test
     fun `Gemma models use AI Edge Gallery token windows`() {
         assertEquals(4000, LiteRtModelCatalog.find("gemma-4-e2b").maxNumTokens)
+        assertEquals(1024, LiteRtModelCatalog.find("gemma-4-e2b-compact").maxNumTokens)
         assertEquals(4000, LiteRtModelCatalog.find("gemma-4-e4b").maxNumTokens)
         assertEquals(4096, LiteRtModelCatalog.find("gemma-3n-e2b").maxNumTokens)
         assertEquals(4096, LiteRtModelCatalog.find("gemma-3n-e4b").maxNumTokens)

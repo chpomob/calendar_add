@@ -18,6 +18,7 @@ Current implementation:
 - local text, image, and audio extraction pipeline
 - optional heavy image/audio analysis mode
 - optional experimental web verification for public event details
+- Gemma 4 E2B Compact profile for constrained text/image testing
 - optional sync to the Android system calendar, including updates to already-synced events after local edits
 - GitHub Actions for build, test, lint, security scan, and debug APK artifacts
 
@@ -57,6 +58,7 @@ Regression coverage currently focuses on:
 4. Improve event list and detail workflows with search, filtering, delete actions, and date/time picker polish.
 5. Consolidate manual service wiring into a small app container or dependency injection layer.
 6. Expand model/backend runtime verification across supported devices.
+7. Validate Gemma 4 E2B Compact on constrained devices where the default Gemma 4 E2B profile fails.
 
 ## Release Readiness Gaps
 
@@ -64,6 +66,8 @@ Regression coverage currently focuses on:
 - Play Store screenshots and feature graphic
 - Play Console data-safety review for optional web verification
 - device matrix notes for each supported model/backend combination
+- Pixel 9a-class validation for Gemma 4 E2B Compact
+- smaller audio-capable option for devices where full Gemma cannot initialize
 - stronger UX for failed or partial extraction results
 - final event search/delete workflow polish
 - date/time picker polish for event editing

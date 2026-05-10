@@ -111,6 +111,38 @@ class GemmaLlmServiceTest {
     }
 
     @Test
+    fun `initialize should keep Gemma compact profile CPU-only with reduced token window`() = runBlocking {
+        val activityManager = mockk<ActivityManager>()
+        every { context.getSystemService(Context.ACTIVITY_SERVICE) } returns activityManager
+        every { activityManager.getMemoryInfo(any()) } answers {
+            firstArg<ActivityManager.MemoryInfo>().totalMem = 5L * 1024L * 1024L * 1024L
+            Unit
+        }
+        var capturedConfig: EngineConfig? = null
+        service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
+            override fun createEngine(config: EngineConfig): Engine {
+                capturedConfig = config
+                return engine
+            }
+        }
+        servicesToClose += service
+
+        service.initialize(
+            modelPath = "/tmp/fake-model.litertlm",
+            modelConfig = LiteRtModelCatalog.find("gemma-4-e2b-compact"),
+            enableImage = true,
+            enableAudio = false
+        )
+
+        val config = requireNotNull(capturedConfig)
+        assertEquals(Backend.CPU::class.java.name, config.backend::class.java.name)
+        assertEquals(Backend.CPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
+        assertEquals(null, config.audioBackend)
+        assertEquals(1024, config.maxNumTokens)
+        assertEquals("CPU(text)+CPU(vision)", service.lastBackendUsed)
+    }
+
+    @Test
     fun `initialize should disable audio backend for image-only Gemma work`() = runBlocking {
         var capturedConfig: EngineConfig? = null
         service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {

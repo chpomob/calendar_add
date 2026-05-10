@@ -21,6 +21,7 @@ Last updated: 2026-05-10
 - `v0.3.0-alpha.0` is the pre-UI-revamp minor checkpoint release
 - Event details can now be edited before system-calendar sync
 - Re-syncing an edited event updates the stored Android Calendar event instead of creating a duplicate
+- Gemma 4 E2B Compact is available as a conservative CPU-only text/image profile for constrained-device testing
 
 Current output after `./gradlew bundleRelease`:
 
@@ -63,3 +64,4 @@ For GitHub APK distribution, build and publish locally so the signing key never 
 - Local multimodal inference can still be slow and may still be device-sensitive on large jobs.
 - Event list UX remains basic.
 - Event editing uses text-entry date/time fields and still needs picker polish.
+- Gemma 4 E2B Compact still needs Pixel 9a-class device validation and does not support audio.

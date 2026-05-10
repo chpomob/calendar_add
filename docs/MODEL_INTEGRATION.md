@@ -27,10 +27,33 @@ Relevant code:
 | Model | File Type | Inputs | Execution Profile |
 |------|-----------|--------|-------------------|
 | Gemma 4 E2B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
+| Gemma 4 E2B Compact | `.litertlm` | Text, Image | Conservative CPU-only Gemma, reduced tokens |
 | Gemma 4 E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
 | Gemma 3n E2B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
 | Gemma 3n E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
 | Qwen 3.5 0.8B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental, capped tokens |
+
+## Constrained-Device Notes
+
+The app exposes a Gemma 4 E2B Compact profile for constrained devices. It reuses the normal Gemma 4 E2B `.litertlm` file but changes the runtime profile:
+
+- CPU-only text backend
+- CPU-only vision backend
+- 1024 max tokens
+- text and image support only
+- no audio support
+- 5 GB reported-memory guard
+
+This is a conservative Gemma-only fallback for devices where the default E2B profile fails. It should still be treated as a test profile until verified on the target device set.
+
+Practical RAM guidance from current testing:
+
+- 8 GB-class devices: Gemma 4 E2B may still fail depending on available runtime memory; try Gemma 4 E2B Compact for text/image
+- 12 GB+ devices: safer target for Gemma multimodal/audio jobs
+
+Android's reported memory can differ from marketing RAM because the OS, GPU, resident services, and runtime allocator overhead reduce available headroom. A phone sold as 8 GB can still behave like a constrained device for local multimodal inference.
+
+Qwen 3.5 0.8B remains listed as experimental and is not the recommended fallback until it has been tested on the target devices and fixture corpus.
 
 ## Download And Storage
 
@@ -100,6 +123,7 @@ Known limitations from the hard-case suite:
 
 - audio prompts can still over-trigger on bare time mentions and produce a generic `Meeting`
 - flyer series with clearly separated rows are handled, but the layout must stay readable for OCR
+- Gemma 4 E2B Compact still needs on-device validation on Pixel 9a-class devices
 
 ## Input Support
 

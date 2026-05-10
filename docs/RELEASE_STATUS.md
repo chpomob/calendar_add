@@ -23,6 +23,7 @@ Verified on the current codebase:
 - Local Room persistence
 - Optional sync to the Android system calendar
 - Event detail editing before calendar sync
+- Gemma 4 E2B Compact profile for constrained text/image testing
 - Settings for model choice and calendar target
 
 ## Recently Hardened
@@ -40,6 +41,7 @@ Verified on the current codebase:
 - Stale WorkManager background chains are repaired on startup/enqueue, and queued inputs are no longer stored only in cache
 - Event detail now hides empty metadata fields instead of showing blank labels
 - Event edits are saved locally and update an existing Android Calendar row when the event was already synced
+- Gemma 4 E2B Compact reuses the E2B file with CPU-only text/image and a reduced token window
 - Request tracing/logging is present across the extraction pipeline
 
 ## Still Missing Or Incomplete
@@ -48,6 +50,7 @@ Verified on the current codebase:
 - No waveform/live recording UI polish yet beyond press-and-hold voice capture
 - Event list is basic: no search, filter, or delete UI
 - Event editing uses direct text fields for date/time rather than a full calendar/date-picker flow
+- Gemma 4 E2B Compact still needs device validation on constrained 8 GB-class phones such as Pixel 9a
 - No on-device runtime verification for every model/backend combination
 
 ## Documentation Status

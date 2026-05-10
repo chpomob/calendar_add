@@ -58,6 +58,7 @@ The app exposes these LiteRT-LM models in [LiteRtModelCatalog.kt](app/src/main/j
 | Model | Inputs | Notes |
 |------|--------|-------|
 | Gemma 4 E2B | Text, Image, Audio | Default model |
+| Gemma 4 E2B Compact | Text, Image | Conservative CPU-only profile for constrained devices; reuses the Gemma 4 E2B file |
 | Gemma 4 E4B | Text, Image, Audio | Larger Gemma 4 variant |
 | Gemma 3n E2B | Text, Image, Audio | Strong multimodal candidate |
 | Gemma 3n E4B | Text, Image, Audio | Larger Gemma 3n variant |
@@ -66,8 +67,11 @@ The app exposes these LiteRT-LM models in [LiteRtModelCatalog.kt](app/src/main/j
 Practical recommendation:
 
 - Use Gemma models for normal testing.
+- Try Gemma 4 E2B Compact on constrained devices where the default Gemma 4 E2B profile fails. It supports text/image only.
 - Treat Qwen as experimental in this app.
 - Prefer smaller Gemma variants on memory-constrained devices.
+- Treat 12 GB RAM as the safer floor for Gemma multimodal/audio reliability; 8 GB devices may still fail depending on available runtime memory.
+- Pixel 9a-class devices can fail with Gemma 4 E2B even though they are not low-end; validate on-device before recommending a model to testers.
 
 Models are downloaded through Android `DownloadManager` into app-specific storage. When switching models, the app prunes older app-managed model files while preserving models still needed by queued background work.
 
