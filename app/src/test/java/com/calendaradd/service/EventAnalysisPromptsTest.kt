@@ -35,8 +35,10 @@ class EventAnalysisPromptsTest {
 
         assertTrue(prompt.contains("Use only input evidence; leave unknown fields empty."))
         assertTrue(prompt.contains("return no event instead of generic Meeting/Event/Concert/Reminder"))
-        assertTrue(prompt.contains("Fill endTime only with explicit end, duration, or range."))
-        assertTrue(prompt.contains("Attendees must be explicitly named participants or invitees."))
+        assertTrue(prompt.contains("Infer missing endTime by event type"))
+        assertTrue(prompt.contains("concerts/shows/festivals or multi-artist lineups last >1h"))
+        assertTrue(prompt.contains("not all-day unless stated"))
+        assertTrue(prompt.contains("Attendees must be explicit people."))
         assertTrue(prompt.contains("Preserve proper nouns, accents, and input language."))
     }
 
@@ -91,6 +93,8 @@ class EventAnalysisPromptsTest {
         assertTrue(prompt.contains("Explicit visible or spoken times always win."))
         assertTrue(prompt.contains("If a date is known but no exact clock time is given"))
         assertTrue(prompt.contains("concert/show/theatre/party 20:00"))
+        assertTrue(prompt.contains("concert/show/party 3 hours"))
+        assertTrue(prompt.contains("Do not output all-day concerts"))
         assertTrue(prompt.contains("picnic/market/family day 14:00"))
         assertTrue(prompt.contains("Mention inferred day-part times in dateReasoning."))
         assertTrue(prompt.contains("If the date is unknown"))

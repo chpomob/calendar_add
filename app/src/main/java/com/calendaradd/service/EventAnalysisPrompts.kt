@@ -79,12 +79,11 @@ internal fun buildFinalEventJsonInstructions(): String {
         appendLine("Use a specific input title; if no named event or clear commitment exists, return no event instead of generic Meeting/Event/Concert/Reminder.")
         appendLine("If the input contains multiple fragments about the same event, merge them into one event.")
         appendLine("If the input contains multiple distinct events, return them all.")
-        appendLine("Fill endTime only with explicit end, duration, or range.")
-        appendLine("Attendees must be explicitly named participants or invitees.")
+        appendLine("Infer missing endTime by event type; concerts/shows/festivals or multi-artist lineups last >1h and are not all-day unless stated.")
+        appendLine("Attendees must be explicit people.")
         appendLine("Preserve proper nouns, accents, and input language.")
         appendLine("Return ONLY valid JSON in this exact shape: { \"events\": [ { \"title\": \"\", \"description\": \"\", \"startTime\": \"ISO-8601 with timezone offset\", \"endTime\": \"ISO-8601 with timezone offset\", \"location\": \"\", \"attendees\": [] } ] }")
-        appendLine("If there is only one event, still return it inside the events array.")
-        appendLine("If there are no events, return { \"events\": [] }.")
+        appendLine("Return one-event results inside events; if none, return { \"events\": [] }.")
     }
 }
 
@@ -153,6 +152,8 @@ internal fun buildTemporalResolutionPrompt(
         appendLine("Explicit visible or spoken times always win.")
         appendLine("If a date is known but no exact clock time is given, heavy mode may infer a conservative day-part start time only when the event type strongly implies one.")
         appendLine("Use conventional starts: morning class/appointment 09:00, lunch 12:00, picnic/market/family day 14:00, dinner 19:00, film/opening 19:30, concert/show/theatre/party 20:00.")
+        appendLine("If an explicit end is missing, infer a realistic duration from event type: appointment/meeting 1 hour, film/theatre 2 hours, concert/show/party 3 hours, festival 4 hours.")
+        appendLine("Do not output all-day concerts, shows, theatre, parties, or festivals unless the source explicitly says all-day.")
         appendLine("Mention inferred day-part times in dateReasoning. If the date is unknown, the event type is generic, or the source indicates an all-day/open-hours item, leave resolvedStartTime empty.")
         appendLine("Observation JSON:")
         appendLine(observations)

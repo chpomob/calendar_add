@@ -35,6 +35,7 @@ More details are available in [Install From GitHub](docs/GITHUB_INSTALL.md).
 - Edit extracted events before syncing them to the Android system calendar.
 - Optionally sync extracted events to the Android system calendar.
 - Update an already-synced Android calendar event after local edits without creating a duplicate.
+- Apply conservative event-type time defaults when a flyer omits a start or end time.
 - Enable heavy analysis mode for harder image and audio inputs.
 - Enable experimental web verification to refine public event details when online lookup succeeds.
 
@@ -47,6 +48,7 @@ Known limitations:
 - A local model must be downloaded before extraction works.
 - Local inference can be slow on large multimodal models.
 - Image and audio accuracy depends strongly on the selected model and input quality.
+- Missing flyer times are resolved with conservative heuristics for strong event types, but they still need user review.
 - The event list is still basic and does not yet have search, filters, or delete actions.
 - Progress and failure reporting still relies heavily on Android notifications.
 - Web verification is experimental and can be limited by search provider restrictions.

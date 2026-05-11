@@ -18,6 +18,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 
 class CalendarUseCaseTest {
 
@@ -173,6 +176,79 @@ class CalendarUseCaseTest {
         assertEquals("image/jpeg", insertedEvent.captured.sourceAttachmentMimeType)
         assertEquals("shared-flyer.jpg", insertedEvent.captured.sourceAttachmentName)
         assertEquals("/app/source/source-image.jpg", result.event.sourceAttachmentPath)
+    }
+
+    @Test
+    fun `createEventFromImage should infer evening start and longer duration for date only concert flyer`() = runBlocking {
+        val bitmap = mockk<Bitmap>(relaxed = true)
+        val insertedEvent = slot<Event>()
+        coEvery { eventDao.insert(capture(insertedEvent)) } returns 12L
+        coEvery { textAnalysisService.analyzeImage(bitmap, any()) } returns listOf(
+            EventExtraction(
+                title = "Summer Concert: Alice + Bob + Chloé",
+                description = "Three live artists on the same lineup",
+                startTime = "2026-07-12",
+                endTime = "",
+                location = "Main Hall",
+                attendees = emptyList()
+            )
+        )
+
+        val result = useCase.createEventFromImage(
+            bitmap,
+            context = InputContext(timezone = "Europe/Paris")
+        )
+
+        val expectedStart = LocalDate.of(2026, 7, 12)
+            .atTime(LocalTime.of(20, 0))
+            .atZone(ZoneId.of("Europe/Paris"))
+            .toInstant()
+            .toEpochMilli()
+        assertTrue(result is EventResult.Success)
+        assertEquals(expectedStart, insertedEvent.captured.startTime)
+        assertEquals(expectedStart + 3 * 60 * 60 * 1000L, insertedEvent.captured.endTime)
+    }
+
+    @Test
+    fun `createEventFromText should clamp all day concert end time from model output`() = runBlocking {
+        val insertedEvent = slot<Event>()
+        coEvery { eventDao.insert(capture(insertedEvent)) } returns 13L
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            EventExtraction(
+                title = "Concert with multiple artists",
+                description = "Alice, Bob, and Chloé live",
+                startTime = "2026-07-12T20:00:00+02:00",
+                endTime = "2026-07-13T20:00:00+02:00",
+                location = "Main Hall",
+                attendees = emptyList()
+            )
+        )
+
+        val result = useCase.createEventFromText("Concert flyer")
+
+        assertTrue(result is EventResult.Success)
+        assertEquals(3 * 60 * 60 * 1000L, insertedEvent.captured.endTime - insertedEvent.captured.startTime)
+    }
+
+    @Test
+    fun `createEventFromText should keep one hour default for generic event without end time`() = runBlocking {
+        val insertedEvent = slot<Event>()
+        coEvery { eventDao.insert(capture(insertedEvent)) } returns 14L
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            EventExtraction(
+                title = "Planning sync",
+                description = "",
+                startTime = "2026-07-12T10:00:00+02:00",
+                endTime = "",
+                location = "",
+                attendees = emptyList()
+            )
+        )
+
+        val result = useCase.createEventFromText("Planning sync")
+
+        assertTrue(result is EventResult.Success)
+        assertEquals(60 * 60 * 1000L, insertedEvent.captured.endTime - insertedEvent.captured.startTime)
     }
 
     @Test

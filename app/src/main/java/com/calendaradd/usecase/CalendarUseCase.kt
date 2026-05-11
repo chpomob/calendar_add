@@ -7,8 +7,10 @@ import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.format.DateTimeParseException
 
 /**
  * Use case for creating calendar events from various inputs.
@@ -102,7 +104,7 @@ class CalendarUseCase(
                 "[${context.traceId}] Saving ${validAnalyses.size} extracted event(s) source=$sourceType autoSync=${preferredCalendarId != null}"
             )
             val savedEvents = validAnalyses.mapNotNull { analysis ->
-                val event = analysis.toEventOrNull(sourceType, sourceAttachment, ::parseIso8601)
+                val event = analysis.toEventOrNull(sourceType, context, sourceAttachment, ::parseIso8601)
                 if (event == null) {
                     AppLog.w(
                         TAG,
@@ -258,7 +260,7 @@ class CalendarUseCase(
     /**
      * Robust ISO-8601 and common date format parser.
      */
-    private fun parseIso8601(dateString: String?): Long? {
+    private fun parseIso8601(dateString: String?, zoneId: ZoneId = ZoneId.systemDefault()): Long? {
         if (dateString.isNullOrBlank()) return null
         val cleaned = dateString.trim()
         
@@ -266,12 +268,12 @@ class CalendarUseCase(
         val parsers = listOf<() -> Long?>(
             { Instant.parse(cleaned).toEpochMilli() },
             { OffsetDateTime.parse(cleaned).toInstant().toEpochMilli() },
-            { LocalDateTime.parse(cleaned).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() },
-            { LocalDate.parse(cleaned).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() },
+            { LocalDateTime.parse(cleaned).atZone(zoneId).toInstant().toEpochMilli() },
+            { LocalDate.parse(cleaned).atStartOfDay(zoneId).toInstant().toEpochMilli() },
             // Handle common AI shorthand if it leaks through
             { 
                 if (cleaned.length == 10 && cleaned.count { it == '-' } == 2) {
-                    LocalDate.parse(cleaned).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    LocalDate.parse(cleaned).atStartOfDay(zoneId).toInstant().toEpochMilli()
                 } else null
             }
         )
@@ -303,16 +305,19 @@ class CalendarUseCase(
 
 private fun EventExtraction.toEventOrNull(
     sourceType: String,
+    context: InputContext,
     sourceAttachment: SourceAttachment?,
-    parseIso8601: (String?) -> Long?
+    parseIso8601: (String?, ZoneId) -> Long?
 ): Event? {
-    val startTimeMillis = parseIso8601(startTime) ?: return null
-    val parsedEndTime = parseIso8601(endTime)
-    val endTimeMillis = if (parsedEndTime != null && parsedEndTime > startTimeMillis) {
-        parsedEndTime
-    } else {
-        startTimeMillis + 3600000L
-    }
+    val zoneId = context.zoneIdOrDefault()
+    val timePolicy = EventTimePolicy.from(this)
+    val startTimeMillis = resolveStartTime(zoneId, timePolicy, parseIso8601) ?: return null
+    val parsedEndTime = parseIso8601(endTime, zoneId)
+    val endTimeMillis = resolveEndTime(
+        startTimeMillis = startTimeMillis,
+        parsedEndTime = parsedEndTime,
+        timePolicy = timePolicy
+    )
 
     return Event(
         title = title.takeIf { it.isNotBlank() } ?: "New Event",
@@ -327,6 +332,132 @@ private fun EventExtraction.toEventOrNull(
         sourceAttachmentName = sourceAttachment?.displayName.orEmpty(),
         aiConfidence = confidence ?: 1.0f
     )
+}
+
+private fun InputContext.zoneIdOrDefault(): ZoneId {
+    return try {
+        ZoneId.of(timezone)
+    } catch (e: DateTimeParseException) {
+        ZoneId.systemDefault()
+    } catch (e: RuntimeException) {
+        ZoneId.systemDefault()
+    }
+}
+
+private fun EventExtraction.resolveStartTime(
+    zoneId: ZoneId,
+    timePolicy: EventTimePolicy,
+    parseIso8601: (String?, ZoneId) -> Long?
+): Long? {
+    val cleanedStart = startTime.trim()
+    val dateOnly = cleanedStart.toIsoDateOrNull()
+    if (dateOnly != null && timePolicy.inferredStartTime != null) {
+        return dateOnly.atTime(timePolicy.inferredStartTime)
+            .atZone(zoneId)
+            .toInstant()
+            .toEpochMilli()
+    }
+    return parseIso8601(cleanedStart, zoneId)
+}
+
+private fun resolveEndTime(
+    startTimeMillis: Long,
+    parsedEndTime: Long?,
+    timePolicy: EventTimePolicy
+): Long {
+    val fallbackEndTime = startTimeMillis + timePolicy.defaultDurationMillis
+    if (parsedEndTime == null || parsedEndTime <= startTimeMillis) {
+        return fallbackEndTime
+    }
+
+    val parsedDuration = parsedEndTime - startTimeMillis
+    return if (parsedDuration > timePolicy.maximumDurationMillis) {
+        fallbackEndTime
+    } else {
+        parsedEndTime
+    }
+}
+
+private fun String.toIsoDateOrNull(): LocalDate? {
+    val cleaned = trim()
+    if (!Regex("\\d{4}-\\d{2}-\\d{2}").matches(cleaned)) return null
+    return try {
+        LocalDate.parse(cleaned)
+    } catch (e: DateTimeParseException) {
+        null
+    }
+}
+
+private data class EventTimePolicy(
+    val inferredStartTime: LocalTime?,
+    val defaultDurationMillis: Long,
+    val maximumDurationMillis: Long
+) {
+    companion object {
+        private const val HOUR_MS = 3_600_000L
+
+        fun from(event: EventExtraction): EventTimePolicy {
+            val text = listOf(event.title, event.description, event.location)
+                .joinToString(" ")
+                .lowercase()
+
+            return when {
+                text.containsAny("festival", "fest") -> EventTimePolicy(
+                    inferredStartTime = LocalTime.of(20, 0),
+                    defaultDurationMillis = 4 * HOUR_MS,
+                    maximumDurationMillis = 8 * HOUR_MS
+                )
+                text.containsAny(
+                    "concert",
+                    "show",
+                    "live music",
+                    "gig",
+                    "lineup",
+                    "line-up",
+                    "dj set",
+                    "party"
+                ) -> EventTimePolicy(
+                    inferredStartTime = LocalTime.of(20, 0),
+                    defaultDurationMillis = 3 * HOUR_MS,
+                    maximumDurationMillis = 6 * HOUR_MS
+                )
+                text.containsAny("theatre", "theater", "cinema", "film", "movie", "screening") -> EventTimePolicy(
+                    inferredStartTime = LocalTime.of(19, 30),
+                    defaultDurationMillis = 2 * HOUR_MS,
+                    maximumDurationMillis = 5 * HOUR_MS
+                )
+                text.containsAny("dinner") -> EventTimePolicy(
+                    inferredStartTime = LocalTime.of(19, 0),
+                    defaultDurationMillis = 2 * HOUR_MS,
+                    maximumDurationMillis = 4 * HOUR_MS
+                )
+                text.containsAny("lunch") -> EventTimePolicy(
+                    inferredStartTime = LocalTime.of(12, 0),
+                    defaultDurationMillis = HOUR_MS + HOUR_MS / 2,
+                    maximumDurationMillis = 3 * HOUR_MS
+                )
+                text.containsAny("market", "picnic", "family day") -> EventTimePolicy(
+                    inferredStartTime = LocalTime.of(14, 0),
+                    defaultDurationMillis = 3 * HOUR_MS,
+                    maximumDurationMillis = 6 * HOUR_MS
+                )
+                text.containsAny("appointment", "meeting", "class", "workshop") -> EventTimePolicy(
+                    inferredStartTime = LocalTime.of(9, 0),
+                    defaultDurationMillis = HOUR_MS,
+                    maximumDurationMillis = 4 * HOUR_MS
+                )
+                else -> EventTimePolicy(
+                    inferredStartTime = null,
+                    defaultDurationMillis = HOUR_MS,
+                    maximumDurationMillis = 24 * HOUR_MS
+                )
+            }
+        }
+    }
+}
+
+private fun String.containsAny(vararg needles: String): Boolean {
+    return needles.any { contains(it) }
 }
 
 data class SourceAttachment(
