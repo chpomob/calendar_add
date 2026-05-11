@@ -6,8 +6,8 @@ Last updated: 2026-05-10
 
 - `compileSdk = 35`
 - `targetSdk = 35`
-- `versionCode = 5`
-- `versionName = "0.3.0-alpha.0"`
+- `versionCode = 6`
+- `versionName = "0.3.0-alpha.1"`
 - Release minify and shrink are enabled
 - Release minification runs without the previous Kotlin metadata warning after upgrading AGP/R8 to 8.13.2
 - Release Android App Bundle builds successfully
@@ -19,6 +19,7 @@ Last updated: 2026-05-10
 - GitHub Releases can also be created manually with a locally signed APK for testers outside the Play Store
 - Settings now expose an optional heavy analysis mode for staged image/audio extraction
 - `v0.3.0-alpha.0` is the pre-UI-revamp minor checkpoint release
+- `v0.3.0-alpha.1` includes the editable-event flow, calendar upsert sync, R8 stabilization, and Gemma compact profile
 - Event details can now be edited before system-calendar sync
 - Re-syncing an edited event updates the stored Android Calendar event instead of creating a duplicate
 - Gemma 4 E2B Compact is available as a conservative CPU-only text/image profile for constrained-device testing

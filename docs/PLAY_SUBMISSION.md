@@ -6,8 +6,8 @@ This document is a release-prep scaffold based on the current codebase state.
 
 - App name: `Calendar Add`
 - Application ID: `com.calendaradd`
-- Version code: `5`
-- Version name: `0.3.0-alpha.0`
+- Version code: `6`
+- Version name: `0.3.0-alpha.1`
 - Contact email: `chpomob@gmail.com`
 
 ## Suggested Store Copy
