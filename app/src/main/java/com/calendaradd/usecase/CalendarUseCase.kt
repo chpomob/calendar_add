@@ -479,7 +479,7 @@ sealed class EventUpdateResult {
  */
 sealed class EventResult {
     data class Success(val events: List<Event>) : EventResult() {
-        val event: Event get() = events.first()
+        val event: Event get() = events.firstOrNull() ?: throw NoSuchElementException("EventResult.Success with empty events list")
     }
     data class Failure(
         val message: String,

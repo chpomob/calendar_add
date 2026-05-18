@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import com.calendaradd.service.*
 import com.calendaradd.ui.*
 import com.calendaradd.usecase.CalendarUseCase
+import com.calendaradd.util.AppLog
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
@@ -41,8 +42,14 @@ fun AppNavGraph(
 ) {
     LaunchedEffect(openRoute) {
         if (!openRoute.isNullOrBlank()) {
-            navController.navigate(openRoute) {
-                launchSingleTop = true
+            // P1.1: validate route before navigating to prevent crash
+            val validPattern = Regex("""^eventdetail/\d+$""")
+            if (openRoute.matches(validPattern)) {
+                navController.navigate(openRoute) {
+                    launchSingleTop = true
+                }
+            } else {
+                AppLog.w("AppNavGraph", "Rejected invalid openRoute: $openRoute")
             }
             onResetOpenRoute()
         }

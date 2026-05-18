@@ -24,7 +24,7 @@ class HomeViewModel(
     companion object {
         private const val TAG = "HomeViewModel"
     }
-    private var isDownloadingModel = false
+    private val isDownloadingModel = java.util.concurrent.atomic.AtomicBoolean(false)  // P1.3: atomic
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -54,7 +54,7 @@ class HomeViewModel(
                 _selectedModel.value = currentModel
                 _isModelReady.value = false
                 _downloadProgress.value = null
-                if (_uiState.value !is HomeUiState.Loading || isDownloadingModel) {
+                if (_uiState.value !is HomeUiState.Loading || isDownloadingModel.get()) {
                     _uiState.value = HomeUiState.Idle
                 }
             }
@@ -82,7 +82,7 @@ class HomeViewModel(
     }
 
     fun downloadModel() {
-        if (_isModelReady.value || isDownloadingModel) return
+        if (_isModelReady.value || isDownloadingModel.get()) return
         val currentModel = _selectedModel.value
         
         if (!modelDownloadManager.hasEnoughSpace(currentModel)) {
@@ -92,7 +92,7 @@ class HomeViewModel(
             return
         }
 
-        isDownloadingModel = true
+        isDownloadingModel.set(true)
         viewModelScope.launch {
             try {
                 _downloadProgress.value = 0
@@ -105,7 +105,7 @@ class HomeViewModel(
                             _uiState.value = HomeUiState.Loading("Downloading ${currentModel.shortName}: ${status.percentage}%")
                         }
                         is DownloadStatus.Success -> {
-                            isDownloadingModel = false
+                            isDownloadingModel.set(false)
                             _downloadProgress.value = 100
                             val keepModels = backgroundAnalysisScheduler.getPendingModels() + currentModel
                             modelDownloadManager.cleanupUnusedModelFiles(keepModels)
@@ -113,14 +113,14 @@ class HomeViewModel(
                             _uiState.value = HomeUiState.Idle
                         }
                         is DownloadStatus.Failed -> {
-                            isDownloadingModel = false
+                            isDownloadingModel.set(false)
                             _downloadProgress.value = null
                             _uiState.value = HomeUiState.Error(status.error)
                         }
                     }
                 }
             } catch (e: Exception) {
-                isDownloadingModel = false
+                isDownloadingModel.set(false)
                 _uiState.value = HomeUiState.Error("Download initialization failed: ${e.message}")
             }
         }

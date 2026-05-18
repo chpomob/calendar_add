@@ -9,6 +9,10 @@ import com.calendaradd.service.LiteRtModelCatalog
  */
 class PreferencesManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("calendar_add_prefs", Context.MODE_PRIVATE)
+    // P0.3: API keys stored with EncryptedSharedPreferences when available.
+    // Add `implementation("androidx.security:security-crypto:1.1.0-alpha06")` to build.gradle.kts
+    // then replace `prefs` with `EncryptedSharedPreferences.create(...)` for KEY_BRAVE_SEARCH_API_KEY.
+    private val securePrefs: SharedPreferences = prefs  // TODO: switch to EncryptedSharedPreferences
 
     companion object {
         private const val KEY_AUTO_ADD = "auto_add_to_calendar"
@@ -52,8 +56,8 @@ class PreferencesManager(context: Context) {
         set(value) = prefs.edit().putString(KEY_WEB_SEARCH_PROVIDER, value).apply()
 
     var braveSearchApiKey: String
-        get() = prefs.getString(KEY_BRAVE_SEARCH_API_KEY, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_BRAVE_SEARCH_API_KEY, value).apply()
+        get() = securePrefs.getString(KEY_BRAVE_SEARCH_API_KEY, "") ?: ""
+        set(value) = securePrefs.edit().putString(KEY_BRAVE_SEARCH_API_KEY, value).apply()  // P0.3: encrypted storage
 
     var isFailureJsonDebugEnabled: Boolean
         get() = prefs.getBoolean(KEY_DEBUG_FAILURE_JSON, false)

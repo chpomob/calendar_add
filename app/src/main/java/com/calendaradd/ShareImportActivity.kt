@@ -13,6 +13,7 @@ import com.calendaradd.service.ModelDownloadManager
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.ModelImageLoader
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.launch
 
 class ShareImportActivity : ComponentActivity() {
@@ -99,7 +100,21 @@ class ShareImportActivity : ComponentActivity() {
                     return false
                 }
                 val uri = intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return false
-                val audioBytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return false
+                val audioBytes = contentResolver.openInputStream(uri)?.use { stream ->
+                    val maxBytes = 10 * 1024 * 1024  // 10MB limit — P0.1 OOM guard
+                    val buffer = ByteArrayOutputStream()
+                    val chunk = ByteArray(8192)
+                    var total = 0
+                    while (total < maxBytes) {
+                        val read = stream.read(chunk)
+                        if (read == -1) break
+                        val toWrite = minOf(read, maxBytes - total)
+                        buffer.write(chunk, 0, toWrite)
+                        total += toWrite
+                    }
+                    if (total >= maxBytes) AppLog.w(TAG, "Audio truncated at ${maxBytes / 1024 / 1024}MB")
+                    buffer.toByteArray()
+                } ?: return false
                 val workId = backgroundAnalysisScheduler.enqueueAudio(audioBytes, selectedModel)
                 AppLog.i(TAG, "Queued shared audio directly workId=$workId model=${selectedModel.shortName}")
                 true

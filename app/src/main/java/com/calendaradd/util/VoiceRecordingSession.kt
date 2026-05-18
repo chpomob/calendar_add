@@ -27,6 +27,8 @@ class VoiceRecordingSession private constructor(
     private val recordingThread: Thread
 ) {
     companion object {
+        private const val TAG = "VoiceRecordingSession"
+
         @SuppressLint("MissingPermission")
         fun start(context: Context): VoiceRecordingSession {
             val outputFile = createOutputFile(context)
@@ -72,6 +74,11 @@ class VoiceRecordingSession private constructor(
                                 synchronized(pcmOutput) {
                                     pcmOutput.write(buffer, 0, read)
                                 }
+                            } else if (read < 0) {
+                                // AudioRecord error (e.g. ERROR_INVALID_OPERATION=-3)
+                                AppLog.w(TAG, "AudioRecord read error: $read, stopping")
+                                isRecording.set(false)
+                                break
                             }
                         }
                     },
