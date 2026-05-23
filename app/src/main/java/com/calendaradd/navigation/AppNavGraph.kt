@@ -42,8 +42,9 @@ fun AppNavGraph(
 ) {
     LaunchedEffect(openRoute) {
         if (!openRoute.isNullOrBlank()) {
-            // P1.1: validate route before navigating to prevent crash
-            val validPattern = Regex("""^eventdetail/\d+$""")
+            // Accept all routes that the app and BackgroundAnalysisWorker emit:
+            // home, eventlist, settings, privacy, and eventdetail/<positive long>.
+            val validPattern = Regex("""^(home|eventlist|settings|privacy|eventdetail/\d+)$""")
             if (openRoute.matches(validPattern)) {
                 navController.navigate(openRoute) {
                     launchSingleTop = true

@@ -19,7 +19,9 @@ class SystemCalendarService(private val context: Context) {
     data class CalendarInfo(val id: Long, val name: String, val accountName: String, val isPrimary: Boolean)
 
     /**
-     * Fetches all available calendars on the device.
+     * Fetches writable, syncing calendars on the device.
+     * Filters by CALENDAR_ACCESS_LEVEL >= CONTRIBUTOR and SYNC_EVENTS = 1,
+     * matching AOSP CalendarContract access-level constants.
      */
     fun getAvailableCalendars(): List<CalendarInfo> {
         if (!hasCalendarPermissions()) return emptyList()
@@ -30,13 +32,20 @@ class SystemCalendarService(private val context: Context) {
             CalendarContract.Calendars.ACCOUNT_NAME,
             CalendarContract.Calendars.IS_PRIMARY
         )
+        // Only query calendars the user can write to and that sync events.
+        // AOSP CalendarContract defines CAL_ACCESS_CONTRIBUTOR = 500, CAL_ACCESS_EDITOR = 600, CAL_ACCESS_OWNER = 700.
+        // See frameworks/base/core/java/android/provider/CalendarContract.java:414.
+        val selection =
+            "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ? " +
+            "AND ${CalendarContract.Calendars.SYNC_EVENTS} = ?"
+        val selectionArgs = arrayOf("500", "1")
         
         return try {
             val cursor = context.contentResolver.query(
                 CalendarContract.Calendars.CONTENT_URI,
                 projection,
-                null,
-                null,
+                selection,
+                selectionArgs,
                 null
             )
 
@@ -141,4 +150,29 @@ class SystemCalendarService(private val context: Context) {
     }
 
     fun hasCalendarPermissions(): Boolean = context.hasCalendarPermissions()
+
+    /**
+     * Deletes a system calendar event previously inserted by the app.
+     * Must be called when the local Room event is deleted, to avoid orphaned
+     * rows in CalendarProvider.
+     */
+    fun deleteEvent(systemEventId: Long): Boolean {
+        if (!hasCalendarPermissions()) {
+            AppLog.w(TAG, "Missing calendar permissions, cannot delete system event $systemEventId")
+            return false
+        }
+        return try {
+            val uri = Uri.withAppendedPath(CalendarContract.Events.CONTENT_URI, systemEventId.toString())
+            val deleted = context.contentResolver.delete(uri, null, null)
+            if (deleted <= 0) {
+                AppLog.w(TAG, "No system calendar event deleted for id=$systemEventId")
+            } else {
+                AppLog.i(TAG, "Deleted system calendar event id=$systemEventId")
+            }
+            deleted > 0
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Error deleting system calendar event id=$systemEventId", e)
+            false
+        }
+    }
 }

@@ -4,9 +4,11 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
@@ -41,6 +43,9 @@ private const val FOREGROUND_NOTIFICATION_ID = 1301
 private const val RESULT_NOTIFICATION_ID_BASE = 1302
 private const val MAX_BACKGROUND_RUN_ATTEMPTS = 2
 private const val QUEUED_IMAGE_MAX_DIMENSION = 1280
+private const val LLM_IMAGE_MAX_DIMENSION = 512
+private const val MAX_TEXT_INPUT_LENGTH = 32_000
+private const val MAX_AUDIO_DURATION_MS = 5 * 60 * 1000L
 private const val BACKGROUND_ANALYSIS_TIMEOUT_MS = 10 * 60 * 1000L
 
 class BackgroundAnalysisWorker(
@@ -70,6 +75,11 @@ class BackgroundAnalysisWorker(
         val inputFile = File(inputPath)
         val modelConfig = LiteRtModelCatalog.find(modelId)
         val attemptNumber = runAttemptCount + 1
+
+        // Register memory pressure callback to release LLM model before Android LMKD kills us.
+        // AOSP ProcessList.handleOomEvent() (frameworks/base/.../ProcessList.java:906) tracks
+        // OOM kills — giving up the model early avoids the kill.
+        var oomCallback: ComponentCallbacks2? = null
 
         val preferencesManager = PreferencesManager(applicationContext)
         val modelDownloadManager = ModelDownloadManager(applicationContext, preferencesManager)
@@ -121,6 +131,24 @@ class BackgroundAnalysisWorker(
             }
 
             setForeground(createForegroundInfo(buildProgressMessage("Initializing ${modelConfig.shortName}...", runAttemptCount)))
+
+            // Register OOM callback — release LLM model if system signals low memory.
+            // Matches Android's onTrimMemory(TRIM_MEMORY_RUNNING_LOW → TRIM_MEMORY_RUNNING_CRITICAL)
+            // pipeline that precedes LMKD process kill.
+            oomCallback = object : ComponentCallbacks2 {
+                override fun onTrimMemory(level: Int) {
+                    if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+                        AppLog.w(TAG, "Memory pressure level=$level, releasing LLM model")
+                        gemmaLlmService.close()
+                    }
+                }
+                override fun onConfigurationChanged(newConfig: Configuration) {}
+                override fun onLowMemory() {
+                    AppLog.w(TAG, "onLowMemory, releasing LLM model")
+                    gemmaLlmService.close()
+                }
+            }
+            applicationContext.registerComponentCallbacks(oomCallback!!)
 
             gemmaLlmService.initialize(
                 modelPath = modelDownloadManager.getModelFile(modelConfig).absolutePath,
@@ -205,7 +233,10 @@ class BackgroundAnalysisWorker(
             )
             return Result.failure(workDataOf(KEY_ERROR to (e.message ?: "Unexpected background analysis error.")))
         } finally {
+            oomCallback?.let { applicationContext.unregisterComponentCallbacks(it) }
             gemmaLlmService.close()
+            // Force GC to release native LiteRT engine memory before next retry
+            Runtime.getRuntime().gc()
             if (!keepSourceAttachment) {
                 sourceAttachment?.path?.let { File(it).deleteQuietly() }
             }
@@ -236,7 +267,7 @@ class BackgroundAnalysisWorker(
             ForegroundInfo(
                 FOREGROUND_NOTIFICATION_ID,
                 notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
             )
         } else {
             ForegroundInfo(FOREGROUND_NOTIFICATION_ID, notification)

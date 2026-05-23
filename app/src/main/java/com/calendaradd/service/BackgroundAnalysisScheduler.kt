@@ -2,8 +2,10 @@ package com.calendaradd.service
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -13,7 +15,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private const val ANALYSIS_INPUT_DIR = "background-analysis-inputs"
@@ -145,6 +149,11 @@ class BackgroundAnalysisScheduler(
     }
 
     private fun enqueueWork(inputType: AnalysisInputType, inputFile: File, model: LiteRtModelConfig): UUID {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiresBatteryNotLow(true)
+            .build()
+
         val request = OneTimeWorkRequestBuilder<BackgroundAnalysisWorker>()
             .setInputData(
                 Data.Builder()
@@ -153,12 +162,21 @@ class BackgroundAnalysisScheduler(
                     .putString(KEY_MODEL_ID, model.id)
                     .build()
             )
+            .setConstraints(constraints)
+            .setBackoffCriteria(
+                androidx.work.BackoffPolicy.EXPONENTIAL,
+                1, TimeUnit.MINUTES
+            )
             .addTag(WORK_TAG)
             .addTag("$MODEL_TAG_PREFIX${model.id}")
             .addTag("$INPUT_TAG_PREFIX${inputFile.absolutePath}")
             .build()
 
-        workManager.enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+        // Cancel existing work to release LLM memory between jobs.
+        // AOSP internal workers (e.g. PickerSyncManager) use KEEP, not APPEND_OR_REPLACE.
+        workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
+        workManager.pruneWork()
+        workManager.enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request)
         return request.id
     }
 
