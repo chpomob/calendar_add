@@ -96,7 +96,7 @@ class ModelDownloadManager(
 
     /**
      * Starts the download of the selected LiteRT-LM model.
-     * Returns the download ID.
+     * Returns the download ID, or -1 if the model is already fully downloaded.
      */
     fun startDownload(model: LiteRtModelConfig = getSelectedModel()): Long {
         if (!hasEnoughSpace(model)) {
@@ -105,9 +105,22 @@ class ModelDownloadManager(
             )
         }
 
-        // Clean up any existing file or partial download first to avoid ERROR_FILE_ALREADY_EXISTS
         val targetFile = getModelFile(model)
+
+        // If the model is already fully downloaded, don't re-download.
+        // This prevents unnecessary re-downloads after app updates where
+        // DownloadManager IDs are invalidated but the file survives in
+        // externalFilesDir.
+        if (isModelDownloaded(model)) {
+            AppLog.i(TAG, "Model ${model.shortName} is already fully downloaded, skipping re-download")
+            return -1
+        }
+
+        // Only delete partial/incomplete downloads, not valid ones.
+        // DownloadManager may flag existing files with ERROR_FILE_ALREADY_EXISTS
+        // if it still tracks a previous download ID.
         if (targetFile.exists()) {
+            AppLog.w(TAG, "Removing incomplete/stale model file ${targetFile.name} before re-download")
             targetFile.delete()
         }
 

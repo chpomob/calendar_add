@@ -76,6 +76,9 @@ class MainActivity : ComponentActivity() {
         gemmaLlmService = GemmaLlmService(this)
         preferencesManager = PreferencesManager(this)
         modelDownloadManager = ModelDownloadManager(this, preferencesManager)
+        // Clean up unused model files on startup (e.g., after app update,
+        // after switching models in a previous session).
+        modelDownloadManager.cleanupUnusedModelFiles()
         backgroundAnalysisScheduler = BackgroundAnalysisScheduler(this)
         systemCalendarService = SystemCalendarService(this)
         ocrService = OcrService()
@@ -209,6 +212,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         gemmaLlmService.close()
+        ocrService.close()
     }
 
     private inline fun <reified T : Parcelable> Intent.parcelableExtra(name: String): T? {
