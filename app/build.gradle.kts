@@ -24,8 +24,8 @@ android {
         applicationId = "com.calendaradd"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.3.0-alpha.2"
+        versionCode = 8
+        versionName = "0.3.1-alpha.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

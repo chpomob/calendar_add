@@ -289,7 +289,7 @@ fun CalendarSettingsScreen(
                 Column {
                     ListItem(
                         headlineContent = { Text("Version") },
-                        supportingContent = { Text("0.3.0-alpha.0") },
+                        supportingContent = { Text(BuildConfig.VERSION_NAME) },
                         leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
