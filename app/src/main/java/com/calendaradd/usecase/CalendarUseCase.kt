@@ -289,17 +289,25 @@ class CalendarUseCase(
     }
 
     fun getAllEvents() = eventDatabase.eventDao().getAllEvents()
-    
+
     suspend fun deleteEvent(id: Long) {
         val dao = eventDatabase.eventDao()
         val event = dao.getEventById(id)
         dao.deleteEvent(id)
+
+        // Drop the matching CalendarProvider row so an event removed locally never
+        // lingers as an orphan in the system calendar. Failures (missing permission,
+        // already deleted) are logged inside SystemCalendarService; nothing to recover.
+        event?.systemCalendarEventId?.let { systemEventId ->
+            systemCalendarService.deleteEvent(systemEventId)
+        }
+
         val sourcePath = event?.sourceAttachmentPath?.takeIf { it.isNotBlank() } ?: return
         if (dao.countEventsWithSourceAttachmentPath(sourcePath) == 0) {
             File(sourcePath).delete()
         }
     }
-    
+
     fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
 }
 

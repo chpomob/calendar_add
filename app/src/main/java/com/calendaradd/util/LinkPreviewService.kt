@@ -4,10 +4,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import java.net.MalformedURLException
 import java.net.URL
+
+private const val FETCH_TIMEOUT_MS = 10_000
+private const val MAX_RESPONSE_BYTES = 1 * 1024 * 1024 // 1 MB safety cap
+private val ALLOWED_SCHEMES = setOf("http", "https")
 
 /**
  * Service for creating link previews.
+ *
+ * Hardening notes:
+ *  - Only http(s) URLs are fetched. file://, javascript:, data:, content://, etc. are rejected
+ *    to prevent local file disclosure and other scheme-confusion abuse when URLs originate
+ *    from untrusted text (e.g. OCR or shared content).
+ *  - Response bodies are capped at MAX_RESPONSE_BYTES so a hostile or accidentally huge page
+ *    cannot exhaust memory.
+ *  - Connect and read timeouts cap latency.
  */
 class LinkPreviewService {
     companion object {
@@ -15,23 +28,45 @@ class LinkPreviewService {
     }
 
     suspend fun getLinkPreview(url: String): LinkPreview? = withContext(Dispatchers.IO) {
+        val sanitized = sanitizeUrl(url) ?: run {
+            AppLog.w(TAG, "Rejected link preview for unsupported url=$url")
+            return@withContext null
+        }
         try {
-            val document = fetchAndParseUrl(url)
-            extractLinkInfo(document, url)
+            val document = fetchAndParseUrl(sanitized)
+            extractLinkInfo(document, sanitized)
         } catch (e: Exception) {
-            AppLog.w(TAG, "Failed to build link preview url=$url", e)
+            AppLog.w(TAG, "Failed to build link preview url=$sanitized", e)
             null
         }
     }
 
-    private suspend fun fetchAndParseUrl(url: String): Document {
-        return withContext(Dispatchers.IO) {
-            val document = Jsoup.connect(url)
-                .timeout(10000) // 10s timeout
-                .userAgent("Mozilla/5.0")
-                .get()
-            document
+    /**
+     * Validates that the url is well-formed and uses an allowed scheme.
+     * Returns the canonical URL string when accepted, null otherwise.
+     */
+    private fun sanitizeUrl(url: String): String? {
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) return null
+        return try {
+            val parsed = URL(trimmed)
+            val scheme = parsed.protocol?.lowercase().orEmpty()
+            if (scheme !in ALLOWED_SCHEMES) return null
+            if (parsed.host.isNullOrBlank()) return null
+            parsed.toString()
+        } catch (e: MalformedURLException) {
+            null
         }
+    }
+
+    private fun fetchAndParseUrl(url: String): Document {
+        return Jsoup.connect(url)
+            .timeout(FETCH_TIMEOUT_MS)
+            .maxBodySize(MAX_RESPONSE_BYTES)
+            .userAgent("Mozilla/5.0")
+            .followRedirects(true)
+            .ignoreContentType(false)
+            .get()
     }
 
     private fun extractLinkInfo(document: Document, originalUrl: String): LinkPreview? {

@@ -9,6 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.usecase.SourceAttachment
 import com.calendaradd.util.AppLog
 import java.io.File
@@ -38,7 +39,9 @@ data class PendingWorkStatus(
 
 class BackgroundAnalysisScheduler(
     context: Context,
-    private val workManager: WorkManager = WorkManager.getInstance(context.applicationContext)
+    private val workManager: WorkManager = WorkManager.getInstance(context.applicationContext),
+    private val modelDownloadManager: ModelDownloadManager =
+        ModelDownloadManager(context.applicationContext, PreferencesManager(context.applicationContext))
 ) {
     companion object {
         private const val TAG = "BackgroundAnalysisScheduler"
@@ -149,8 +152,18 @@ class BackgroundAnalysisScheduler(
     }
 
     private fun enqueueWork(inputType: AnalysisInputType, inputFile: File, model: LiteRtModelConfig): UUID {
+        // Network is only required when the worker may still need to (re-)download the
+        // model. Extraction itself is 100% on-device, so requiring connectivity when the
+        // model is already cached just blocks jobs on a flaky/offline link unnecessarily.
+        val modelAlreadyOnDisk = runCatching { modelDownloadManager.isModelDownloaded(model) }
+            .getOrElse { error ->
+                AppLog.w(TAG, "Could not probe model presence; assuming network required", error)
+                false
+            }
         val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiredNetworkType(
+                if (modelAlreadyOnDisk) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED
+            )
             .setRequiresBatteryNotLow(true)
             .build()
 

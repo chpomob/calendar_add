@@ -95,9 +95,19 @@ fun AppNavGraph(
         composable(
             route = Screen.EventDetail.route + "/{eventId}"
         ) { backStackEntry ->
-            val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
+            // Guard both nullity and non-numeric input. A malformed route like
+            // "eventdetail/abc" or a missing argument used to crash with
+            // NumberFormatException; we now log and skip the composition.
+            val eventId = backStackEntry.arguments?.getString("eventId")?.toLongOrNull()
+            if (eventId == null) {
+                AppLog.w(
+                    "AppNavGraph",
+                    "Rejected EventDetail route with invalid eventId=${backStackEntry.arguments?.getString("eventId")}"
+                )
+                return@composable
+            }
             CalendarEventDetailScreen(
-                eventId = eventId.toLong(),
+                eventId = eventId,
                 navController = navController,
                 calendarUseCase = calendarUseCase,
                 preferencesManager = preferencesManager

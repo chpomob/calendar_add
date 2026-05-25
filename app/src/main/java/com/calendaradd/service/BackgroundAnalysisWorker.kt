@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
@@ -29,6 +30,8 @@ import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.usecase.SourceAttachment
 import com.calendaradd.util.AppLog
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import kotlin.math.max
@@ -47,6 +50,11 @@ private const val LLM_IMAGE_MAX_DIMENSION = 512
 private const val MAX_TEXT_INPUT_LENGTH = 32_000
 private const val MAX_AUDIO_DURATION_MS = 5 * 60 * 1000L
 private const val BACKGROUND_ANALYSIS_TIMEOUT_MS = 10 * 60 * 1000L
+
+// WAV header layout — see http://soundfile.sapp.org/doc/WaveFormat/
+private const val WAV_HEADER_MIN_SIZE = 44
+private const val WAV_BYTE_RATE_OFFSET = 28
+private const val WAV_DATA_SIZE_OFFSET = 40
 
 class BackgroundAnalysisWorker(
     appContext: Context,
@@ -167,7 +175,19 @@ class BackgroundAnalysisWorker(
                     when (inputType) {
                         AnalysisInputType.TEXT -> {
                             setForeground(createForegroundInfo(buildProgressMessage("Analyzing text with ${modelConfig.shortName}...", runAttemptCount)))
-                            val text = inputFile.readText(StandardCharsets.UTF_8)
+                            // Cap text input length: the model has a finite context window and
+                            // user-pasted/share-imported text can blow past it. Truncating at
+                            // the worker boundary keeps prompts well-formed and predictable.
+                            val rawText = inputFile.readText(StandardCharsets.UTF_8)
+                            val text = if (rawText.length > MAX_TEXT_INPUT_LENGTH) {
+                                AppLog.w(
+                                    TAG,
+                                    "Truncating text input from ${rawText.length} to $MAX_TEXT_INPUT_LENGTH chars traceId=$traceId"
+                                )
+                                rawText.substring(0, MAX_TEXT_INPUT_LENGTH)
+                            } else {
+                                rawText
+                            }
                             calendarUseCase.createEventFromText(text, inputContext)
                         }
                         AnalysisInputType.IMAGE -> {
@@ -184,6 +204,20 @@ class BackgroundAnalysisWorker(
                         }
                         AnalysisInputType.AUDIO -> {
                             setForeground(createForegroundInfo(buildProgressMessage("Analyzing audio with ${modelConfig.shortName}...", runAttemptCount)))
+                            // Reject audio clips longer than MAX_AUDIO_DURATION_MS. We probe with
+                            // MediaMetadataRetriever first (handles MP3/MP4/AAC/etc.); for WAV
+                            // produced in-app the retriever sometimes returns null on certain
+                            // OEM builds, so we fall back to a WAV-header byte-rate computation.
+                            // If neither yields a duration the audio is passed through —
+                            // model-side processing will surface the failure.
+                            val durationMs = probeAudioDurationMs(inputFile)
+                            if (durationMs != null && durationMs > MAX_AUDIO_DURATION_MS) {
+                                AppLog.w(
+                                    TAG,
+                                    "Rejecting audio input duration=${durationMs}ms > ${MAX_AUDIO_DURATION_MS}ms traceId=$traceId"
+                                )
+                                return@withTimeout EventResult.Failure(buildAudioTooLongMessage())
+                            }
                             calendarUseCase.createEventFromAudio(inputFile.readBytes(), inputContext, sourceAttachment)
                         }
                     }
@@ -235,6 +269,10 @@ class BackgroundAnalysisWorker(
         } finally {
             oomCallback?.let { applicationContext.unregisterComponentCallbacks(it) }
             gemmaLlmService.close()
+            // ML Kit text recognizer holds native resources; release them so retries
+            // and the next worker invocation start from a clean slate.
+            runCatching { ocrService.close() }
+                .onFailure { error -> AppLog.w(TAG, "Failed to close OcrService", error) }
             // Force GC to release native LiteRT engine memory before next retry
             Runtime.getRuntime().gc()
             if (!keepSourceAttachment) {
@@ -374,6 +412,75 @@ private fun buildUnexpectedFailureMessage(message: String?, runAttemptCount: Int
 
 internal fun buildAnalysisTimeoutMessage(): String {
     return "Analysis timed out. Try disabling heavy mode, using a smaller image or audio clip, or selecting a smaller model."
+}
+
+internal fun buildAudioTooLongMessage(): String {
+    val maxSeconds = MAX_AUDIO_DURATION_MS / 1000L
+    return "Audio is longer than ${maxSeconds}s. Trim the clip and try again."
+}
+
+/**
+ * Probes audio duration for the supplied file. Returns null when the duration cannot
+ * be determined reliably (caller should then accept the clip).
+ *
+ * Strategy:
+ *  1. MediaMetadataRetriever (handles MP3, MP4/AAC, OGG, WAV on modern Android)
+ *  2. WAV-header fallback (covers VoiceRecordingSession output even when the OEM
+ *     retriever returns null)
+ */
+private fun probeAudioDurationMs(file: File): Long? {
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(file.absolutePath)
+        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+    } catch (_: Exception) {
+        null
+    } finally {
+        runCatching { retriever.release() }
+    }
+}
+
+private fun readWavDurationMs(file: File): Long? {
+    return runCatching {
+        if (file.length() < WAV_HEADER_MIN_SIZE) return@runCatching null
+        val header = ByteArray(WAV_HEADER_MIN_SIZE)
+        file.inputStream().use { input ->
+            var read = 0
+            while (read < WAV_HEADER_MIN_SIZE) {
+                val n = input.read(header, read, WAV_HEADER_MIN_SIZE - read)
+                if (n <= 0) return@runCatching null
+                read += n
+            }
+        }
+        if (!header.startsWithAscii("RIFF", 0) || !header.startsWithAscii("WAVE", 8)) {
+            return@runCatching null
+        }
+        val buffer = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
+        val byteRate = buffer.getInt(WAV_BYTE_RATE_OFFSET).toLong()
+        val declaredDataSize = buffer.getInt(WAV_DATA_SIZE_OFFSET).toLong()
+        if (byteRate <= 0L) return@runCatching null
+        // Trust the header's data size when sensible, otherwise derive from file length.
+        val dataSize = if (declaredDataSize > 0L) {
+            declaredDataSize
+        } else {
+            file.length() - WAV_HEADER_MIN_SIZE
+        }
+        if (dataSize <= 0L) return@runCatching null
+        dataSize * 1000L / byteRate
+    }.getOrNull()
+}
+
+private fun MediaMetadataRetriever.use(block: (MediaMetadataRetriever) -> String?): String? {
+    return try {
+        block(this)
+    } finally {
+        runCatching { release() }
+    }
+}
+
+private fun ByteArray.startsWithAscii(value: String, offset: Int): Boolean {
+    if (offset + value.length > size) return false
+    return value.indices.all { index -> this[offset + index] == value[index].code.toByte() }
 }
 
 private fun decodeQueuedImage(file: File): Bitmap? {

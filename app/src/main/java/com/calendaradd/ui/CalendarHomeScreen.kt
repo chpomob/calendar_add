@@ -42,8 +42,10 @@ import com.calendaradd.util.ModelImageLoader
 import com.calendaradd.util.VoiceRecordingSession
 import java.io.File
 import kotlin.math.max
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val MAX_VOICE_RECORDING_MS = 30_000L
 private const val VOICE_RECORDING_PROGRESS_TICK_MS = 250L
@@ -77,7 +79,7 @@ fun CalendarHomeScreen(
     val isModelReady by viewModel.isModelReady.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
-    
+
     var inputValue by remember { mutableStateOf("") }
     var pendingCameraImagePath by rememberSaveable { mutableStateOf<String?>(null) }
     var notificationsEnabled by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
@@ -155,23 +157,40 @@ fun CalendarHomeScreen(
         }
     }
 
+    // Image and audio decoding are I/O bound and can run on multi-megabyte payloads
+    // (picker URIs, share-imports). Both helpers were previously invoked synchronously
+    // from ActivityResult callbacks, which dispatch on the main thread → ANR.
+    // We dispatch to Dispatchers.IO and hop back via scope.launch for snackbars/
+    // viewModel calls that must run on the main dispatcher.
     fun processImageUri(uri: Uri, source: String) {
         AppLog.i(tag, "$source selected uri=$uri")
-        try {
-            val bitmap = ModelImageLoader.loadForInference(context.contentResolver, uri)
-            if (bitmap != null) {
-                AppLog.i(tag, "$source decoded bitmap=${bitmap.width}x${bitmap.height}")
-                viewModel.processImage(bitmap)
-            } else {
-                AppLog.w(tag, "$source failed to decode uri=$uri")
-                scope.launch {
-                    snackbarHostState.showSnackbar("Unable to load that image for analysis.")
+        scope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                try {
+                    ImageLoadOutcome.Loaded(ModelImageLoader.loadForInference(context.contentResolver, uri))
+                } catch (e: OutOfMemoryError) {
+                    AppLog.e(tag, "$source ran out of memory uri=$uri", e)
+                    ImageLoadOutcome.OutOfMemory
+                } catch (e: Exception) {
+                    AppLog.e(tag, "$source failed uri=$uri", e)
+                    ImageLoadOutcome.Failed
                 }
             }
-        } catch (e: OutOfMemoryError) {
-            AppLog.e(tag, "$source ran out of memory uri=$uri", e)
-            scope.launch {
-                snackbarHostState.showSnackbar("That image is too large to analyze safely.")
+            when (outcome) {
+                is ImageLoadOutcome.Loaded -> {
+                    val bitmap = outcome.bitmap
+                    if (bitmap != null) {
+                        AppLog.i(tag, "$source decoded bitmap=${bitmap.width}x${bitmap.height}")
+                        viewModel.processImage(bitmap)
+                    } else {
+                        AppLog.w(tag, "$source failed to decode uri=$uri")
+                        snackbarHostState.showSnackbar("Unable to load that image for analysis.")
+                    }
+                }
+                ImageLoadOutcome.OutOfMemory ->
+                    snackbarHostState.showSnackbar("That image is too large to analyze safely.")
+                ImageLoadOutcome.Failed ->
+                    snackbarHostState.showSnackbar("Unable to load that image for analysis.")
             }
         }
     }
@@ -189,20 +208,20 @@ fun CalendarHomeScreen(
 
     fun processAudioUri(uri: Uri, source: String) {
         AppLog.i(tag, "$source selected uri=$uri")
-        try {
-            val audioBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        scope.launch {
+            val audioBytes = withContext(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                } catch (e: Exception) {
+                    AppLog.e(tag, "$source failed uri=$uri", e)
+                    null
+                }
+            }
             if (audioBytes != null) {
                 AppLog.i(tag, "$source loaded audio bytes=${audioBytes.size}")
                 viewModel.processAudio(audioBytes)
             } else {
                 AppLog.w(tag, "$source failed to read uri=$uri")
-                scope.launch {
-                    snackbarHostState.showSnackbar("Unable to read that audio file for analysis.")
-                }
-            }
-        } catch (e: Exception) {
-            AppLog.e(tag, "$source failed uri=$uri", e)
-            scope.launch {
                 snackbarHostState.showSnackbar("Unable to read that audio file for analysis.")
             }
         }
@@ -699,7 +718,7 @@ fun CalendarHomeScreen(
                             CircularProgressIndicator()
                             Spacer(modifier = Modifier.height(16.dp))
                             Text((uiState as HomeUiState.Loading).message)
-                            
+
                             downloadProgress?.let {
                                 Spacer(Modifier.height(8.dp))
                                 LinearProgressIndicator(
@@ -733,9 +752,9 @@ fun CalendarHomeScreen(
                         )
                     },
                     confirmButton = {
-                        Button(onClick = { 
+                        Button(onClick = {
                             viewModel.resetState()
-                            navController.navigate(Screen.EventList.route) 
+                            navController.navigate(Screen.EventList.route)
                         }) {
                             Text("Open Library")
                         }
@@ -824,4 +843,10 @@ fun CalendarHomeScreen(
             }
         }
     }
+}
+
+private sealed class ImageLoadOutcome {
+    data class Loaded(val bitmap: Bitmap?) : ImageLoadOutcome()
+    object OutOfMemory : ImageLoadOutcome()
+    object Failed : ImageLoadOutcome()
 }
