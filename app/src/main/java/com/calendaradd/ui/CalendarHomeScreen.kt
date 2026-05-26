@@ -84,7 +84,7 @@ fun CalendarHomeScreen(
     var pendingCameraImagePath by rememberSaveable { mutableStateOf<String?>(null) }
     var notificationsEnabled by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
     var activeVoiceRecording by remember { mutableStateOf<VoiceRecordingSession?>(null) }
-    var voiceRecordingElapsedMs by remember { mutableStateOf(0L) }
+    var voiceRecordingElapsedMs by remember { mutableLongStateOf(0L) }
 
     fun clearPendingCameraFile() {
         pendingCameraImagePath?.let { path ->

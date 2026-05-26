@@ -2,6 +2,7 @@ package com.calendaradd.usecase
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.calendaradd.service.LiteRtModelCatalog
 
 /**
@@ -21,26 +22,26 @@ class PreferencesManager(context: Context) {
 
     var isAutoAddEnabled: Boolean
         get() = prefs.getBoolean(KEY_AUTO_ADD, false)
-        set(value) = prefs.edit().putBoolean(KEY_AUTO_ADD, value).apply()
+        set(value) = prefs.edit { putBoolean(KEY_AUTO_ADD, value) }
 
     var targetCalendarId: Long
         get() = prefs.getLong(KEY_TARGET_CALENDAR_ID, -1L)
-        set(value) = prefs.edit().putLong(KEY_TARGET_CALENDAR_ID, value).apply()
+        set(value) = prefs.edit { putLong(KEY_TARGET_CALENDAR_ID, value) }
 
     var targetCalendarName: String?
         get() = prefs.getString(KEY_TARGET_CALENDAR_NAME, null)
-        set(value) = prefs.edit().putString(KEY_TARGET_CALENDAR_NAME, value).apply()
+        set(value) = prefs.edit { putString(KEY_TARGET_CALENDAR_NAME, value) }
 
     var selectedModelId: String
         get() = prefs.getString(KEY_SELECTED_MODEL_ID, LiteRtModelCatalog.DEFAULT_MODEL_ID)
             ?: LiteRtModelCatalog.DEFAULT_MODEL_ID
-        set(value) = prefs.edit().putString(KEY_SELECTED_MODEL_ID, value).apply()
+        set(value) = prefs.edit { putString(KEY_SELECTED_MODEL_ID, value) }
 
     var isHeavyAnalysisEnabled: Boolean
         get() = prefs.getBoolean(KEY_HEAVY_ANALYSIS, false)
-        set(value) = prefs.edit().putBoolean(KEY_HEAVY_ANALYSIS, value).apply()
+        set(value) = prefs.edit { putBoolean(KEY_HEAVY_ANALYSIS, value) }
 
     var isFailureJsonDebugEnabled: Boolean
         get() = prefs.getBoolean(KEY_DEBUG_FAILURE_JSON, false)
-        set(value) = prefs.edit().putBoolean(KEY_DEBUG_FAILURE_JSON, value).apply()
+        set(value) = prefs.edit { putBoolean(KEY_DEBUG_FAILURE_JSON, value) }
 }
