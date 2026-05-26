@@ -29,57 +29,13 @@ class ApkInstaller(private val context: Context) {
             return openUnknownSourcesSettings()
         }
 
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${BuildConfig.APPLICATION_ID}.fileprovider",
-            apkFile
-        )
-
-        return try {
-            val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
-                data = uri
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
-                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-                putExtra(Intent.EXTRA_RETURN_RESULT, false)
-            }
-            context.startActivity(intent)
-            InstallResult.Started
-        } catch (e: SecurityException) {
-            AppLog.w(TAG, "Package install intent was blocked", e)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                installWithPackageInstaller(apkFile)
-            } else {
-                InstallResult.Failed("Android blocked APK installation. Allow Calendar Add to install unknown apps.")
-            }
-        } catch (e: Exception) {
-            AppLog.w(TAG, "Package install intent failed", e)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                installWithPackageInstaller(apkFile)
-            } else {
-                InstallResult.Failed("No package installer is available on this device.")
-            }
-        }
+        return tryPackageInstaller(apkFile).takeIf { it != null }
+            ?: tryActionInstallPackage(apkFile)
+            ?: InstallResult.Failed("No package installer is available on this device.")
     }
 
-    private fun openUnknownSourcesSettings(): InstallResult {
-        return try {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                Uri.parse("package:${BuildConfig.APPLICATION_ID}")
-            ).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
-            InstallResult.PermissionRequired(
-                "Allow Calendar Add to install unknown apps, then run the update again."
-            )
-        } catch (e: Exception) {
-            AppLog.w(TAG, "Unable to open unknown app sources settings", e)
-            InstallResult.PermissionRequired("Allow Calendar Add to install unknown apps in Android settings.")
-        }
-    }
-
-    private fun installWithPackageInstaller(apkFile: File): InstallResult {
+    private fun tryPackageInstaller(apkFile: File): InstallResult? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return null
         return try {
             val packageInstaller = context.packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
@@ -106,9 +62,55 @@ class ApkInstaller(private val context: Context) {
                 it.commit(pendingIntent.intentSender)
             }
             InstallResult.Started
+        } catch (e: SecurityException) {
+            AppLog.w(TAG, "PackageInstaller blocked, falling back to ACTION_INSTALL_PACKAGE", e)
+            null
         } catch (e: Exception) {
-            AppLog.w(TAG, "PackageInstaller fallback failed", e)
-            InstallResult.Failed("Android could not start the APK installer.")
+            AppLog.w(TAG, "PackageInstaller failed, falling back to ACTION_INSTALL_PACKAGE", e)
+            null
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun tryActionInstallPackage(apkFile: File): InstallResult? {
+        return try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${BuildConfig.APPLICATION_ID}.fileprovider",
+                apkFile
+            )
+            val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                data = uri
+                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                putExtra(Intent.EXTRA_RETURN_RESULT, false)
+            }
+            context.startActivity(intent)
+            InstallResult.Started
+        } catch (e: SecurityException) {
+            AppLog.w(TAG, "ACTION_INSTALL_PACKAGE was blocked", e)
+            InstallResult.Failed("Android blocked APK installation. Allow Calendar Add to install unknown apps.")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "ACTION_INSTALL_PACKAGE failed", e)
+            null
+        }
+    }
+
+    private fun openUnknownSourcesSettings(): InstallResult {
+        return try {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${BuildConfig.APPLICATION_ID}")
+            ).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            InstallResult.PermissionRequired(
+                "Allow Calendar Add to install unknown apps, then run the update again."
+            )
+        } catch (e: Exception) {
+            AppLog.w(TAG, "Unable to open unknown app sources settings", e)
+            InstallResult.PermissionRequired("Allow Calendar Add to install unknown apps in Android settings.")
         }
     }
 }

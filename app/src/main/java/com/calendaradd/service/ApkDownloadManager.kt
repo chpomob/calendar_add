@@ -21,6 +21,7 @@ class ApkDownloadManager(context: Context) {
         private const val MAX_CACHE_AGE_MS = 24L * 60L * 60L * 1000L
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 30_000
+        private const val DEFAULT_BUFFER_SIZE = 8192
     }
 
     private val appContext = context.applicationContext
