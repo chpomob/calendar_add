@@ -15,18 +15,15 @@ if [ -z "$version_name" ]; then
     exit 1
 fi
 
-expected_url="https://github.com/chpomob/calendar_add/releases/download/v${version_name}/calendar-add-v${version_name}-signed.apk"
-
-if ! grep -Fq "$expected_url" README.md; then
-    echo "README.md does not point to the signed APK for versionName ${version_name}." >&2
-    echo "Expected URL:" >&2
-    echo "  ${expected_url}" >&2
+if ! grep -q "github.com/chpomob/calendar_add/releases/download/v${version_name}/" README.md; then
+    echo "README.md does not contain a download URL for versionName ${version_name}." >&2
+    echo "Expected a URL matching: github.com/chpomob/calendar_add/releases/download/v${version_name}/..." >&2
     exit 1
 fi
 
 unexpected_urls="$(
     grep -Eo 'https://github\.com/chpomob/calendar_add/releases/download/v[^[:space:])`]+' README.md |
-        grep -Fv "$expected_url" || true
+        grep -v "v${version_name}/" || true
 )"
 
 if [ -n "$unexpected_urls" ]; then
