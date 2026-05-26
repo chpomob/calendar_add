@@ -6,6 +6,7 @@ import android.os.Build
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.SamplerConfig
+import java.util.Locale
 
 internal data class ActiveModelSignature(
     val modelPath: String,
@@ -160,7 +161,7 @@ internal fun conversationConfigFor(modelConfig: LiteRtModelConfig?): Conversatio
     )
 }
 
-private fun formatMemoryGb(value: Double): String = String.format("%.1f", value)
+private fun formatMemoryGb(value: Double): String = String.format(Locale.ROOT, "%.1f", value)
 
 private const val BYTES_IN_GB = 1024.0 * 1024.0 * 1024.0
 

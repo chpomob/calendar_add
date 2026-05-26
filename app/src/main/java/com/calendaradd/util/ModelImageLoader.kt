@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
+import androidx.core.graphics.scale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -125,7 +126,7 @@ object ModelImageLoader {
         val scale = maxDimension.toFloat() / largestSide.toFloat()
         val scaledWidth = (width * scale).roundToInt().coerceAtLeast(1)
         val scaledHeight = (height * scale).roundToInt().coerceAtLeast(1)
-        val scaled = Bitmap.createScaledBitmap(this, scaledWidth, scaledHeight, true)
+        val scaled = scale(scaledWidth, scaledHeight)
 
         if (scaled !== this) {
             recycle()

@@ -128,7 +128,6 @@ dependencies {
 
     // Testing
     testImplementation(libs.androidx.junit)
-    testImplementation("junit:junit:4.13.2")
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk)
 }

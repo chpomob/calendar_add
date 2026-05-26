@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.core.net.toUri
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 
@@ -66,7 +67,7 @@ object FileImportHandler {
      */
     fun createUrlImportIntent(): Intent {
         val intent = Intent(Intent.ACTION_VIEW)
-        intent.setDataAndType(Uri.parse("about:blank"), "text/plain")
+        intent.setDataAndType("about:blank".toUri(), "text/plain")
         return intent
     }
 

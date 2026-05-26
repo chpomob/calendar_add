@@ -1,5 +1,7 @@
 package com.calendaradd.service
 
+import java.util.Locale
+
 enum class ModelCapability {
     TEXT,
     IMAGE,
@@ -181,8 +183,8 @@ private fun decimalMb(value: Double): Long = (value * 1_000_000L).toLong()
 private fun formatDecimalBytes(bytes: Long): String {
     val gb = bytes / 1_000_000_000.0
     return if (gb >= 1.0) {
-        String.format("%.2f GB", gb)
+        String.format(Locale.ROOT, "%.2f GB", gb)
     } else {
-        String.format("%.0f MB", bytes / 1_000_000.0)
+        String.format(Locale.ROOT, "%.0f MB", bytes / 1_000_000.0)
     }
 }

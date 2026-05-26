@@ -1,6 +1,7 @@
 package com.calendaradd.service
 
 import android.graphics.Bitmap
+import androidx.core.graphics.scale
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.Message
@@ -90,7 +91,7 @@ private fun Bitmap.scaleDownIfNeeded(maxDimension: Int): Bitmap {
     val scale = maxDimension.toFloat() / largestSide.toFloat()
     val scaledWidth = (width * scale).roundToInt().coerceAtLeast(1)
     val scaledHeight = (height * scale).roundToInt().coerceAtLeast(1)
-    return Bitmap.createScaledBitmap(this, scaledWidth, scaledHeight, true)
+    return scale(scaledWidth, scaledHeight)
 }
 
 internal fun Conversation.awaitResponse(

@@ -307,11 +307,17 @@ class BackgroundAnalysisWorker(
             )
             .build()
 
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             ForegroundInfo(
                 FOREGROUND_NOTIFICATION_ID,
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
+            )
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(
+                FOREGROUND_NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
             )
         } else {
             ForegroundInfo(FOREGROUND_NOTIFICATION_ID, notification)
@@ -366,8 +372,6 @@ class BackgroundAnalysisWorker(
     }
 
     private fun ensureNotificationChannels() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val progressChannel = NotificationChannel(
             ANALYSIS_CHANNEL_ID,

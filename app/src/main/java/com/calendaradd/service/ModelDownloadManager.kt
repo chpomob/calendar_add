@@ -2,8 +2,8 @@ package com.calendaradd.service
 
 import android.app.DownloadManager
 import android.content.Context
-import android.net.Uri
 import android.os.Environment
+import androidx.core.net.toUri
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.AppLog
 import kotlinx.coroutines.Dispatchers
@@ -125,7 +125,7 @@ class ModelDownloadManager(
             targetFile.delete()
         }
 
-        val request = DownloadManager.Request(Uri.parse(model.downloadUrl))
+        val request = DownloadManager.Request(model.downloadUrl.toUri())
             .setTitle("Downloading ${model.displayName}")
             .setDescription("Required for local ${model.capabilitySummary.lowercase(Locale.ROOT)} extraction")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)

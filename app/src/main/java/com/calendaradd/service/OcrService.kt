@@ -1,6 +1,7 @@
 package com.calendaradd.service
 
 import android.graphics.Bitmap
+import androidx.core.graphics.scale
 import com.calendaradd.util.AppLog
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -55,6 +56,6 @@ class OcrService : Closeable {
         val scale = MAX_OCR_BITMAP_DIMENSION.toFloat() / largestSide.toFloat()
         val scaledWidth = (width * scale).roundToInt().coerceAtLeast(1)
         val scaledHeight = (height * scale).roundToInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(this, scaledWidth, scaledHeight, true)
+        return scale(scaledWidth, scaledHeight)
     }
 }
