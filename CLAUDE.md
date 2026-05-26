@@ -52,8 +52,6 @@ Models are downloaded via `ModelDownloadManager` (Android `DownloadManager`) and
 
 The model returns `{"events": [{title, description, startTime, endTime, location, attendees}]}`. `TextAnalysisService` strips markdown code fences, extracts the JSON payload, and handles malformed responses. Times are ISO-8601 in prompts and stored as milliseconds (`Long`) in Room.
 
-Optional web verification (`WebVerificationService`) is user-configurable and is the only external network call the app makes.
-
 ## Testing
 
 Tests live in `app/src/test/`. Naming: `*Test.kt` for unit tests, `*IntegrationTest.kt` for multi-class flows.

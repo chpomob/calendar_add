@@ -17,8 +17,7 @@ import kotlinx.coroutines.withContext
 class TextAnalysisService(
     private val gemmaLlmService: EventJsonExtractor,
     private val preferencesManager: PreferencesManager? = null,
-    private val ocrService: OcrService? = null,
-    private val webVerificationService: WebVerificationService? = null
+    private val ocrService: OcrService? = null
 ) {
     companion object {
         private const val TAG = "TextAnalysisService"
@@ -127,7 +126,7 @@ class TextAnalysisService(
             )
         }
         val refinedResults = refineHeavyImageResults(results, ocrText, context)
-        return maybeApplyWebVerification(refinedResults, ocrText, context)
+        return refinedResults
     }
 
     private suspend fun analyzeAudioHeavy(
@@ -188,16 +187,6 @@ class TextAnalysisService(
 
     private suspend fun extractImageText(bitmap: Bitmap): String? {
         return ocrService?.extractText(bitmap)
-    }
-
-    private suspend fun maybeApplyWebVerification(
-        results: List<EventExtraction>,
-        ocrText: String?,
-        context: InputContext
-    ): List<EventExtraction> {
-        if (results.isEmpty()) return results
-        if (preferencesManager?.isWebVerificationEnabled != true) return results
-        return webVerificationService?.refineImageEvents(results, ocrText, context) ?: results
     }
 
     private fun refineHeavyImageResults(

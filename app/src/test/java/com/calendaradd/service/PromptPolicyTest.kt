@@ -46,7 +46,6 @@ class PromptPolicyTest {
         val audio = byteArrayOf(1, 2, 3)
 
         every { prefs.isHeavyAnalysisEnabled } returns true
-        every { prefs.isWebVerificationEnabled } returns false
 
         coEvery {
             extractor.extractEventJson(capture(prompt), image, null)

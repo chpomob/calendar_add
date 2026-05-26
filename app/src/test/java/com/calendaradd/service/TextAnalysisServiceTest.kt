@@ -3,7 +3,6 @@ package com.calendaradd.service
 import com.calendaradd.usecase.InputContext
 import com.calendaradd.usecase.PreferencesManager
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -217,7 +216,6 @@ class TextAnalysisServiceTest {
         val bitmap = mockk<android.graphics.Bitmap>(relaxed = true)
         val observationPrompt = slot<String>()
         every { heavyPreferences.isHeavyAnalysisEnabled } returns true
-        every { heavyPreferences.isWebVerificationEnabled } returns false
 
         coEvery {
             gemmaLlmService.extractEventJson(capture(observationPrompt), bitmap, null)
@@ -244,77 +242,6 @@ class TextAnalysisServiceTest {
     }
 
     @Test
-    fun `analyzeImage should keep web verification disabled by default`() = runBlocking {
-        val heavyPreferences = mockk<PreferencesManager>()
-        val ocrService = mockk<OcrService>()
-        val webVerificationService = mockk<WebVerificationService>()
-        val heavyService = TextAnalysisService(gemmaLlmService, heavyPreferences, ocrService, webVerificationService)
-        val bitmap = mockk<android.graphics.Bitmap>(relaxed = true)
-        every { heavyPreferences.isHeavyAnalysisEnabled } returns true
-        every { heavyPreferences.isWebVerificationEnabled } returns false
-        coEvery { ocrService.extractText(bitmap) } returns "Visit https://example.com/event for details"
-        coEvery {
-            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 1/3: multimodal image observations") }, bitmap, null)
-        } returns """{"events":[{"titleCandidates":["Community Event"],"dateCandidates":["Wednesday, January 7, 2026"],"timeCandidates":["1:00 PM - 2:00 PM"]}]}"""
-        coEvery {
-            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 2/3: temporal normalization") }, null, null)
-        } returns """{"events":[{"resolvedStartTime":"2026-01-07T13:00:00-08:00","resolvedEndTime":"2026-01-07T14:00:00-08:00"}]}"""
-        coEvery {
-            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 3/3: final event composition") }, null, null)
-        } returns """{"events":[{"title":"Community Event","startTime":"2026-01-07T13:00:00-08:00","endTime":"2026-01-07T14:00:00-08:00","location":"","description":"","attendees":[]}]}"""
-
-        val result = heavyService.analyzeImage(bitmap)
-
-        assertEquals("Community Event", result.single().title)
-        coVerify(exactly = 0) { webVerificationService.refineImageEvents(any(), any(), any()) }
-    }
-
-    @Test
-    fun `analyzeImage should apply web verification when enabled and url is present`() = runBlocking {
-        val heavyPreferences = mockk<PreferencesManager>()
-        val ocrService = mockk<OcrService>()
-        val webVerificationService = mockk<WebVerificationService>()
-        val heavyService = TextAnalysisService(gemmaLlmService, heavyPreferences, ocrService, webVerificationService)
-        val bitmap = mockk<android.graphics.Bitmap>(relaxed = true)
-        every { heavyPreferences.isHeavyAnalysisEnabled } returns true
-        every { heavyPreferences.isWebVerificationEnabled } returns true
-        val ocrText = """
-            Community Event
-            https://events.example.com/spring-showcase
-            Friday, May 1, 2026
-            6:00 PM - 8:00 PM
-        """.trimIndent()
-        coEvery { ocrService.extractText(bitmap) } returns ocrText
-        coEvery {
-            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 1/3: multimodal image observations") }, bitmap, null)
-        } returns """{"events":[{"titleCandidates":["Community Event"],"dateCandidates":["Friday, May 1, 2026"],"timeCandidates":["6:00 PM - 8:00 PM"]}]}"""
-        coEvery {
-            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 2/3: temporal normalization") }, null, null)
-        } returns """{"events":[{"resolvedStartTime":"2026-05-01T18:00:00-07:00","resolvedEndTime":"2026-05-01T20:00:00-07:00"}]}"""
-        coEvery {
-            gemmaLlmService.extractEventJson(match { it.contains("Heavy mode stage 3/3: final event composition") }, null, null)
-        } returns """{"events":[{"title":"Community Event","startTime":"2026-05-01T18:00:00-07:00","endTime":"2026-05-01T20:00:00-07:00","location":"","description":"","attendees":[]}]}"""
-        coEvery {
-            webVerificationService.refineImageEvents(any(), ocrText, any())
-        } returns listOf(
-            EventExtraction(
-                title = "Spring Showcase",
-                description = "Preview details from the event page",
-                startTime = "2026-05-01T18:00:00-07:00",
-                endTime = "2026-05-01T20:00:00-07:00",
-                location = "Main Hall",
-                attendees = emptyList()
-            )
-        )
-
-        val result = heavyService.analyzeImage(bitmap)
-
-        assertEquals("Spring Showcase", result.single().title)
-        assertEquals("Main Hall", result.single().location)
-        coVerify(exactly = 1) { webVerificationService.refineImageEvents(any(), ocrText, any()) }
-    }
-
-    @Test
     fun `analyzeImage heavy mode should recover exact schedule rows from OCR`() = runBlocking {
         val heavyPreferences = mockk<PreferencesManager>()
         val ocrService = mockk<OcrService>()
@@ -322,7 +249,6 @@ class TextAnalysisServiceTest {
         val bitmap = mockk<android.graphics.Bitmap>(relaxed = true)
         val observationPrompt = slot<String>()
         every { heavyPreferences.isHeavyAnalysisEnabled } returns true
-        every { heavyPreferences.isWebVerificationEnabled } returns false
         val context = InputContext(
             timestamp = ZonedDateTime.of(2026, 1, 6, 9, 0, 0, 0, ZoneId.of("America/Los_Angeles"))
                 .toInstant()
@@ -381,7 +307,6 @@ class TextAnalysisServiceTest {
         val bitmap = mockk<android.graphics.Bitmap>(relaxed = true)
         every { classicPreferences.isHeavyAnalysisEnabled } returns false
         every { heavyPreferences.isHeavyAnalysisEnabled } returns true
-        every { heavyPreferences.isWebVerificationEnabled } returns false
 
         val ocrText = """
             Wellness Workshop Series
@@ -421,7 +346,6 @@ class TextAnalysisServiceTest {
         val audioData = byteArrayOf(1, 2, 3)
         val observationPrompt = slot<String>()
         every { heavyPreferences.isHeavyAnalysisEnabled } returns true
-        every { heavyPreferences.isWebVerificationEnabled } returns false
 
         coEvery {
             gemmaLlmService.extractEventJson(capture(observationPrompt), null, audioData)

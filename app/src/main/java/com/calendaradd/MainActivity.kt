@@ -16,15 +16,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import com.calendaradd.navigation.AppNavGraph
-import com.calendaradd.service.*
+import com.calendaradd.service.BackgroundAnalysisScheduler
+import com.calendaradd.service.GemmaLlmService
+import com.calendaradd.service.ModelDownloadManager
+import com.calendaradd.service.OcrService
+import com.calendaradd.service.SystemCalendarService
+import com.calendaradd.service.TextAnalysisService
 import com.calendaradd.ui.theme.CalendarAddTheme
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.EventDatabase
 import com.calendaradd.usecase.PreferencesManager
+import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
-import com.calendaradd.util.AppLog
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -42,7 +47,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var systemCalendarService: SystemCalendarService
     private lateinit var preferencesManager: PreferencesManager
     private lateinit var ocrService: OcrService
-    private lateinit var webVerificationService: WebVerificationService
 
     // State to hold shared content for navigation
     private val sharedText = mutableStateOf<String?>(null)
@@ -82,13 +86,11 @@ class MainActivity : ComponentActivity() {
         backgroundAnalysisScheduler = BackgroundAnalysisScheduler(this)
         systemCalendarService = SystemCalendarService(this)
         ocrService = OcrService()
-        webVerificationService = WebVerificationService(webSearchClient = PreferencesWebSearchClient(preferencesManager))
 
         val textAnalysisService = TextAnalysisService(
             gemmaLlmService,
             preferencesManager,
-            ocrService,
-            webVerificationService
+            ocrService
         )
         calendarUseCase = CalendarUseCase(
             textAnalysisService = textAnalysisService,

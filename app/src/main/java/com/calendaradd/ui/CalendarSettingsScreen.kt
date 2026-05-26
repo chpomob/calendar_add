@@ -3,25 +3,56 @@ package com.calendaradd.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import com.calendaradd.BuildConfig
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.calendaradd.BuildConfig
 import com.calendaradd.navigation.Screen
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
@@ -41,9 +72,6 @@ fun CalendarSettingsScreen(
     val availableCalendars by viewModel.availableCalendars.collectAsState()
     val isAutoAddEnabled by viewModel.isAutoAddEnabled.collectAsState()
     val isHeavyAnalysisEnabled by viewModel.isHeavyAnalysisEnabled.collectAsState()
-    val isWebVerificationEnabled by viewModel.isWebVerificationEnabled.collectAsState()
-    val webSearchProvider by viewModel.webSearchProvider.collectAsState()
-    val braveSearchApiKey by viewModel.braveSearchApiKey.collectAsState()
     val isFailureJsonDebugEnabled by viewModel.isFailureJsonDebugEnabled.collectAsState()
     val selectedModelId by viewModel.selectedModelId.collectAsState()
     val selectedCalendarId by viewModel.selectedCalendarId.collectAsState()
@@ -235,31 +263,6 @@ fun CalendarSettingsScreen(
                             )
                         }
                     )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    ListItem(
-                        headlineContent = { Text("Experimental web lookup") },
-                        supportingContent = {
-                            Text(
-                                "Optional public-event lookup for ambiguous flyers. Experimental and provider-dependent."
-                            )
-                        },
-                        leadingContent = { Icon(Icons.Default.Language, contentDescription = null) },
-                        trailingContent = {
-                            Switch(
-                                checked = isWebVerificationEnabled,
-                                onCheckedChange = { viewModel.setWebVerificationEnabled(it) }
-                            )
-                        }
-                    )
-                    if (isWebVerificationEnabled) {
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                        WebSearchProviderSettings(
-                            provider = webSearchProvider,
-                            braveApiKey = braveSearchApiKey,
-                            onProviderChange = viewModel::setWebSearchProvider,
-                            onBraveApiKeyChange = viewModel::setBraveSearchApiKey
-                        )
-                    }
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     ListItem(
                         headlineContent = { Text("Show raw model JSON on failure") },
