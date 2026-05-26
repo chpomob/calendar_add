@@ -126,9 +126,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
 
-    // Utils
-    implementation("org.jsoup:jsoup:1.18.1")
-
     // Testing
     testImplementation(libs.androidx.junit)
     testImplementation("junit:junit:4.13.2")
