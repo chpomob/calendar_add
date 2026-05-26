@@ -5,11 +5,15 @@ import androidx.lifecycle.ViewModelProvider
 import com.calendaradd.service.*
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.PreferencesManager
+import com.calendaradd.util.ApkInstaller
 
 class AppViewModelFactory(
     private val calendarUseCase: CalendarUseCase,
     private val gemmaLlmService: GemmaLlmService? = null,
     private val modelDownloadManager: ModelDownloadManager? = null,
+    private val updateCheckerService: UpdateCheckerService? = null,
+    private val apkDownloadManager: ApkDownloadManager? = null,
+    private val apkInstaller: ApkInstaller? = null,
     private val backgroundAnalysisScheduler: BackgroundAnalysisScheduler? = null,
     private val preferencesManager: PreferencesManager? = null,
     private val eventId: Long? = null
@@ -27,7 +31,13 @@ class AppViewModelFactory(
             }
             modelClass.isAssignableFrom(SettingsViewModel::class.java) -> {
                 @Suppress("UNCHECKED_CAST")
-                SettingsViewModel(calendarUseCase, preferencesManager!!) as T
+                SettingsViewModel(
+                    calendarUseCase,
+                    preferencesManager!!,
+                    updateCheckerService!!,
+                    apkDownloadManager!!,
+                    apkInstaller!!
+                ) as T
             }
             modelClass.isAssignableFrom(DetailViewModel::class.java) -> {
                 @Suppress("UNCHECKED_CAST")

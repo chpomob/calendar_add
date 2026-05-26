@@ -3,6 +3,9 @@
     <cache-path
         name="captured_images"
         path="captured-images/" />
+    <cache-path
+        name="apk_downloads"
+        path="apk-downloads/" />
     <files-path
         name="event_source_files"
         path="event-source-files/" />

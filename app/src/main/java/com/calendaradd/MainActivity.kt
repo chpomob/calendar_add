@@ -17,16 +17,19 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import com.calendaradd.navigation.AppNavGraph
 import com.calendaradd.service.BackgroundAnalysisScheduler
+import com.calendaradd.service.ApkDownloadManager
 import com.calendaradd.service.GemmaLlmService
 import com.calendaradd.service.ModelDownloadManager
 import com.calendaradd.service.OcrService
 import com.calendaradd.service.SystemCalendarService
 import com.calendaradd.service.TextAnalysisService
+import com.calendaradd.service.UpdateCheckerService
 import com.calendaradd.ui.theme.CalendarAddTheme
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.EventDatabase
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.AppLog
+import com.calendaradd.util.ApkInstaller
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
@@ -43,6 +46,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var calendarUseCase: CalendarUseCase
     private lateinit var gemmaLlmService: GemmaLlmService
     private lateinit var modelDownloadManager: ModelDownloadManager
+    private lateinit var apkDownloadManager: ApkDownloadManager
+    private lateinit var updateCheckerService: UpdateCheckerService
+    private lateinit var apkInstaller: ApkInstaller
     private lateinit var backgroundAnalysisScheduler: BackgroundAnalysisScheduler
     private lateinit var systemCalendarService: SystemCalendarService
     private lateinit var preferencesManager: PreferencesManager
@@ -80,9 +86,13 @@ class MainActivity : ComponentActivity() {
         gemmaLlmService = GemmaLlmService(this)
         preferencesManager = PreferencesManager(this)
         modelDownloadManager = ModelDownloadManager(this, preferencesManager)
+        apkDownloadManager = ApkDownloadManager(this)
+        updateCheckerService = UpdateCheckerService(this)
+        apkInstaller = ApkInstaller(this)
         // Clean up unused model files on startup (e.g., after app update,
         // after switching models in a previous session).
         modelDownloadManager.cleanupUnusedModelFiles()
+        apkDownloadManager.cleanupOldDownloads()
         backgroundAnalysisScheduler = BackgroundAnalysisScheduler(this)
         systemCalendarService = SystemCalendarService(this)
         ocrService = OcrService()
@@ -118,6 +128,9 @@ class MainActivity : ComponentActivity() {
                         calendarUseCase = calendarUseCase,
                         gemmaLlmService = gemmaLlmService,
                         modelDownloadManager = modelDownloadManager,
+                        updateCheckerService = updateCheckerService,
+                        apkDownloadManager = apkDownloadManager,
+                        apkInstaller = apkInstaller,
                         backgroundAnalysisScheduler = backgroundAnalysisScheduler,
                         preferencesManager = preferencesManager,
                         onResetSharedContent = ::resetSharedContent,

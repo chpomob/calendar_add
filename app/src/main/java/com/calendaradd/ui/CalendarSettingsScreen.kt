@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -52,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.calendaradd.BuildConfig
 import com.calendaradd.navigation.Screen
 import com.calendaradd.util.calendarPermissions
 import com.calendaradd.util.hasCalendarPermissions
@@ -75,6 +73,7 @@ fun CalendarSettingsScreen(
     val isFailureJsonDebugEnabled by viewModel.isFailureJsonDebugEnabled.collectAsState()
     val selectedModelId by viewModel.selectedModelId.collectAsState()
     val selectedCalendarId by viewModel.selectedCalendarId.collectAsState()
+    val updateState by viewModel.updateCheckState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val hasCalendarPermissions = remember { mutableStateOf(context.hasCalendarPermissions()) }
 
@@ -291,10 +290,11 @@ fun CalendarSettingsScreen(
             
             Card {
                 Column {
-                    ListItem(
-                        headlineContent = { Text("Version") },
-                        supportingContent = { Text(BuildConfig.VERSION_NAME) },
-                        leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
+                    UpdateCheckSection(
+                        currentVersion = viewModel.currentVersion,
+                        updateState = updateState,
+                        onCheck = { viewModel.checkForUpdates() },
+                        onInstall = { viewModel.downloadAndInstallUpdate() }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     ListItem(

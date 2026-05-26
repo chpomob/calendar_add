@@ -12,6 +12,7 @@ import com.calendaradd.ui.*
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.util.AppLog
 import com.calendaradd.usecase.PreferencesManager
+import com.calendaradd.util.ApkInstaller
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 
@@ -26,6 +27,9 @@ fun AppNavGraph(
     calendarUseCase: CalendarUseCase,
     gemmaLlmService: GemmaLlmService,
     modelDownloadManager: ModelDownloadManager,
+    updateCheckerService: UpdateCheckerService,
+    apkDownloadManager: ApkDownloadManager,
+    apkInstaller: ApkInstaller,
     backgroundAnalysisScheduler: BackgroundAnalysisScheduler,
     preferencesManager: PreferencesManager,
     onResetSharedContent: () -> Unit,
@@ -118,7 +122,10 @@ fun AppNavGraph(
             val settingsViewModel: SettingsViewModel = viewModel(
                 factory = AppViewModelFactory(
                     calendarUseCase = calendarUseCase,
-                    preferencesManager = preferencesManager
+                    preferencesManager = preferencesManager,
+                    updateCheckerService = updateCheckerService,
+                    apkDownloadManager = apkDownloadManager,
+                    apkInstaller = apkInstaller
                 )
             )
             
