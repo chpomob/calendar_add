@@ -26,6 +26,8 @@ class BackgroundAnalysisSchedulerTest {
     fun setup() {
         context = mockk(relaxed = true)
         workManager = mockk(relaxed = true)
+        val sharedPrefs: android.content.SharedPreferences = mockk(relaxed = true)
+        val downloadMgr: android.app.DownloadManager = mockk(relaxed = true)
         inputDir = File("build/tmp/background-analysis-scheduler-test").apply {
             deleteRecursively()
             mkdirs()
@@ -34,6 +36,9 @@ class BackgroundAnalysisSchedulerTest {
         every { context.applicationContext } returns context
         every { context.noBackupFilesDir } returns inputDir
         every { context.filesDir } returns inputDir
+        every { context.getSharedPreferences(any(), any()) } returns sharedPrefs
+        every { context.getSystemService(Context.DOWNLOAD_SERVICE) } returns downloadMgr
+        every { context.getExternalFilesDir(any()) } returns inputDir
     }
 
     @Test
@@ -136,8 +141,15 @@ class BackgroundAnalysisSchedulerTest {
     }
 
     private fun immediateFuture(workInfos: List<WorkInfo>): ListenableFuture<List<WorkInfo>> {
-        return mockk {
-            every { get() } returns workInfos
+        return object : ListenableFuture<List<WorkInfo>> {
+            override fun get(): List<WorkInfo> = workInfos
+            override fun get(timeout: Long, unit: java.util.concurrent.TimeUnit): List<WorkInfo> = workInfos
+            override fun isDone(): Boolean = true
+            override fun isCancelled(): Boolean = false
+            override fun cancel(mayInterruptIfRunning: Boolean): Boolean = false
+            override fun addListener(listener: Runnable, executor: java.util.concurrent.Executor) {
+                executor.execute(listener)
+            }
         }
     }
 }
