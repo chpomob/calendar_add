@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
+import java.lang.ref.WeakReference
 
 /**
  * Service for interacting with Gemma 4 via LiteRT-LM API.
@@ -30,7 +31,7 @@ open class GemmaLlmService(
     companion object {
         private const val TAG = "GemmaLlmService"
         private val processEngineGuard = Any()
-        private var activeService: GemmaLlmService? = null
+        private var activeService = WeakReference<GemmaLlmService>(null)
     }
     private var engine: Engine? = null
     private val mutex = Any()
@@ -79,7 +80,7 @@ open class GemmaLlmService(
                 if (engine != null && activeModelSignature == requestedModelSignature) return@withContext
             }
 
-            val previousActiveService = activeService
+            val previousActiveService = activeService.get()
             if (previousActiveService != null && previousActiveService !== this) {
                 AppLog.w(TAG, "Closing previously active LiteRT-LM service instance before initialization")
                 previousActiveService.closeEngineForProcessTransfer()
@@ -141,7 +142,7 @@ open class GemmaLlmService(
                         activeBackendIndex = index
                         lastBackendUsed = profile.label
                         lastInitializationFailure = null
-                        activeService = this@GemmaLlmService
+                        activeService = WeakReference(this@GemmaLlmService)
                         AppLog.i(TAG, "LiteRT-LM engine ready backend=${profile.label}")
                         return@withContext
                     } catch (e: Throwable) {
@@ -295,8 +296,8 @@ open class GemmaLlmService(
         synchronized(processEngineGuard) {
             synchronized(mutex) {
                 closeEngineLocked()
-                if (activeService === this) {
-                    activeService = null
+                if (activeService.get() === this) {
+                    activeService.clear()
                 }
             }
         }
@@ -305,8 +306,8 @@ open class GemmaLlmService(
     private fun closeEngineForProcessTransfer() {
         synchronized(mutex) {
             closeEngineLocked()
-            if (activeService === this) {
-                activeService = null
+            if (activeService.get() === this) {
+                activeService.clear()
             }
         }
     }

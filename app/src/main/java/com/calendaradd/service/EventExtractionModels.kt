@@ -1,5 +1,7 @@
 package com.calendaradd.service
 
+import java.util.Locale
+
 internal fun combineHeavyModeResponses(
     observations: String?,
     temporalResolution: String?,
@@ -120,7 +122,7 @@ private fun EventExtraction.mergeWith(other: EventExtraction): EventExtraction {
 }
 
 private fun String.normalizedKey(): String {
-    return trim().lowercase().replace(Regex("\\s+"), " ")
+    return trim().lowercase(Locale.ROOT).replace(Regex("\\s+"), " ")
 }
 
 private fun firstNonBlank(first: String, second: String): String {

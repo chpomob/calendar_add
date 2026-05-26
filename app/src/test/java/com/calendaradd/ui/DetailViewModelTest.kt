@@ -47,7 +47,7 @@ class DetailViewModelTest {
 
     @Test
     fun `saveEdits should reject invalid start time`() = runTest(dispatcher) {
-        every { calendarUseCase.getAllEvents() } returns flowOf(listOf(baseEvent()))
+        every { calendarUseCase.getEventByIdFlow(7L) } returns flowOf(baseEvent())
         val viewModel = DetailViewModel(7L, calendarUseCase, preferencesManager)
         advanceUntilIdle()
 
@@ -68,7 +68,7 @@ class DetailViewModelTest {
     @Test
     fun `saveEdits should persist edited fields through use case`() = runTest(dispatcher) {
         val savedEvent = slot<Event>()
-        every { calendarUseCase.getAllEvents() } returns flowOf(listOf(baseEvent()))
+        every { calendarUseCase.getEventByIdFlow(7L) } returns flowOf(baseEvent())
         coEvery {
             calendarUseCase.updateEvent(capture(savedEvent))
         } answers {

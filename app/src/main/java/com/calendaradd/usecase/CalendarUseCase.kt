@@ -11,6 +11,7 @@ import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeParseException
+import java.util.Locale
 
 /**
  * Use case for creating calendar events from various inputs.
@@ -290,9 +291,11 @@ class CalendarUseCase(
 
     fun getAllEvents() = eventDatabase.eventDao().getAllEvents()
 
+    fun getEventByIdFlow(id: Long) = eventDatabase.eventDao().getEventById(id)
+
     suspend fun deleteEvent(id: Long) {
         val dao = eventDatabase.eventDao()
-        val event = dao.getEventById(id)
+        val event = dao.getEventByIdOnce(id)
         dao.deleteEvent(id)
 
         // Drop the matching CalendarProvider row so an event removed locally never
@@ -407,7 +410,7 @@ private data class EventTimePolicy(
         fun from(event: EventExtraction): EventTimePolicy {
             val text = listOf(event.title, event.description, event.location)
                 .joinToString(" ")
-                .lowercase()
+                .lowercase(Locale.ROOT)
 
             return when {
                 text.containsAny("festival", "fest") -> EventTimePolicy(

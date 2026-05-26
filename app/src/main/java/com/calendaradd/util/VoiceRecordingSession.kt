@@ -17,6 +17,8 @@ private const val RECORDING_EXTENSION = ".wav"
 private const val AUDIO_CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
 private const val AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT
 private const val BYTES_PER_SAMPLE = 2
+private const val MAX_RECORDING_DURATION_MS = 30L * 60L * 1000L
+private const val MAX_RECORDING_PCM_BYTES = 500 * 1024 * 1024
 
 class VoiceRecordingSession private constructor(
     private val recorder: AudioRecord,
@@ -65,13 +67,24 @@ class VoiceRecordingSession private constructor(
                 }
                 recorder.startRecording()
                 isRecording.set(true)
+                val startedAt = SystemClock.elapsedRealtime()
                 val recordingThread = Thread(
                     {
                         val buffer = ByteArray(bufferSize)
                         while (isRecording.get()) {
+                            if (SystemClock.elapsedRealtime() - startedAt >= MAX_RECORDING_DURATION_MS) {
+                                AppLog.w(TAG, "Recording reached duration limit; stopping")
+                                isRecording.set(false)
+                                break
+                            }
                             val read = recorder.read(buffer, 0, buffer.size)
                             if (read > 0) {
                                 synchronized(pcmOutput) {
+                                    if (pcmOutput.size() + read > MAX_RECORDING_PCM_BYTES) {
+                                        AppLog.w(TAG, "Recording reached byte limit; stopping")
+                                        isRecording.set(false)
+                                        return@synchronized
+                                    }
                                     pcmOutput.write(buffer, 0, read)
                                 }
                             } else if (read < 0) {
@@ -88,7 +101,7 @@ class VoiceRecordingSession private constructor(
                 return VoiceRecordingSession(
                     recorder = recorder,
                     outputFile = outputFile,
-                    startedAtElapsedRealtime = SystemClock.elapsedRealtime(),
+                    startedAtElapsedRealtime = startedAt,
                     isRecording = isRecording,
                     pcmOutput = pcmOutput,
                     recordingThread = recordingThread

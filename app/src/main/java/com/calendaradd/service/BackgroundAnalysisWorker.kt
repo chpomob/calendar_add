@@ -29,6 +29,7 @@ import com.calendaradd.usecase.InputContext
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.usecase.SourceAttachment
 import com.calendaradd.util.AppLog
+import com.calendaradd.util.FileImportHandler
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -215,6 +216,13 @@ class BackgroundAnalysisWorker(
                                     "Rejecting audio input duration=${durationMs}ms > ${MAX_AUDIO_DURATION_MS}ms traceId=$traceId"
                                 )
                                 return@withTimeout EventResult.Failure(buildAudioTooLongMessage())
+                            }
+                            if (inputFile.length() > FileImportHandler.MAX_AUDIO_BYTES) {
+                                AppLog.w(
+                                    TAG,
+                                    "Rejecting audio input bytes=${inputFile.length()} > ${FileImportHandler.MAX_AUDIO_BYTES} traceId=$traceId"
+                                )
+                                return@withTimeout EventResult.Failure("That audio file is too large to analyze safely.")
                             }
                             calendarUseCase.createEventFromAudio(inputFile.readBytes(), inputContext, sourceAttachment)
                         }

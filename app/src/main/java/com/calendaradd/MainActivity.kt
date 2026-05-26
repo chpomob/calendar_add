@@ -185,6 +185,10 @@ class MainActivity : ComponentActivity() {
 
     private fun uriToBitmap(uri: Uri): Bitmap? {
         return try {
+            if (!FileImportHandler.isWithinSizeLimit(contentResolver, uri, FileImportHandler.MAX_COMPRESSED_IMAGE_BYTES)) {
+                AppLog.w(TAG, "Shared image uri=$uri exceeds compressed size limit")
+                return null
+            }
             ModelImageLoader.loadForInference(contentResolver, uri)?.also { bitmap ->
                 AppLog.i(TAG, "Decoded shared image uri=$uri size=${bitmap.width}x${bitmap.height}")
             } ?: run {
@@ -202,7 +206,12 @@ class MainActivity : ComponentActivity() {
 
     private fun uriToBytes(uri: Uri): ByteArray? {
         return try {
-            contentResolver.openInputStream(uri)?.use { it.readBytes() }?.also { bytes ->
+            FileImportHandler.readBytesWithLimit(
+                contentResolver = contentResolver,
+                uri = uri,
+                maxBytes = FileImportHandler.MAX_AUDIO_BYTES,
+                label = "Shared audio"
+            ).also { bytes ->
                 AppLog.i(TAG, "Decoded shared audio uri=$uri bytes=${bytes.size}")
             }
         } catch (e: Exception) {

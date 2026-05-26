@@ -167,6 +167,14 @@ fun CalendarHomeScreen(
         scope.launch {
             val outcome = withContext(Dispatchers.IO) {
                 try {
+                    if (!fileImportHandler.isWithinSizeLimit(
+                            context.contentResolver,
+                            uri,
+                            FileImportHandler.MAX_COMPRESSED_IMAGE_BYTES
+                        )
+                    ) {
+                        return@withContext ImageLoadOutcome.TooLarge
+                    }
                     ImageLoadOutcome.Loaded(ModelImageLoader.loadForInference(context.contentResolver, uri))
                 } catch (e: OutOfMemoryError) {
                     AppLog.e(tag, "$source ran out of memory uri=$uri", e)
@@ -189,6 +197,8 @@ fun CalendarHomeScreen(
                 }
                 ImageLoadOutcome.OutOfMemory ->
                     snackbarHostState.showSnackbar("That image is too large to analyze safely.")
+                ImageLoadOutcome.TooLarge ->
+                    snackbarHostState.showSnackbar("That image file is too large to analyze safely.")
                 ImageLoadOutcome.Failed ->
                     snackbarHostState.showSnackbar("Unable to load that image for analysis.")
             }
@@ -211,7 +221,12 @@ fun CalendarHomeScreen(
         scope.launch {
             val audioBytes = withContext(Dispatchers.IO) {
                 try {
-                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    fileImportHandler.readBytesWithLimit(
+                        contentResolver = context.contentResolver,
+                        uri = uri,
+                        maxBytes = FileImportHandler.MAX_AUDIO_BYTES,
+                        label = "$source audio"
+                    )
                 } catch (e: Exception) {
                     AppLog.e(tag, "$source failed uri=$uri", e)
                     null
@@ -848,5 +863,6 @@ fun CalendarHomeScreen(
 private sealed class ImageLoadOutcome {
     data class Loaded(val bitmap: Bitmap?) : ImageLoadOutcome()
     object OutOfMemory : ImageLoadOutcome()
+    object TooLarge : ImageLoadOutcome()
     object Failed : ImageLoadOutcome()
 }

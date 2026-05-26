@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import java.io.File
+import java.util.Locale
 
 /**
  * Manages downloads for selectable LiteRT-LM models.
@@ -126,7 +127,7 @@ class ModelDownloadManager(
 
         val request = DownloadManager.Request(Uri.parse(model.downloadUrl))
             .setTitle("Downloading ${model.displayName}")
-            .setDescription("Required for local ${model.capabilitySummary.lowercase()} extraction")
+            .setDescription("Required for local ${model.capabilitySummary.lowercase(Locale.ROOT)} extraction")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, model.fileName)
             .setAllowedOverMetered(true)

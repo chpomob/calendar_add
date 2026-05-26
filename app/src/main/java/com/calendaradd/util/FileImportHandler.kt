@@ -1,8 +1,12 @@
 package com.calendaradd.util
 
 import android.app.Activity
+import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 /**
  * Handles file import from share intents.
@@ -14,6 +18,8 @@ object FileImportHandler {
     const val FILE_TYPE_TEXT = "text/*"
     const val FILE_TYPE_IMAGE = "image/*"
     const val FILE_TYPE_AUDIO = "audio/*"
+    const val MAX_AUDIO_BYTES = 50L * 1024L * 1024L
+    const val MAX_COMPRESSED_IMAGE_BYTES = 20L * 1024L * 1024L
 
     /**
      * Creates intent for picking files from Files app.
@@ -79,6 +85,70 @@ object FileImportHandler {
         } else {
             FileImportResult.Failure(resultCode)
         }
+    }
+
+    fun isWithinSizeLimit(
+        contentResolver: ContentResolver,
+        uri: Uri,
+        maxBytes: Long
+    ): Boolean {
+        val declaredSize = querySizeBytes(contentResolver, uri)
+        return declaredSize == null || declaredSize <= maxBytes
+    }
+
+    @Throws(IOException::class)
+    fun readBytesWithLimit(
+        contentResolver: ContentResolver,
+        uri: Uri,
+        maxBytes: Long,
+        label: String
+    ): ByteArray {
+        querySizeBytes(contentResolver, uri)?.let { declaredSize ->
+            if (declaredSize > maxBytes) {
+                throw FileTooLargeException(label, declaredSize, maxBytes)
+            }
+        }
+
+        val input = contentResolver.openInputStream(uri)
+            ?: throw IOException("Could not open $label input stream.")
+        return input.use { stream ->
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var total = 0L
+            while (true) {
+                val read = stream.read(buffer)
+                if (read == -1) break
+                total += read.toLong()
+                if (total > maxBytes) {
+                    throw FileTooLargeException(label, total, maxBytes)
+                }
+                output.write(buffer, 0, read)
+            }
+            output.toByteArray()
+        }
+    }
+
+    private fun querySizeBytes(contentResolver: ContentResolver, uri: Uri): Long? {
+        return runCatching {
+            contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                val sizeColumn = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (sizeColumn == -1 || !cursor.moveToFirst() || cursor.isNull(sizeColumn)) {
+                    null
+                } else {
+                    cursor.getLong(sizeColumn).takeIf { it >= 0L }
+                }
+            }
+        }.getOrNull()
+    }
+
+    class FileTooLargeException(
+        label: String,
+        actualBytes: Long,
+        maxBytes: Long
+    ) : IOException("$label is too large (${actualBytes.toMbLabel()} > ${maxBytes.toMbLabel()}).")
+
+    private fun Long.toMbLabel(): String {
+        return "${this / (1024L * 1024L)}MB"
     }
 }
 

@@ -38,11 +38,8 @@ class DetailViewModel(
 
     private fun loadEvent() {
         viewModelScope.launch {
-            // P2.1 NOTE: currently O(n) via getAllEvents().collect + find.
-            // TODO: add getEventByIdFlow(id) to CalendarUseCase for O(1) reactive lookup.
-            calendarUseCase.getAllEvents().collect { events ->
-                _event.value = events.find { it.id == eventId }
-                if (_event.value != null) return@collect  // stop collecting once found
+            calendarUseCase.getEventByIdFlow(eventId).collect { event ->
+                _event.value = event
             }
         }
     }

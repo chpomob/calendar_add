@@ -256,7 +256,7 @@ class CalendarUseCaseTest {
         val sourceFile = File.createTempFile("calendar-add-source", ".jpg").apply {
             writeText("source")
         }
-        coEvery { eventDao.getEventById(7L) } returns Event(
+        coEvery { eventDao.getEventByIdOnce(7L) } returns Event(
             id = 7L,
             title = "Source event",
             startTime = 1L,
