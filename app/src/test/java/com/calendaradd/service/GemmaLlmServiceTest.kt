@@ -17,7 +17,14 @@ import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.every
 import io.mockk.unmockkAll
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.system.measureTimeMillis
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -588,6 +595,37 @@ class GemmaLlmServiceTest {
         assertEquals(64, samplerConfig.topK)
         assertEquals(0.95, samplerConfig.topP, 0.0)
         assertEquals(1.0, samplerConfig.temperature, 0.0)
+    }
+
+    @Test
+    fun `close should not block while inference is waiting for callback completion`() = runBlocking {
+        val conversation = mockk<Conversation>(relaxed = true)
+        val requestStarted = CountDownLatch(1)
+        every { conversation.sendMessageAsync(any<Contents>(), any(), any()) } answers {
+            requestStarted.countDown()
+            Unit
+        }
+        every { engine.createConversation(any()) } returns conversation
+        service.initialize("/tmp/fake-model.litertlm")
+
+        val inferenceJob = launch(Dispatchers.Default) {
+            try {
+                service.extractEventJson("extract an event")
+            } catch (_: CancellationException) {
+                // close() cancels the active LiteRT request cooperatively.
+            }
+        }
+
+        assertTrue(requestStarted.await(2, TimeUnit.SECONDS))
+        val elapsedMs = measureTimeMillis {
+            service.close()
+        }
+
+        assertTrue("close() should return without waiting for the inference mutex", elapsedMs < 500L)
+        withTimeout(2_000L) {
+            inferenceJob.join()
+        }
+        verify(atLeast = 1) { conversation.cancelProcess() }
     }
 
     private fun modelMessage(text: String): Message {

@@ -8,13 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- TBD
+- System calendar ownership verification via ExtendedProperties marker (CVE-2025-XXXX mitigation)
+- Cooperative close for GemmaLlmService — cancels in-flight inference instead of blocking
+- Tests for WAV audio duration fallback and GemmaLlmService close behavior
 
 ### Changed
-- TBD
+- ShareImportActivity now processes incoming content on `Dispatchers.IO` (ANR mitigation)
+- ApkDownloadManager refuses APK install when SHA-256 checksum is missing
+- BackgroundAnalysisWorker WAV duration fallback (`readWavDurationMs`) is now wired
+- GemmaLlmService uses `ReentrantLock` instead of `synchronized` for cooperative cancellation
+- SystemCalendarService cursor reads use `.orEmpty()` for nullable platform strings
+- UpdateCheckerService accepts 2-component SemVer versions (defaults missing to 0)
 
 ### Fixed
-- TBD
+- APK self-update integrity: missing checksum now blocks installation
+- Main-thread ANR on share import (bitmap decode, byte read, file persist)
+- WAV audio duration guard never applied when MediaMetadataRetriever fails
+- OOM callback blocked on inference mutex, defeating memory pressure relief
+- Calendar event update/delete could target non-owned rows
+- NPE on some calendars with null display/account name
+- SemanticVersion.parse rejecting "v1.2" style tags
+- build.gradle.kts minor version bumps for compatibility
 
 ## [0.1.0] - 2026-04-18
 

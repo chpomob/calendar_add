@@ -2,6 +2,7 @@ package com.calendaradd.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.calendaradd.service.ApkDownloadResult
 import com.calendaradd.BuildConfig
 import com.calendaradd.service.ApkDownloadManager
 import com.calendaradd.service.LiteRtModelCatalog
@@ -136,13 +137,27 @@ class SettingsViewModel(
 
         viewModelScope.launch {
             _updateCheckState.value = UpdateCheckState.Downloading(updateInfo, 0)
-            val apkFile = apkDownloadManager.downloadApk(updateInfo) { progress ->
+            val downloadResult = apkDownloadManager.downloadApkResult(updateInfo) { progress ->
                 _updateCheckState.value = UpdateCheckState.Downloading(updateInfo, progress)
             }
-
-            if (apkFile == null) {
-                _updateCheckState.value = UpdateCheckState.Error("Download failed. Check your connection and try again.")
-                return@launch
+            val apkFile = when (downloadResult) {
+                is ApkDownloadResult.Success -> downloadResult.file
+                ApkDownloadResult.ChecksumUnavailable -> {
+                    _updateCheckState.value = UpdateCheckState.Error(
+                        "Update checksum is missing. Download the APK manually from the release page."
+                    )
+                    return@launch
+                }
+                ApkDownloadResult.ChecksumMismatch -> {
+                    _updateCheckState.value = UpdateCheckState.Error(
+                        "Downloaded APK checksum did not match. Try again later or download manually."
+                    )
+                    return@launch
+                }
+                ApkDownloadResult.DownloadFailed -> {
+                    _updateCheckState.value = UpdateCheckState.Error("Download failed. Check your connection and try again.")
+                    return@launch
+                }
             }
 
             when (val installResult = apkInstaller.install(apkFile)) {

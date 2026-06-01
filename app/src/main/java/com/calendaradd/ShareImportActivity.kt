@@ -14,7 +14,9 @@ import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.ModelImageLoader
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ShareImportActivity : ComponentActivity() {
     companion object {
@@ -61,7 +63,7 @@ class ShareImportActivity : ComponentActivity() {
         }
     }
 
-    private fun tryEnqueueSharedContent(intent: Intent?): Boolean {
+    private suspend fun tryEnqueueSharedContent(intent: Intent?): Boolean {
         if (intent?.action != Intent.ACTION_SEND) return false
 
         val selectedModel = modelDownloadManager.getSelectedModel()
@@ -73,7 +75,9 @@ class ShareImportActivity : ComponentActivity() {
         return when {
             intent.type?.startsWith("text/") == true -> {
                 val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() } ?: return false
-                val workId = backgroundAnalysisScheduler.enqueueText(text, selectedModel)
+                val workId = withContext(Dispatchers.IO) {
+                    backgroundAnalysisScheduler.enqueueText(text, selectedModel)
+                }
                 AppLog.i(TAG, "Queued shared text directly workId=$workId model=${selectedModel.shortName}")
                 true
             }
@@ -84,17 +88,20 @@ class ShareImportActivity : ComponentActivity() {
                     return false
                 }
                 val uri = intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return false
-                if (!FileImportHandler.isWithinSizeLimit(contentResolver, uri, FileImportHandler.MAX_COMPRESSED_IMAGE_BYTES)) {
-                    AppLog.w(TAG, "Shared image exceeds compressed size limit uri=$uri")
-                    return false
+                val workId = withContext(Dispatchers.IO) {
+                    if (!FileImportHandler.isWithinSizeLimit(contentResolver, uri, FileImportHandler.MAX_COMPRESSED_IMAGE_BYTES)) {
+                        AppLog.w(TAG, "Shared image exceeds compressed size limit uri=$uri")
+                        return@withContext null
+                    }
+                    val bitmap = ModelImageLoader.loadForInference(contentResolver, uri) ?: return@withContext null
+                    try {
+                        backgroundAnalysisScheduler.enqueueImage(bitmap, selectedModel)
+                    } finally {
+                        bitmap.recycle()
+                    }
                 }
-                val bitmap = ModelImageLoader.loadForInference(contentResolver, uri) ?: return false
-                try {
-                    val workId = backgroundAnalysisScheduler.enqueueImage(bitmap, selectedModel)
-                    AppLog.i(TAG, "Queued shared image directly workId=$workId model=${selectedModel.shortName}")
-                } finally {
-                    bitmap.recycle()
-                }
+                if (workId == null) return false
+                AppLog.i(TAG, "Queued shared image directly workId=$workId model=${selectedModel.shortName}")
                 true
             }
 
@@ -104,13 +111,21 @@ class ShareImportActivity : ComponentActivity() {
                     return false
                 }
                 val uri = intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return false
-                val audioBytes = FileImportHandler.readBytesWithLimit(
-                    contentResolver = contentResolver,
-                    uri = uri,
-                    maxBytes = FileImportHandler.MAX_AUDIO_BYTES,
-                    label = "Shared audio"
-                )
-                val workId = backgroundAnalysisScheduler.enqueueAudio(audioBytes, selectedModel)
+                val workId = withContext(Dispatchers.IO) {
+                    val audioBytes = try {
+                        FileImportHandler.readBytesWithLimit(
+                            contentResolver = contentResolver,
+                            uri = uri,
+                            maxBytes = FileImportHandler.MAX_AUDIO_BYTES,
+                            label = "Shared audio"
+                        )
+                    } catch (e: FileImportHandler.FileTooLargeException) {
+                        AppLog.w(TAG, "Shared audio exceeds size limit uri=$uri", e)
+                        return@withContext null
+                    }
+                    backgroundAnalysisScheduler.enqueueAudio(audioBytes, selectedModel)
+                }
+                if (workId == null) return false
                 AppLog.i(TAG, "Queued shared audio directly workId=$workId model=${selectedModel.shortName}")
                 true
             }

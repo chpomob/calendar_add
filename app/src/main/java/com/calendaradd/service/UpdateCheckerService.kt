@@ -157,7 +157,10 @@ class UpdateCheckerService(context: Context) {
                 .firstOrNull { it.contains(apkName, ignoreCase = true) && checksumPattern.containsMatchIn(it) }
                 ?.let { return checksumPattern.find(it)?.value?.lowercase(Locale.ROOT) }
         }
-        return checksumPattern.find(notes)?.value?.lowercase(Locale.ROOT)
+        return checksumPattern.findAll(notes)
+            .map { it.value.lowercase(Locale.ROOT) }
+            .toList()
+            .singleOrNull()
     }
 
     private fun isVersionNewer(candidateTag: String, currentVersionName: String): Boolean {
@@ -166,7 +169,7 @@ class UpdateCheckerService(context: Context) {
         return candidate > current
     }
 
-    private data class SemanticVersion(
+    internal data class SemanticVersion(
         val major: Int,
         val minor: Int,
         val patch: Int,
@@ -202,11 +205,11 @@ class UpdateCheckerService(context: Context) {
                 val normalized = value.trim().removePrefix("v").substringBefore("+")
                 val versionAndPreRelease = normalized.split("-", limit = 2)
                 val parts = versionAndPreRelease.firstOrNull()?.split(".") ?: return null
-                if (parts.size < 3) return null
+                if (parts.isEmpty() || parts.size > 3) return null
                 return SemanticVersion(
                     major = parts[0].toIntOrNull() ?: return null,
-                    minor = parts[1].toIntOrNull() ?: return null,
-                    patch = parts[2].toIntOrNull() ?: return null,
+                    minor = parts.getOrNull(1)?.toIntOrNull() ?: 0,
+                    patch = parts.getOrNull(2)?.toIntOrNull() ?: 0,
                     preRelease = versionAndPreRelease.getOrNull(1)?.split(".").orEmpty()
                 )
             }

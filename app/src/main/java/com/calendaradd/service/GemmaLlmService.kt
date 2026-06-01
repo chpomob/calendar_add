@@ -6,11 +6,15 @@ import com.calendaradd.util.AppLog
 import com.calendaradd.util.hasWavHeader
 import com.google.ai.edge.litertlm.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Service for interacting with Gemma 4 via LiteRT-LM API.
@@ -34,7 +38,10 @@ open class GemmaLlmService(
         private var activeService = WeakReference<GemmaLlmService>(null)
     }
     private var engine: Engine? = null
-    private val mutex = Any()
+    private val mutex = ReentrantLock()
+    private val activeRequestCancellationJob = AtomicReference<Job?>(null)
+    @Volatile
+    private var closeRequested = false
     private var activeBackendLabel: String? = null
     private var activeModelSignature: ActiveModelSignature? = null
     private var activeConversationConfig: ConversationConfig = ConversationConfig()
@@ -76,7 +83,7 @@ open class GemmaLlmService(
                 enableAudio = enableAudio,
                 maxNumTokens = modelConfig?.maxNumTokens
             )
-            synchronized(mutex) {
+            mutex.withLock {
                 if (engine != null && activeModelSignature == requestedModelSignature) return@withContext
             }
 
@@ -86,7 +93,8 @@ open class GemmaLlmService(
                 previousActiveService.closeEngineForProcessTransfer()
             }
 
-            synchronized(mutex) {
+            mutex.withLock {
+                closeRequested = false
                 if (engine != null && activeModelSignature != requestedModelSignature) {
                     AppLog.i(TAG, "Switching LiteRT-LM engine from $activeModelSignature to $requestedModelSignature")
                     closeEngineLocked()
@@ -133,6 +141,10 @@ open class GemmaLlmService(
                         )
                         initializedEngine = createEngine(config).apply {
                             initialize()
+                        }
+                        if (closeRequested) {
+                            initializedEngine.close()
+                            throw CancellationException("LiteRT-LM initialization was cancelled by close()")
                         }
                         engine = initializedEngine
                         activeBackendLabel = profile.label
@@ -195,13 +207,15 @@ open class GemmaLlmService(
             "[$requestId] Starting request mode=$mode backend=${activeBackendLabel ?: "uninitialized"} " +
                 "promptChars=${requestText.length} image=${image.describeForLogs()} audio=${audio.describeForLogs()}"
         )
-        val requestJob = currentCoroutineContext()[Job]
+        val parentRequestJob = currentCoroutineContext()[Job]
+        val requestCancellationJob: CompletableJob = Job(parentRequestJob)
 
-        synchronized(mutex) {
-            if (engine == null) {
+        mutex.withLock {
+            if (closeRequested || engine == null) {
                 AppLog.e(TAG, "[$requestId] Rejecting request because engine is not initialized")
-                return@synchronized null
+                return@withLock null
             }
+            activeRequestCancellationJob.set(requestCancellationJob)
             var preparedImage: PreparedImageBytes? = null
 
             try {
@@ -241,7 +255,8 @@ open class GemmaLlmService(
                         val result = conversation.awaitResponse(
                             contents = Contents.of(requestContents),
                             requestId = requestId,
-                            cancellationJob = requestJob
+                            cancellationJob = requestCancellationJob,
+                            shouldCancel = { closeRequested }
                         )
 
                         AppLog.i(TAG, "[$requestId] Request completed responseChars=${result?.length ?: 0}")
@@ -281,10 +296,19 @@ open class GemmaLlmService(
                 throw e
             } catch (e: IllegalStateException) {
                 AppLog.e(TAG, "[$requestId] Invalid request state before LiteRT-LM call", e)
-                return@synchronized null
+                null
             } catch (e: OutOfMemoryError) {
                 AppLog.e(TAG, "[$requestId] Image preprocessing ran out of memory", e)
-                return@synchronized null
+                null
+            } finally {
+                activeRequestCancellationJob.compareAndSet(requestCancellationJob, null)
+                requestCancellationJob.complete()
+                if (closeRequested) {
+                    closeEngineLocked()
+                    if (activeService.get() === this@GemmaLlmService) {
+                        activeService.clear()
+                    }
+                }
             }
         }
     }
@@ -293,18 +317,30 @@ open class GemmaLlmService(
      * Closes the engine and releases resources.
      */
     open fun close() {
-        synchronized(processEngineGuard) {
-            synchronized(mutex) {
-                closeEngineLocked()
-                if (activeService.get() === this) {
-                    activeService.clear()
-                }
+        closeRequested = true
+        activeRequestCancellationJob.getAndSet(null)?.cancel(
+            CancellationException("LiteRT-LM service was closed")
+        )
+        if (!mutex.tryLock()) {
+            AppLog.w(TAG, "Close requested while LiteRT-LM is busy; active request will stop cooperatively")
+            return
+        }
+        try {
+            closeEngineLocked()
+            if (activeService.get() === this) {
+                activeService.clear()
             }
+        } finally {
+            mutex.unlock()
         }
     }
 
     private fun closeEngineForProcessTransfer() {
-        synchronized(mutex) {
+        closeRequested = true
+        activeRequestCancellationJob.getAndSet(null)?.cancel(
+            CancellationException("LiteRT-LM service is transferring process ownership")
+        )
+        mutex.withLock {
             closeEngineLocked()
             if (activeService.get() === this) {
                 activeService.clear()

@@ -53,9 +53,9 @@ private const val MAX_AUDIO_DURATION_MS = 5 * 60 * 1000L
 private const val BACKGROUND_ANALYSIS_TIMEOUT_MS = 10 * 60 * 1000L
 
 // WAV header layout — see http://soundfile.sapp.org/doc/WaveFormat/
-private const val WAV_HEADER_MIN_SIZE = 44
-private const val WAV_BYTE_RATE_OFFSET = 28
-private const val WAV_DATA_SIZE_OFFSET = 40
+private const val WAV_HEADER_MIN_SIZE = 12
+private const val WAV_CHUNK_HEADER_SIZE = 8
+private const val WAV_BYTE_RATE_OFFSET_IN_FMT = 8
 
 class BackgroundAnalysisWorker(
     appContext: Context,
@@ -438,49 +438,64 @@ internal fun buildAudioTooLongMessage(): String {
  *  2. WAV-header fallback (covers VoiceRecordingSession output even when the OEM
  *     retriever returns null)
  */
-private fun probeAudioDurationMs(file: File): Long? {
-    val retriever = MediaMetadataRetriever()
+internal fun probeAudioDurationMs(file: File): Long? {
     return try {
-        retriever.setDataSource(file.absolutePath)
-        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        MediaMetadataRetriever().use { retriever ->
+            retriever.setDataSource(file.absolutePath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                ?: readWavDurationMs(file)
+        }
     } catch (_: Exception) {
-        null
-    } finally {
-        runCatching { retriever.release() }
+        readWavDurationMs(file)
     }
 }
 
-private fun readWavDurationMs(file: File): Long? {
+internal fun readWavDurationMs(file: File): Long? {
     return runCatching {
         if (file.length() < WAV_HEADER_MIN_SIZE) return@runCatching null
-        val header = ByteArray(WAV_HEADER_MIN_SIZE)
         file.inputStream().use { input ->
-            var read = 0
-            while (read < WAV_HEADER_MIN_SIZE) {
-                val n = input.read(header, read, WAV_HEADER_MIN_SIZE - read)
-                if (n <= 0) return@runCatching null
-                read += n
+            val riffHeader = input.readFullyOrNull(WAV_HEADER_MIN_SIZE) ?: return@runCatching null
+            if (!riffHeader.startsWithAscii("RIFF", 0) || !riffHeader.startsWithAscii("WAVE", 8)) {
+                return@runCatching null
             }
+
+            var byteRate: Long? = null
+            var dataSize: Long? = null
+
+            while (byteRate == null || dataSize == null) {
+                val chunkHeader = input.readFullyOrNull(WAV_CHUNK_HEADER_SIZE) ?: break
+                val chunkId = chunkHeader.toAsciiString(0, 4)
+                val chunkSize = chunkHeader.littleEndianUInt(4)
+                when (chunkId) {
+                    "fmt " -> {
+                        val chunk = input.readFullyOrNull(chunkSize) ?: return@runCatching null
+                        if (chunk.size >= WAV_BYTE_RATE_OFFSET_IN_FMT + Int.SIZE_BYTES) {
+                            byteRate = ByteBuffer.wrap(chunk)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .getInt(WAV_BYTE_RATE_OFFSET_IN_FMT)
+                                .toLong()
+                        }
+                    }
+                    "data" -> {
+                        dataSize = chunkSize.toLong()
+                        input.skipFully(chunkSize)
+                    }
+                    else -> input.skipFully(chunkSize)
+                }
+                if (chunkSize % 2 == 1) {
+                    input.skipFully(1)
+                }
+            }
+
+            val resolvedByteRate = byteRate ?: return@runCatching null
+            val resolvedDataSize = dataSize ?: return@runCatching null
+            if (resolvedByteRate <= 0L || resolvedDataSize <= 0L) return@runCatching null
+            resolvedDataSize * 1000L / resolvedByteRate
         }
-        if (!header.startsWithAscii("RIFF", 0) || !header.startsWithAscii("WAVE", 8)) {
-            return@runCatching null
-        }
-        val buffer = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
-        val byteRate = buffer.getInt(WAV_BYTE_RATE_OFFSET).toLong()
-        val declaredDataSize = buffer.getInt(WAV_DATA_SIZE_OFFSET).toLong()
-        if (byteRate <= 0L) return@runCatching null
-        // Trust the header's data size when sensible, otherwise derive from file length.
-        val dataSize = if (declaredDataSize > 0L) {
-            declaredDataSize
-        } else {
-            file.length() - WAV_HEADER_MIN_SIZE
-        }
-        if (dataSize <= 0L) return@runCatching null
-        dataSize * 1000L / byteRate
     }.getOrNull()
 }
 
-private fun MediaMetadataRetriever.use(block: (MediaMetadataRetriever) -> String?): String? {
+private fun MediaMetadataRetriever.use(block: (MediaMetadataRetriever) -> Long?): Long? {
     return try {
         block(this)
     } finally {
@@ -488,9 +503,43 @@ private fun MediaMetadataRetriever.use(block: (MediaMetadataRetriever) -> String
     }
 }
 
+private fun java.io.InputStream.readFullyOrNull(size: Int): ByteArray? {
+    val buffer = ByteArray(size)
+    var read = 0
+    while (read < size) {
+        val n = read(buffer, read, size - read)
+        if (n <= 0) return null
+        read += n
+    }
+    return buffer
+}
+
+private fun java.io.InputStream.skipFully(byteCount: Int) {
+    var remaining = byteCount.toLong()
+    while (remaining > 0L) {
+        val skipped = skip(remaining)
+        if (skipped <= 0L) {
+            if (read() == -1) return
+            remaining -= 1L
+        } else {
+            remaining -= skipped
+        }
+    }
+}
+
 private fun ByteArray.startsWithAscii(value: String, offset: Int): Boolean {
     if (offset + value.length > size) return false
     return value.indices.all { index -> this[offset + index] == value[index].code.toByte() }
+}
+
+private fun ByteArray.toAsciiString(offset: Int, length: Int): String {
+    return String(this, offset, length, StandardCharsets.US_ASCII)
+}
+
+private fun ByteArray.littleEndianUInt(offset: Int): Int {
+    return ByteBuffer.wrap(this, offset, Int.SIZE_BYTES)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .int
 }
 
 private fun decodeQueuedImage(file: File): Bitmap? {

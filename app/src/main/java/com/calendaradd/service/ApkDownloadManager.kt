@@ -14,7 +14,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-class ApkDownloadManager(context: Context) {
+class ApkDownloadManager(
+    context: Context,
+    private val connectionFactory: (String) -> HttpURLConnection = { url ->
+        URL(url).openConnection() as HttpURLConnection
+    }
+) {
     companion object {
         private const val TAG = "ApkDownloadManager"
         private const val DOWNLOAD_DIR = "apk-downloads"
@@ -30,15 +35,29 @@ class ApkDownloadManager(context: Context) {
     suspend fun downloadApk(
         updateInfo: UpdateInfo,
         onProgress: (Int) -> Unit = {}
-    ): File? = withContext(Dispatchers.IO) {
-        val downloadUrl = updateInfo.downloadUrl ?: return@withContext null
+    ): File? {
+        return when (val result = downloadApkResult(updateInfo, onProgress)) {
+            is ApkDownloadResult.Success -> result.file
+            else -> null
+        }
+    }
+
+    suspend fun downloadApkResult(
+        updateInfo: UpdateInfo,
+        onProgress: (Int) -> Unit = {}
+    ): ApkDownloadResult = withContext(Dispatchers.IO) {
+        val downloadUrl = updateInfo.downloadUrl ?: return@withContext ApkDownloadResult.DownloadFailed
         downloadMutex.withLock {
             cleanupOldDownloads()
             val targetFile = File(downloadDir(), apkFileName(downloadUrl, updateInfo.latestVersion))
             val checksum = resolveChecksum(updateInfo, targetFile.name)
+            if (checksum.isNullOrBlank()) {
+                AppLog.w(TAG, "Refusing APK download because SHA-256 checksum is unavailable for ${targetFile.name}")
+                return@withLock ApkDownloadResult.ChecksumUnavailable
+            }
             if (targetFile.exists() && targetFile.length() > 0L && checksumMatches(targetFile, checksum)) {
                 onProgress(100)
-                return@withLock targetFile
+                return@withLock ApkDownloadResult.Success(targetFile)
             }
 
             val tempFile = File(targetFile.parentFile, "${targetFile.name}.part")
@@ -49,7 +68,7 @@ class ApkDownloadManager(context: Context) {
                 if (!checksumMatches(tempFile, checksum)) {
                     AppLog.w(TAG, "Downloaded APK checksum mismatch for ${targetFile.name}")
                     tempFile.delete()
-                    return@withLock null
+                    return@withLock ApkDownloadResult.ChecksumMismatch
                 }
                 if (targetFile.exists()) targetFile.delete()
                 if (!tempFile.renameTo(targetFile)) {
@@ -57,11 +76,11 @@ class ApkDownloadManager(context: Context) {
                     tempFile.delete()
                 }
                 onProgress(100)
-                targetFile
+                ApkDownloadResult.Success(targetFile)
             } catch (e: Exception) {
                 AppLog.w(TAG, "APK download failed", e)
                 tempFile.delete()
-                null
+                ApkDownloadResult.DownloadFailed
             }
         }
     }
@@ -80,7 +99,7 @@ class ApkDownloadManager(context: Context) {
     }
 
     private fun download(url: String, targetFile: File, onProgress: (Int) -> Unit) {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+        val connection = connectionFactory(url).apply {
             instanceFollowRedirects = true
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
@@ -122,7 +141,7 @@ class ApkDownloadManager(context: Context) {
         updateInfo.checksumSha256?.let { return it }
         val checksumUrl = updateInfo.checksumUrl ?: return null
         return try {
-            val connection = (URL(checksumUrl).openConnection() as HttpURLConnection).apply {
+            val connection = connectionFactory(checksumUrl).apply {
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
                 requestMethod = "GET"
@@ -143,11 +162,17 @@ class ApkDownloadManager(context: Context) {
         content.lineSequence()
             .firstOrNull { it.contains(apkName, ignoreCase = true) && checksumPattern.containsMatchIn(it) }
             ?.let { return checksumPattern.find(it)?.value?.lowercase(Locale.ROOT) }
-        return checksumPattern.find(content)?.value?.lowercase(Locale.ROOT)
+        return checksumPattern.findAll(content)
+            .map { it.value.lowercase(Locale.ROOT) }
+            .toList()
+            .singleOrNull()
     }
 
     private fun checksumMatches(file: File, expectedSha256: String?): Boolean {
-        if (expectedSha256.isNullOrBlank()) return true
+        if (expectedSha256.isNullOrBlank()) {
+            AppLog.w(TAG, "Refusing APK install because SHA-256 checksum is missing")
+            return false
+        }
         return file.exists() && sha256(file).equals(expectedSha256, ignoreCase = true)
     }
 
@@ -177,6 +202,13 @@ class ApkDownloadManager(context: Context) {
             ?: "CalendarAdd-${latestVersion.removePrefix("v")}.apk"
         return baseName.replace(Regex("""[^A-Za-z0-9._-]"""), "_")
     }
+}
+
+sealed class ApkDownloadResult {
+    data class Success(val file: File) : ApkDownloadResult()
+    object ChecksumUnavailable : ApkDownloadResult()
+    object ChecksumMismatch : ApkDownloadResult()
+    object DownloadFailed : ApkDownloadResult()
 }
 
 private inline fun <T : HttpURLConnection, R> T.use(block: (T) -> R): R {

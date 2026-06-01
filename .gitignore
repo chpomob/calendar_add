@@ -69,3 +69,5 @@ toresume
 
 # Local reference repositories
 external/
+.adversarial-loop-calendar/
+.adversarial-review-calendar/

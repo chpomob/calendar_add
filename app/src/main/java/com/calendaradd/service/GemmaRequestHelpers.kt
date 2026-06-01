@@ -97,7 +97,8 @@ private fun Bitmap.scaleDownIfNeeded(maxDimension: Int): Bitmap {
 internal fun Conversation.awaitResponse(
     contents: Contents,
     requestId: String,
-    cancellationJob: Job?
+    cancellationJob: Job?,
+    shouldCancel: () -> Boolean = { false }
 ): String? {
     val completed = CountDownLatch(1)
     val failure = AtomicReference<Throwable?>()
@@ -129,7 +130,7 @@ internal fun Conversation.awaitResponse(
         )
 
         while (!completed.await(LITERTLM_CALLBACK_POLL_MS, TimeUnit.MILLISECONDS)) {
-            if (cancellationJob?.isActive == false) {
+            if (cancellationJob?.isActive == false || shouldCancel()) {
                 cancelProcess()
                 throw CancellationException("LiteRT-LM request $requestId was cancelled")
             }
