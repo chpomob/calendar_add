@@ -93,6 +93,12 @@ fun CalendarHomeScreen(
         pendingCameraImagePath = null
     }
 
+    fun cleanupCameraTempFile(uri: Uri) {
+        if (uri.scheme == "file" && uri.path?.startsWith(context.cacheDir.path) == true) {
+            runCatching { File(uri.path!!).delete() }
+        }
+    }
+
     fun refreshNotificationState() {
         notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
@@ -190,17 +196,33 @@ fun CalendarHomeScreen(
                     if (bitmap != null) {
                         AppLog.i(tag, "$source decoded bitmap=${bitmap.width}x${bitmap.height}")
                         viewModel.processImage(bitmap)
+                        // Camera captures write to a temp file that must be deleted after
+                        // the decode completes, not before (see cameraCaptureLauncher).
+                        if (uri.scheme == "file" && uri.path?.startsWith(context.cacheDir.path) == true) {
+                            withContext(Dispatchers.IO) {
+                                runCatching { File(uri.path!!).delete() }
+                            }
+                            if (pendingCameraImagePath == uri.path) {
+                                pendingCameraImagePath = null
+                            }
+                        }
                     } else {
                         AppLog.w(tag, "$source failed to decode uri=$uri")
                         snackbarHostState.showSnackbar("Unable to load that image for analysis.")
                     }
                 }
-                ImageLoadOutcome.OutOfMemory ->
+                ImageLoadOutcome.OutOfMemory -> {
+                    cleanupCameraTempFile(uri)
                     snackbarHostState.showSnackbar("That image is too large to analyze safely.")
-                ImageLoadOutcome.TooLarge ->
+                }
+                ImageLoadOutcome.TooLarge -> {
+                    cleanupCameraTempFile(uri)
                     snackbarHostState.showSnackbar("That image file is too large to analyze safely.")
-                ImageLoadOutcome.Failed ->
+                }
+                ImageLoadOutcome.Failed -> {
+                    cleanupCameraTempFile(uri)
                     snackbarHostState.showSnackbar("Unable to load that image for analysis.")
+                }
             }
         }
     }
@@ -301,10 +323,12 @@ fun CalendarHomeScreen(
         val imagePath = pendingCameraImagePath
         if (isSuccess && imagePath != null) {
             processImageUri(Uri.fromFile(File(imagePath)), "Camera capture")
-        } else if (!isSuccess) {
-            AppLog.i(tag, "Camera capture cancelled")
+        } else {
+            if (!isSuccess) {
+                AppLog.i(tag, "Camera capture cancelled")
+            }
+            clearPendingCameraFile()
         }
-        clearPendingCameraFile()
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(

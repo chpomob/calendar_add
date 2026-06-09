@@ -4,7 +4,6 @@ import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
 import android.provider.CalendarContract
-import com.calendaradd.BuildConfig
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.hasCalendarPermissions
 import java.util.TimeZone
@@ -16,7 +15,6 @@ class SystemCalendarService(
     private val context: Context,
     private val permissionChecker: (Context) -> Boolean = { it.hasCalendarPermissions() },
     private val eventsUri: Uri = CalendarContract.Events.CONTENT_URI,
-    private val extendedPropertiesUri: Uri = CalendarContract.ExtendedProperties.CONTENT_URI,
     private val eventUriForId: (Long) -> Uri = { eventId ->
         Uri.withAppendedPath(CalendarContract.Events.CONTENT_URI, eventId.toString())
     },
@@ -24,8 +22,6 @@ class SystemCalendarService(
 ) {
     companion object {
         private const val TAG = "SystemCalendarService"
-        private const val APP_SYNC_MARKER_NAME = "com.calendaradd.sync_uid"
-        private const val APP_SYNC_MARKER_VALUE_PREFIX = "calendaradd:"
     }
 
     data class CalendarInfo(val id: Long, val name: String, val accountName: String, val isPrimary: Boolean)
@@ -100,13 +96,7 @@ class SystemCalendarService(
             if (uri == null) {
                 AppLog.e(TAG, "Failed to insert event: uri is null")
             }
-            val eventId = uri?.lastPathSegment?.toLongOrNull() ?: return null
-            if (!insertAppSyncMarker(eventId)) {
-                AppLog.w(
-                    TAG,
-                    "Inserted system event id=$eventId without app sync marker; provider may restrict ExtendedProperties"
-                )
-            }
+            val eventId = uri?.lastPathSegment?.toLongOrNull()
             eventId
         } catch (e: Exception) {
             AppLog.e(TAG, "Error inserting calendar event", e)
@@ -138,18 +128,9 @@ class SystemCalendarService(
         }
 
         return try {
-            when (markerStatus(systemEventId)) {
-                MarkerStatus.PRESENT -> Unit
-                MarkerStatus.MISSING -> {
-                    AppLog.w(TAG, "Skipping update for system event id=$systemEventId because app sync marker is missing")
-                    return false
-                }
-                MarkerStatus.UNAVAILABLE -> {
-                    AppLog.w(
-                        TAG,
-                        "Updating system event id=$systemEventId without app sync marker verification"
-                    )
-                }
+            if (!eventExists(systemEventId)) {
+                AppLog.w(TAG, "System event id=$systemEventId no longer exists — update skipped")
+                return false
             }
             val uri = eventUriForId(systemEventId)
             val updatedRows = context.contentResolver.update(uri, values, null, null)
@@ -176,18 +157,9 @@ class SystemCalendarService(
             return false
         }
         return try {
-            when (markerStatus(systemEventId)) {
-                MarkerStatus.PRESENT -> Unit
-                MarkerStatus.MISSING -> {
-                    AppLog.w(TAG, "Skipping delete for system event id=$systemEventId because app sync marker is missing")
-                    return false
-                }
-                MarkerStatus.UNAVAILABLE -> {
-                    AppLog.w(
-                        TAG,
-                        "Deleting system event id=$systemEventId without app sync marker verification"
-                    )
-                }
+            if (!eventExists(systemEventId)) {
+                AppLog.w(TAG, "System event id=$systemEventId no longer exists — delete skipped")
+                return false
             }
             val uri = eventUriForId(systemEventId)
             val deleted = context.contentResolver.delete(uri, null, null)
@@ -203,61 +175,16 @@ class SystemCalendarService(
         }
     }
 
-    private fun insertAppSyncMarker(systemEventId: Long): Boolean {
-        val values = contentValuesFactory().apply {
-            put(CalendarContract.ExtendedProperties.EVENT_ID, systemEventId)
-            put(CalendarContract.ExtendedProperties.NAME, APP_SYNC_MARKER_NAME)
-            put(CalendarContract.ExtendedProperties.VALUE, appSyncMarkerValue())
-        }
+    private fun eventExists(systemEventId: Long): Boolean {
+        val projection = arrayOf(CalendarContract.Events._ID)
+        val uri = eventUriForId(systemEventId)
         return try {
-            val uri = context.contentResolver.insert(extendedPropertiesUri, values)
-            if (uri == null) {
-                AppLog.e(TAG, "Failed to insert app sync marker: uri is null")
-                false
-            } else {
-                true
-            }
+            val cursor = context.contentResolver.query(uri, projection, null, null, null)
+            cursor?.use { it.moveToFirst() } ?: false
         } catch (e: Exception) {
-            AppLog.e(TAG, "Error inserting app sync marker for system event id=$systemEventId", e)
+            AppLog.w(TAG, "Unable to verify system event id=$systemEventId exists", e)
             false
         }
     }
 
-    private fun markerStatus(systemEventId: Long): MarkerStatus {
-        val projection = arrayOf(CalendarContract.ExtendedProperties._ID)
-        val selection =
-            "${CalendarContract.ExtendedProperties.EVENT_ID} = ? " +
-                "AND ${CalendarContract.ExtendedProperties.NAME} = ? " +
-                "AND ${CalendarContract.ExtendedProperties.VALUE} = ?"
-        val selectionArgs = arrayOf(
-            systemEventId.toString(),
-            APP_SYNC_MARKER_NAME,
-            appSyncMarkerValue()
-        )
-        return try {
-            val cursor = context.contentResolver.query(
-                extendedPropertiesUri,
-                projection,
-                selection,
-                selectionArgs,
-                null
-            ) ?: return MarkerStatus.UNAVAILABLE
-            cursor.use {
-                if (it.moveToFirst()) MarkerStatus.PRESENT else MarkerStatus.MISSING
-            }
-        } catch (e: Exception) {
-            AppLog.w(TAG, "Unable to verify app sync marker for system event id=$systemEventId", e)
-            MarkerStatus.UNAVAILABLE
-        }
-    }
-
-    private fun appSyncMarkerValue(): String {
-        return APP_SYNC_MARKER_VALUE_PREFIX + BuildConfig.APPLICATION_ID
-    }
-
-    private enum class MarkerStatus {
-        PRESENT,
-        MISSING,
-        UNAVAILABLE
-    }
 }

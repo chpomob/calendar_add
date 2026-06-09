@@ -56,8 +56,14 @@ class ApkInstaller(private val context: Context) {
                 val callbackIntent = Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 }
-                val flags = PendingIntent.FLAG_UPDATE_CURRENT or
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // On API 31+ PackageInstaller must be able to attach EXTRA_STATUS/EXTRA_INTENT
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                } else {
+                    0
+                }
                 val pendingIntent = PendingIntent.getActivity(context, sessionId, callbackIntent, flags)
                 it.commit(pendingIntent.intentSender)
             }

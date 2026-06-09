@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.calendaradd.navigation.AppNavGraph
 import com.calendaradd.service.BackgroundAnalysisScheduler
@@ -33,6 +34,8 @@ import com.calendaradd.util.ApkInstaller
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -183,13 +186,23 @@ class MainActivity : ComponentActivity() {
                 intent.type?.startsWith("image/") == true -> {
                     intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
                         AppLog.i(TAG, "Received shared image uri=$uri")
-                        sharedImage.value = uriToBitmap(uri)
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val bitmap = uriToBitmap(uri)
+                            launch(Dispatchers.Main) {
+                                sharedImage.value = bitmap
+                            }
+                        }
                     }
                 }
                 intent.type?.startsWith("audio/") == true -> {
                     intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
                         AppLog.i(TAG, "Received shared audio uri=$uri")
-                        sharedAudio.value = uriToBytes(uri)
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val bytes = uriToBytes(uri)
+                            launch(Dispatchers.Main) {
+                                sharedAudio.value = bytes
+                            }
+                        }
                     }
                 }
             }

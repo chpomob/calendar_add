@@ -137,7 +137,7 @@ class BackgroundAnalysisWorker(
                 return Result.failure(workDataOf(KEY_ERROR to "Selected model is no longer downloaded."))
             }
 
-            setForeground(createForegroundInfo(buildProgressMessage("Initializing ${modelConfig.shortName}...", runAttemptCount)))
+            setForegroundSafe(createForegroundInfo(buildProgressMessage("Initializing ${modelConfig.shortName}...", runAttemptCount)))
 
             // Register OOM callback — release LLM model if system signals low memory.
             // Matches Android's onTrimMemory(TRIM_MEMORY_RUNNING_LOW → TRIM_MEMORY_RUNNING_CRITICAL)
@@ -173,7 +173,7 @@ class BackgroundAnalysisWorker(
                 withTimeout(BACKGROUND_ANALYSIS_TIMEOUT_MS) {
                     when (inputType) {
                         AnalysisInputType.TEXT -> {
-                            setForeground(createForegroundInfo(buildProgressMessage("Analyzing text with ${modelConfig.shortName}...", runAttemptCount)))
+                            setForegroundSafe(createForegroundInfo(buildProgressMessage("Analyzing text with ${modelConfig.shortName}...", runAttemptCount)))
                             // Cap text input length: the model has a finite context window and
                             // user-pasted/share-imported text can blow past it. Truncating at
                             // the worker boundary keeps prompts well-formed and predictable.
@@ -190,7 +190,7 @@ class BackgroundAnalysisWorker(
                             calendarUseCase.createEventFromText(text, inputContext)
                         }
                         AnalysisInputType.IMAGE -> {
-                            setForeground(createForegroundInfo(buildProgressMessage("Analyzing image with ${modelConfig.shortName}...", runAttemptCount)))
+                            setForegroundSafe(createForegroundInfo(buildProgressMessage("Analyzing image with ${modelConfig.shortName}...", runAttemptCount)))
                             val bitmap = decodeQueuedImage(inputFile)
                                 ?: return@withTimeout EventResult.Failure("Unable to decode the queued image.")
                             try {
@@ -202,7 +202,7 @@ class BackgroundAnalysisWorker(
                             }
                         }
                         AnalysisInputType.AUDIO -> {
-                            setForeground(createForegroundInfo(buildProgressMessage("Analyzing audio with ${modelConfig.shortName}...", runAttemptCount)))
+                            setForegroundSafe(createForegroundInfo(buildProgressMessage("Analyzing audio with ${modelConfig.shortName}...", runAttemptCount)))
                             // Reject audio clips longer than MAX_AUDIO_DURATION_MS. We probe with
                             // MediaMetadataRetriever first (handles MP3/MP4/AAC/etc.); for WAV
                             // produced in-app the retriever sometimes returns null on certain
@@ -385,6 +385,25 @@ class BackgroundAnalysisWorker(
         )
         manager.createNotificationChannel(progressChannel)
         manager.createNotificationChannel(resultChannel)
+    }
+
+    /**
+     * Wraps [setForeground] to catch [ForegroundServiceStartNotAllowedException]
+     * on Android 12+ when the app process is in the background. Instead of
+     * crashing the worker, we continue without foreground promotion.
+     */
+    private suspend fun setForegroundSafe(foregroundInfo: ForegroundInfo) {
+        try {
+            setForeground(foregroundInfo)
+        } catch (e: Exception) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                e.javaClass.name == "android.app.ForegroundServiceStartNotAllowedException"
+            ) {
+                AppLog.w(TAG, "ForegroundServiceStartNotAllowedException — continuing without foreground", e)
+            } else {
+                throw e
+            }
+        }
     }
 }
 
