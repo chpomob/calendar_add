@@ -12,24 +12,26 @@ import com.calendaradd.BuildConfig
 import com.calendaradd.MainActivity
 import java.io.File
 import java.io.FileInputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class ApkInstaller(private val context: Context) {
     companion object {
         private const val TAG = "ApkInstaller"
     }
 
-    fun install(apkFile: File): InstallResult {
+    suspend fun install(apkFile: File): InstallResult = withContext(Dispatchers.IO) {
         if (!apkFile.exists() || apkFile.length() == 0L) {
-            return InstallResult.Failed("Downloaded APK is missing.")
+            return@withContext InstallResult.Failed("Downloaded APK is missing.")
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !context.packageManager.canRequestPackageInstalls()
         ) {
-            return openUnknownSourcesSettings()
+            return@withContext openUnknownSourcesSettings()
         }
 
-        return tryPackageInstaller(apkFile).takeIf { it != null }
+        tryPackageInstaller(apkFile).takeIf { it != null }
             ?: tryActionInstallPackage(apkFile)
             ?: InstallResult.Failed("No package installer is available on this device.")
     }

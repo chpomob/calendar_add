@@ -10,6 +10,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -23,7 +24,7 @@ class SystemCalendarServiceTest {
     private val insertedEventUri = mockk<Uri>(relaxed = true)
 
     @Test
-    fun `insertEvent should return event id`() {
+    fun `insertEvent should return event id`() = runBlocking {
         val service = service()
         every { insertedEventUri.lastPathSegment } returns "42"
         every { resolver.insert(eventsUri, any()) } returns insertedEventUri
@@ -40,7 +41,7 @@ class SystemCalendarServiceTest {
     }
 
     @Test
-    fun `updateEvent should refuse event when it no longer exists`() {
+    fun `updateEvent should refuse event when it no longer exists`() = runBlocking {
         val service = service()
         everyEventExists(doesExist = false)
 
@@ -58,7 +59,7 @@ class SystemCalendarServiceTest {
     }
 
     @Test
-    fun `deleteEvent should refuse event when it no longer exists`() {
+    fun `deleteEvent should refuse event when it no longer exists`() = runBlocking {
         val service = service()
         everyEventExists(doesExist = false)
 
@@ -68,7 +69,7 @@ class SystemCalendarServiceTest {
     }
 
     @Test
-    fun `updateEvent should allow event when it exists`() {
+    fun `updateEvent should allow event when it exists`() = runBlocking {
         val service = service()
         everyEventExists(doesExist = true)
         every { resolver.update(eventUri, any(), null, null) } returns 1
@@ -86,6 +87,7 @@ class SystemCalendarServiceTest {
     }
 
     private fun service(): SystemCalendarService {
+        every { context.applicationContext } returns context
         every { context.contentResolver } returns resolver
         return SystemCalendarService(
             context = context,

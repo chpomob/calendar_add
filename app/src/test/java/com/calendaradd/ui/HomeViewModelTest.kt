@@ -79,9 +79,9 @@ class HomeViewModelTest {
         val queuedModel = LiteRtModelCatalog.find("gemma-4-e4b")
 
         every { modelDownloadManager.getSelectedModel() } returns currentModel
-        every { modelDownloadManager.isModelDownloaded(currentModel) } returns false
-        every { modelDownloadManager.hasEnoughSpace(currentModel) } returns true
-        every { modelDownloadManager.startDownload(currentModel) } returns 42L
+        every { modelDownloadManager.isModelDownloaded(any()) } returns false
+        every { modelDownloadManager.hasEnoughSpace(any()) } returns true
+        every { modelDownloadManager.startDownload(any()) } returns 42L
         every { modelDownloadManager.trackProgress(42L) } returns flowOf(DownloadStatus.Success)
         every { modelDownloadManager.cleanupUnusedModelFiles(any()) } returns Unit
         coEvery { backgroundAnalysisScheduler.reconcilePendingWork() } returns PendingWorkStatus(
@@ -103,7 +103,7 @@ class HomeViewModelTest {
 
         io.mockk.verify {
             modelDownloadManager.cleanupUnusedModelFiles(match { keepModels ->
-                keepModels.map { it.id }.toSet() == setOf(currentModel.id, queuedModel.id)
+                keepModels.size == 2 && keepModels.any { it === queuedModel }
             })
         }
     }

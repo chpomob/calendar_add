@@ -85,19 +85,20 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // Initialize Services
-        eventDatabase = EventDatabase.getDatabase(this)
-        gemmaLlmService = GemmaLlmService(this)
-        preferencesManager = PreferencesManager(this)
-        modelDownloadManager = ModelDownloadManager(this, preferencesManager)
-        apkDownloadManager = ApkDownloadManager(this)
-        updateCheckerService = UpdateCheckerService(this)
-        apkInstaller = ApkInstaller(this)
+        val appContext = applicationContext
+        eventDatabase = EventDatabase.getDatabase(appContext)
+        gemmaLlmService = GemmaLlmService(appContext)
+        preferencesManager = PreferencesManager(appContext)
+        modelDownloadManager = ModelDownloadManager(appContext, preferencesManager)
+        apkDownloadManager = ApkDownloadManager(appContext)
+        updateCheckerService = UpdateCheckerService(appContext)
+        apkInstaller = ApkInstaller(appContext)
         // Clean up unused model files on startup (e.g., after app update,
         // after switching models in a previous session).
         modelDownloadManager.cleanupUnusedModelFiles()
         apkDownloadManager.cleanupOldDownloads()
-        backgroundAnalysisScheduler = BackgroundAnalysisScheduler(this)
-        systemCalendarService = SystemCalendarService(this)
+        backgroundAnalysisScheduler = BackgroundAnalysisScheduler(appContext)
+        systemCalendarService = SystemCalendarService(appContext)
         ocrService = OcrService()
 
         val textAnalysisService = TextAnalysisService(

@@ -55,19 +55,19 @@ class BackgroundAnalysisScheduler(
 
     private val appContext = context.applicationContext
 
-    fun enqueueText(input: String, model: LiteRtModelConfig): UUID {
+    suspend fun enqueueText(input: String, model: LiteRtModelConfig): UUID = withContext(Dispatchers.IO) {
         val inputFile = persistText(input)
-        return enqueueWork(AnalysisInputType.TEXT, inputFile, model)
+        enqueueWork(AnalysisInputType.TEXT, inputFile, model)
     }
 
-    fun enqueueImage(bitmap: Bitmap, model: LiteRtModelConfig): UUID {
+    suspend fun enqueueImage(bitmap: Bitmap, model: LiteRtModelConfig): UUID = withContext(Dispatchers.IO) {
         val inputFile = persistBitmap(bitmap)
-        return enqueueWork(AnalysisInputType.IMAGE, inputFile, model)
+        enqueueWork(AnalysisInputType.IMAGE, inputFile, model)
     }
 
-    fun enqueueAudio(audioData: ByteArray, model: LiteRtModelConfig): UUID {
+    suspend fun enqueueAudio(audioData: ByteArray, model: LiteRtModelConfig): UUID = withContext(Dispatchers.IO) {
         val inputFile = persistBytes(audioData, "audio", ".bin")
-        return enqueueWork(AnalysisInputType.AUDIO, inputFile, model)
+        enqueueWork(AnalysisInputType.AUDIO, inputFile, model)
     }
 
     fun promoteInputToEventSource(inputFile: File, inputType: AnalysisInputType): SourceAttachment? {
@@ -117,12 +117,14 @@ class BackgroundAnalysisScheduler(
     suspend fun reconcilePendingWork(): PendingWorkStatus = withContext(Dispatchers.IO) {
         val pendingInfos = getPendingInfos()
         if (pendingInfos.isEmpty()) {
+            sweepUnreferencedInputs(emptySet())
             return@withContext PendingWorkStatus(
                 hasPendingWork = false,
                 clearedStaleWork = false
             )
         }
 
+        val referencedInputs = pendingInfos.mapNotNull { extractInputPath(it) }.toSet()
         val staleReasons = pendingInfos.mapNotNull { info ->
             when (val inputPath = extractInputPath(info)) {
                 null -> "legacy-or-invalid-metadata:${info.id}"
@@ -145,6 +147,7 @@ class BackgroundAnalysisScheduler(
             )
         }
 
+        sweepUnreferencedInputs(referencedInputs)
         PendingWorkStatus(
             hasPendingWork = true,
             clearedStaleWork = false
@@ -185,11 +188,7 @@ class BackgroundAnalysisScheduler(
             .addTag("$INPUT_TAG_PREFIX${inputFile.absolutePath}")
             .build()
 
-        // Cancel existing work to release LLM memory between jobs.
-        // AOSP internal workers (e.g. PickerSyncManager) use KEEP, not APPEND_OR_REPLACE.
-        workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
-        workManager.pruneWork()
-        workManager.enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+        workManager.enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
         return request.id
     }
 
@@ -232,6 +231,14 @@ class BackgroundAnalysisScheduler(
         inputStorageDir().listFiles()?.forEach { file ->
             if (file.isFile && !file.delete()) {
                 AppLog.w(TAG, "Failed to delete stale queued input ${file.absolutePath}")
+            }
+        }
+    }
+
+    private fun sweepUnreferencedInputs(referencedPaths: Set<String>) {
+        inputStorageDir().listFiles()?.forEach { file ->
+            if (file.isFile && file.absolutePath !in referencedPaths && !file.delete()) {
+                AppLog.w(TAG, "Failed to delete orphan queued input ${file.absolutePath}")
             }
         }
     }

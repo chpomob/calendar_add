@@ -12,6 +12,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeParseException
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 
 /**
  * Use case for creating calendar events from various inputs.
@@ -34,6 +35,8 @@ class CalendarUseCase(
             AppLog.i(TAG, "[${context.traceId}] createEventFromText chars=${input.length}")
             val analyses = textAnalysisService.analyzeText(input, context)
             saveAndSyncExtractions(analyses, "text", context)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLog.e(TAG, "[${context.traceId}] Text event creation failed", e)
             EventResult.Failure(e.message ?: "Unknown error")
@@ -49,6 +52,8 @@ class CalendarUseCase(
             AppLog.i(TAG, "[${context.traceId}] createEventFromImage bitmap=${bitmap.width}x${bitmap.height}")
             val analyses = textAnalysisService.analyzeImage(bitmap, context)
             saveAndSyncExtractions(analyses, "image", context, sourceAttachment)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLog.e(TAG, "[${context.traceId}] Image event creation failed", e)
             EventResult.Failure(e.message ?: "Unknown error")
@@ -64,6 +69,8 @@ class CalendarUseCase(
             AppLog.i(TAG, "[${context.traceId}] createEventFromAudio bytes=${audioData.size}")
             val analyses = textAnalysisService.analyzeAudio(audioData, context)
             saveAndSyncExtractions(analyses, "audio", context, sourceAttachment)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLog.e(TAG, "[${context.traceId}] Audio event creation failed", e)
             EventResult.Failure(e.message ?: "Unknown error")
@@ -137,6 +144,8 @@ class CalendarUseCase(
 
             AppLog.i(TAG, "[${context.traceId}] Saved ${savedEvents.size} event(s) source=$sourceType")
             EventResult.Success(savedEvents)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLog.e(TAG, "[${context.traceId}] Failed to persist extracted events source=$sourceType", e)
             EventResult.Failure(
@@ -198,7 +207,10 @@ class CalendarUseCase(
             if (updated) {
                 return existingSystemEventId
             }
-            return null
+            if (event.id != 0L) {
+                AppLog.w(TAG, "Clearing stale system calendar id=$existingSystemEventId for local event id=${event.id}")
+                eventDatabase.eventDao().update(event.copy(systemCalendarEventId = null))
+            }
         }
 
         val newSystemEventId = systemCalendarService.insertEvent(
@@ -311,7 +323,7 @@ class CalendarUseCase(
         }
     }
 
-    fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
+    suspend fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
 }
 
 private fun EventExtraction.toEventOrNull(

@@ -63,6 +63,15 @@ class LiteRtModelCatalogTest {
     }
 
     @Test
+    fun `all model downloads are commit pinned and checksum pinned`() {
+        LiteRtModelCatalog.models.forEach { model ->
+            assertTrue("${model.id} URL should be commit pinned", model.downloadUrl.contains("/resolve/"))
+            assertTrue("${model.id} sha256 should be pinned", model.sha256.matches(Regex("[a-f0-9]{64}")))
+            assertEquals("${model.id} should require exact downloaded size", model.sizeBytes, model.minimumExpectedBytes)
+        }
+    }
+
+    @Test
     fun `Gemma models use AI Edge Gallery token windows`() {
         assertEquals(4000, LiteRtModelCatalog.find("gemma-4-e2b").maxNumTokens)
         assertEquals(1024, LiteRtModelCatalog.find("gemma-4-e2b-compact").maxNumTokens)

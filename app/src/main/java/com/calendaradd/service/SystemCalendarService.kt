@@ -7,6 +7,8 @@ import android.provider.CalendarContract
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.hasCalendarPermissions
 import java.util.TimeZone
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Service for interacting with the Android System Calendar.
@@ -24,10 +26,12 @@ class SystemCalendarService(
         private const val TAG = "SystemCalendarService"
     }
 
+    private val appContext = context.applicationContext
+
     data class CalendarInfo(val id: Long, val name: String, val accountName: String, val isPrimary: Boolean)
 
-    fun getAvailableCalendars(): List<CalendarInfo> {
-        if (!hasCalendarPermissions()) return emptyList()
+    suspend fun getAvailableCalendars(): List<CalendarInfo> = withContext(Dispatchers.IO) {
+        if (!hasCalendarPermissions()) return@withContext emptyList()
         val calendars = mutableListOf<CalendarInfo>()
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
@@ -40,8 +44,8 @@ class SystemCalendarService(
             "AND ${CalendarContract.Calendars.SYNC_EVENTS} = ?"
         val selectionArgs = arrayOf("500", "1")
         
-        return try {
-            val cursor = context.contentResolver.query(
+        try {
+            val cursor = appContext.contentResolver.query(
                 CalendarContract.Calendars.CONTENT_URI,
                 projection,
                 selection,
@@ -68,17 +72,17 @@ class SystemCalendarService(
         }
     }
 
-    fun insertEvent(
+    suspend fun insertEvent(
         calendarId: Long,
         title: String,
         description: String,
         startTimeMillis: Long,
         endTimeMillis: Long,
         location: String = ""
-    ): Long? {
+    ): Long? = withContext(Dispatchers.IO) {
         if (!hasCalendarPermissions()) {
             AppLog.e(TAG, "Missing calendar permissions")
-            return null
+            return@withContext null
         }
         
         val values = contentValuesFactory().apply {
@@ -91,8 +95,8 @@ class SystemCalendarService(
             put(CalendarContract.Events.EVENT_LOCATION, location)
         }
 
-        return try {
-            val uri = context.contentResolver.insert(eventsUri, values)
+        try {
+            val uri = appContext.contentResolver.insert(eventsUri, values)
             if (uri == null) {
                 AppLog.e(TAG, "Failed to insert event: uri is null")
             }
@@ -104,7 +108,7 @@ class SystemCalendarService(
         }
     }
 
-    fun updateEvent(
+    suspend fun updateEvent(
         systemEventId: Long,
         calendarId: Long,
         title: String,
@@ -112,10 +116,10 @@ class SystemCalendarService(
         startTimeMillis: Long,
         endTimeMillis: Long,
         location: String = ""
-    ): Boolean {
+    ): Boolean = withContext(Dispatchers.IO) {
         if (!hasCalendarPermissions()) {
             AppLog.e(TAG, "Missing calendar permissions")
-            return false
+            return@withContext false
         }
 
         val values = contentValuesFactory().apply {
@@ -127,13 +131,13 @@ class SystemCalendarService(
             put(CalendarContract.Events.EVENT_LOCATION, location)
         }
 
-        return try {
+        try {
             if (!eventExists(systemEventId)) {
                 AppLog.w(TAG, "System event id=$systemEventId no longer exists — update skipped")
-                return false
+                return@withContext false
             }
             val uri = eventUriForId(systemEventId)
-            val updatedRows = context.contentResolver.update(uri, values, null, null)
+            val updatedRows = appContext.contentResolver.update(uri, values, null, null)
             if (updatedRows <= 0) {
                 AppLog.w(TAG, "No system calendar event updated for id=$systemEventId")
             }
@@ -144,25 +148,27 @@ class SystemCalendarService(
         }
     }
 
-    fun getPrimaryCalendarId(): Long? {
+    suspend fun getPrimaryCalendarId(): Long? {
         return getAvailableCalendars().find { it.isPrimary }?.id 
             ?: getAvailableCalendars().firstOrNull()?.id
     }
 
-    fun hasCalendarPermissions(): Boolean = permissionChecker(context)
+    suspend fun hasCalendarPermissions(): Boolean = withContext(Dispatchers.IO) {
+        permissionChecker(appContext)
+    }
 
-    fun deleteEvent(systemEventId: Long): Boolean {
+    suspend fun deleteEvent(systemEventId: Long): Boolean = withContext(Dispatchers.IO) {
         if (!hasCalendarPermissions()) {
             AppLog.w(TAG, "Missing calendar permissions, cannot delete system event $systemEventId")
-            return false
+            return@withContext false
         }
-        return try {
+        try {
             if (!eventExists(systemEventId)) {
                 AppLog.w(TAG, "System event id=$systemEventId no longer exists — delete skipped")
-                return false
+                return@withContext false
             }
             val uri = eventUriForId(systemEventId)
-            val deleted = context.contentResolver.delete(uri, null, null)
+            val deleted = appContext.contentResolver.delete(uri, null, null)
             if (deleted <= 0) {
                 AppLog.w(TAG, "No system calendar event deleted for id=$systemEventId")
             } else {
@@ -179,7 +185,7 @@ class SystemCalendarService(
         val projection = arrayOf(CalendarContract.Events._ID)
         val uri = eventUriForId(systemEventId)
         return try {
-            val cursor = context.contentResolver.query(uri, projection, null, null, null)
+            val cursor = appContext.contentResolver.query(uri, projection, null, null, null)
             cursor?.use { it.moveToFirst() } ?: false
         } catch (e: Exception) {
             AppLog.w(TAG, "Unable to verify system event id=$systemEventId exists", e)

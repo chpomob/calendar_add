@@ -160,7 +160,10 @@ class SettingsViewModel(
                 }
             }
 
-            when (val installResult = apkInstaller.install(apkFile)) {
+            val installResult = withContext(Dispatchers.IO) {
+                apkInstaller.install(apkFile)
+            }
+            when (installResult) {
                 InstallResult.Started -> {
                     _updateCheckState.value = UpdateCheckState.Downloaded(
                         updateInfo = updateInfo,

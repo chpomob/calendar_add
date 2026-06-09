@@ -18,6 +18,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_SELECTED_MODEL_ID = "selected_model_id"
         private const val KEY_HEAVY_ANALYSIS = "heavy_analysis"
         private const val KEY_DEBUG_FAILURE_JSON = "debug_failure_json"
+        private const val KEY_LAST_ANALYSIS_OUTCOME = "last_analysis_outcome"
+        private const val KEY_ACTIVE_MODEL_DOWNLOAD_ID = "active_model_download_id"
+        private const val KEY_ACTIVE_MODEL_DOWNLOAD_MODEL_ID = "active_model_download_model_id"
     }
 
     var isAutoAddEnabled: Boolean
@@ -44,4 +47,24 @@ class PreferencesManager(context: Context) {
     var isFailureJsonDebugEnabled: Boolean
         get() = prefs.getBoolean(KEY_DEBUG_FAILURE_JSON, false)
         set(value) = prefs.edit { putBoolean(KEY_DEBUG_FAILURE_JSON, value) }
+
+    var lastAnalysisOutcome: String?
+        get() = prefs.getString(KEY_LAST_ANALYSIS_OUTCOME, null)
+        set(value) = prefs.edit { putString(KEY_LAST_ANALYSIS_OUTCOME, value) }
+
+    var activeModelDownloadId: Long
+        get() = prefs.getLong(KEY_ACTIVE_MODEL_DOWNLOAD_ID, -1L)
+        set(value) = prefs.edit { putLong(KEY_ACTIVE_MODEL_DOWNLOAD_ID, value) }
+
+    var activeModelDownloadModelId: String?
+        get() = prefs.getString(KEY_ACTIVE_MODEL_DOWNLOAD_MODEL_ID, null)
+        set(value) = prefs.edit { putString(KEY_ACTIVE_MODEL_DOWNLOAD_MODEL_ID, value) }
+
+    fun clearActiveModelDownload(downloadId: Long? = null) {
+        if (downloadId != null && activeModelDownloadId != downloadId) return
+        prefs.edit {
+            remove(KEY_ACTIVE_MODEL_DOWNLOAD_ID)
+            remove(KEY_ACTIVE_MODEL_DOWNLOAD_MODEL_ID)
+        }
+    }
 }

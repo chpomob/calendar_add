@@ -36,6 +36,7 @@ import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import kotlin.math.max
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
@@ -264,6 +265,8 @@ class BackgroundAnalysisWorker(
                     Result.failure(workDataOf(KEY_ERROR to result.message))
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLog.e(TAG, "Background analysis crashed for ${modelConfig.displayName} attempt=$attemptNumber", e)
             notifyResult(
@@ -336,6 +339,7 @@ class BackgroundAnalysisWorker(
         } else {
             message
         }
+        PreferencesManager(applicationContext).lastAnalysisOutcome = "$title\n$displayMessage"
         val notification = NotificationCompat.Builder(applicationContext, ANALYSIS_RESULT_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
@@ -372,6 +376,7 @@ class BackgroundAnalysisWorker(
     }
 
     private fun ensureNotificationChannels() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val progressChannel = NotificationChannel(
             ANALYSIS_CHANNEL_ID,

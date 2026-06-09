@@ -23,7 +23,7 @@ abstract class EventDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): EventDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     EventDatabase::class.java,
                     "calendar_add_database"
@@ -31,8 +31,7 @@ abstract class EventDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_1_2)
                     .addMigrations(MIGRATION_2_3)
                     .build()
-                INSTANCE = instance
-                instance
+                    .also { INSTANCE = it }
             }
         }
 

@@ -2,7 +2,9 @@ package com.calendaradd.service
 
 import android.app.DownloadManager
 import android.content.Context
+import androidx.work.ExistingWorkPolicy
 import androidx.work.Operation
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.google.common.util.concurrent.ListenableFuture
@@ -115,6 +117,33 @@ class BackgroundAnalysisSchedulerTest {
         assertFalse(stalePersistedInput.exists())
         verify { workManager.cancelUniqueWork(BackgroundAnalysisScheduler.UNIQUE_WORK_NAME) }
         verify { workManager.pruneWork() }
+    }
+
+    @Test
+    fun `enqueueText should append work without cancelling existing chain`() {
+        every {
+            workManager.enqueueUniqueWork(
+                BackgroundAnalysisScheduler.UNIQUE_WORK_NAME,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                any<OneTimeWorkRequest>()
+            )
+        } returns mockk<Operation>(relaxed = true)
+
+        val scheduler = BackgroundAnalysisScheduler(context, workManager)
+        val workId = kotlinx.coroutines.runBlocking {
+            scheduler.enqueueText("Dinner tomorrow", LiteRtModelCatalog.find("gemma-4-e2b"))
+        }
+
+        assertTrue(workId.toString().isNotBlank())
+        verify {
+            workManager.enqueueUniqueWork(
+                BackgroundAnalysisScheduler.UNIQUE_WORK_NAME,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                any<OneTimeWorkRequest>()
+            )
+        }
+        verify(exactly = 0) { workManager.cancelUniqueWork(BackgroundAnalysisScheduler.UNIQUE_WORK_NAME) }
+        assertTrue(File(inputDir, "background-analysis-inputs").listFiles().orEmpty().isNotEmpty())
     }
 
     @Test

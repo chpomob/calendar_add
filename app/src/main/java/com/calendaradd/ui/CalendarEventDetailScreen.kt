@@ -2,6 +2,7 @@ package com.calendaradd.ui
 
 import android.graphics.BitmapFactory
 import android.content.Intent
+import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -39,6 +40,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.io.File
+import kotlin.math.max
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Screen displaying details of a single calendar event.
@@ -492,8 +496,10 @@ private fun SourceAttachmentSection(event: Event) {
                 }
             }
             if (event.sourceAttachmentMimeType.startsWith("image/")) {
-                val bitmap = remember(event.sourceAttachmentPath) {
-                    BitmapFactory.decodeFile(event.sourceAttachmentPath)
+                val bitmap by produceState<Bitmap?>(initialValue = null, event.sourceAttachmentPath) {
+                    value = withContext(Dispatchers.IO) {
+                        decodeSampledAttachmentBitmap(event.sourceAttachmentPath)
+                    }
                 }
                 bitmap?.let {
                     Image(
@@ -512,16 +518,16 @@ private fun SourceAttachmentSection(event: Event) {
             }
             OutlinedButton(
                 onClick = {
-                    val uri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        sourceFile
-                    )
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(uri, event.sourceAttachmentMimeType.ifBlank { "*/*" })
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
                     runCatching {
+                        val uri = FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            sourceFile
+                        )
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, event.sourceAttachmentMimeType.ifBlank { "*/*" })
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
                         context.startActivity(Intent.createChooser(intent, "Open original source"))
                     }
                 },
@@ -533,6 +539,40 @@ private fun SourceAttachmentSection(event: Event) {
             }
         }
     }
+}
+
+private fun decodeSampledAttachmentBitmap(path: String, maxDimension: Int = 1280): Bitmap? {
+    val bounds = BitmapFactory.Options().apply {
+        inJustDecodeBounds = true
+    }
+    BitmapFactory.decodeFile(path, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+        return null
+    }
+
+    val options = BitmapFactory.Options().apply {
+        inSampleSize = calculateAttachmentSampleSize(
+            width = bounds.outWidth,
+            height = bounds.outHeight,
+            maxDimension = maxDimension
+        )
+        inPreferredConfig = Bitmap.Config.RGB_565
+    }
+    return BitmapFactory.decodeFile(path, options)
+}
+
+private fun calculateAttachmentSampleSize(width: Int, height: Int, maxDimension: Int): Int {
+    var sampleSize = 1
+    var currentWidth = width
+    var currentHeight = height
+
+    while (currentWidth > maxDimension || currentHeight > maxDimension) {
+        currentWidth /= 2
+        currentHeight /= 2
+        sampleSize *= 2
+    }
+
+    return max(1, sampleSize)
 }
 
 private fun Long.toDisplayDateTime(): String {
