@@ -33,8 +33,10 @@ import com.calendaradd.util.AppLog
 import com.calendaradd.util.ApkInstaller
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.ModelImageLoader
+import com.calendaradd.util.SharedAudioContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -60,7 +62,7 @@ class MainActivity : ComponentActivity() {
     // State to hold shared content for navigation
     private val sharedText = mutableStateOf<String?>(null)
     private val sharedImage = mutableStateOf<Bitmap?>(null)
-    private val sharedAudio = mutableStateOf<ByteArray?>(null)
+    private val sharedAudio = mutableStateOf<SharedAudioContent?>(null)
     private val pendingOpenRoute = mutableStateOf<String?>(null)
     private val pendingDebugFailureTitle = mutableStateOf<String?>(null)
     private val pendingDebugFailureBody = mutableStateOf<String?>(null)
@@ -195,7 +197,7 @@ class MainActivity : ComponentActivity() {
                         AppLog.i(TAG, "Received shared image uri=$uri")
                         lifecycleScope.launch(Dispatchers.IO) {
                             val bitmap = uriToBitmap(uri)
-                            launch(Dispatchers.Main) {
+                            withContext(Dispatchers.Main) {
                                 sharedImage.value = bitmap
                             }
                         }
@@ -206,8 +208,9 @@ class MainActivity : ComponentActivity() {
                         AppLog.i(TAG, "Received shared audio uri=$uri")
                         lifecycleScope.launch(Dispatchers.IO) {
                             val bytes = uriToBytes(uri)
-                            launch(Dispatchers.Main) {
-                                sharedAudio.value = bytes
+                            val mimeType = intent.type ?: contentResolver.getType(uri)
+                            withContext(Dispatchers.Main) {
+                                sharedAudio.value = bytes?.let { SharedAudioContent(it, mimeType) }
                             }
                         }
                     }

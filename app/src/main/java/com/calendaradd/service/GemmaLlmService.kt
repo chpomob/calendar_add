@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -43,6 +44,8 @@ open class GemmaLlmService(
                 isDaemon = true
             }
         }
+        private val engineCloseFutureLock = Any()
+        private var pendingEngineCloseFuture: Future<*>? = null
     }
     private var engine: Engine? = null
     private val mutex = ReentrantLock()
@@ -107,6 +110,8 @@ open class GemmaLlmService(
                     closeEngineLocked(blocking = true)
                     lastInitializationFailure = null
                 }
+
+                awaitPendingEngineClose()
 
                 val deviceMemoryGb = context.deviceMemoryGb()
                 modelConfig?.deviceMemoryValidationFailure(deviceMemoryGb)?.let { failure ->
@@ -380,7 +385,19 @@ open class GemmaLlmService(
         if (blocking) {
             closeTask.run()
         } else {
-            engineCloseExecutor.execute(closeTask)
+            synchronized(engineCloseFutureLock) {
+                pendingEngineCloseFuture = engineCloseExecutor.submit(closeTask)
+            }
+        }
+    }
+
+    private fun awaitPendingEngineClose() {
+        val pendingClose = synchronized(engineCloseFutureLock) {
+            pendingEngineCloseFuture
+        }
+        pendingClose?.let { future ->
+            runCatching { future.get() }
+                .onFailure { error -> AppLog.w(TAG, "Failed while waiting for pending LiteRT-LM engine close", error) }
         }
     }
 

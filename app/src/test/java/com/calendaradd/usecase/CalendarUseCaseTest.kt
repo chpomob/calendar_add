@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import com.calendaradd.service.AnalysisDebugSnapshot
 import com.calendaradd.service.EventExtraction
 import com.calendaradd.service.SystemCalendarService
+import com.calendaradd.service.SystemCalendarUpdateResult
 import com.calendaradd.service.TextAnalysisService
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -106,6 +107,37 @@ class CalendarUseCaseTest {
         assertEquals("Lunch", result.events[0].title)
         assertEquals("Dentist", result.events[1].title)
         coVerify(exactly = 2) { eventDao.insert(any()) }
+    }
+
+    @Test
+    fun `createEventFromText should infer time policy for plural event words`() = runBlocking {
+        val savedEvent = slot<Event>()
+        coEvery { eventDao.insert(capture(savedEvent)) } returns 1L
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            EventExtraction(
+                title = "Team meetings",
+                description = "",
+                startTime = "2026-04-20",
+                endTime = "",
+                location = "",
+                attendees = emptyList()
+            )
+        )
+
+        val result = useCase.createEventFromText(
+            "Team meetings on April 20",
+            InputContext(timezone = "UTC")
+        )
+
+        assertTrue(result is EventResult.Success)
+        assertEquals(
+            LocalDate.of(2026, 4, 20)
+                .atTime(LocalTime.of(9, 0))
+                .atZone(ZoneId.of("UTC"))
+                .toInstant()
+                .toEpochMilli(),
+            savedEvent.captured.startTime
+        )
     }
 
     @Test
@@ -405,7 +437,7 @@ class CalendarUseCaseTest {
                 endTimeMillis = 2000L,
                 location = "HQ"
             )
-        } returns true
+        } returns SystemCalendarUpdateResult.UPDATED
 
         val result = useCase.syncEventToSystem(
             Event(
@@ -440,7 +472,7 @@ class CalendarUseCaseTest {
                 endTimeMillis = 2000L,
                 location = "HQ"
             )
-        } returns false
+        } returns SystemCalendarUpdateResult.MISSING
         coEvery {
             systemCalendarService.insertEvent(
                 calendarId = 4L,
@@ -473,6 +505,40 @@ class CalendarUseCaseTest {
     }
 
     @Test
+    fun `syncEventToSystem should not clear id or insert duplicate when update errors`() = runBlocking {
+        coEvery { eventDao.update(any()) } returns Unit
+        coEvery {
+            systemCalendarService.updateEvent(
+                systemEventId = 88L,
+                calendarId = 4L,
+                title = "Recovered planning",
+                description = "Quarterly planning",
+                startTimeMillis = 1000L,
+                endTimeMillis = 2000L,
+                location = "HQ"
+            )
+        } returns SystemCalendarUpdateResult.ERROR
+
+        val result = useCase.syncEventToSystem(
+            Event(
+                id = 9L,
+                title = "Recovered planning",
+                description = "Quarterly planning",
+                startTime = 1000L,
+                endTime = 2000L,
+                location = "HQ",
+                systemCalendarEventId = 88L
+            ),
+            calendarId = 4L
+        )
+
+        assertEquals(null, result)
+        coVerify(exactly = 1) { systemCalendarService.updateEvent(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { systemCalendarService.insertEvent(any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { eventDao.update(any()) }
+    }
+
+    @Test
     fun `updateEvent should save locally and update existing system calendar event when auto sync is enabled`() = runBlocking {
         val localUpdate = slot<Event>()
         every { preferencesManager.isAutoAddEnabled } returns true
@@ -491,7 +557,7 @@ class CalendarUseCaseTest {
                 endTimeMillis = 2000L,
                 location = "HQ"
             )
-        } returns true
+        } returns SystemCalendarUpdateResult.UPDATED
 
         val result = useCase.updateEvent(
             Event(

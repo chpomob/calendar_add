@@ -36,8 +36,7 @@ data class LiteRtModelConfig(
     val temperature: Double = 1.0,
     val mainBackendOrder: List<ModelBackendKind> = listOf(ModelBackendKind.CPU),
     val visionBackend: ModelBackendKind? = null,
-    val minimumDeviceMemoryGb: Int? = null,
-    val requireExactSize: Boolean = false
+    val minimumDeviceMemoryGb: Int? = null
 ) {
     val supportsText: Boolean get() = capabilities.contains(ModelCapability.TEXT)
     val supportsImage: Boolean get() = capabilities.contains(ModelCapability.IMAGE)
@@ -82,8 +81,7 @@ object LiteRtModelCatalog {
             maxNumTokens = 4000,
             mainBackendOrder = listOf(ModelBackendKind.GPU, ModelBackendKind.CPU),
             visionBackend = ModelBackendKind.GPU,
-            minimumDeviceMemoryGb = 8,
-            requireExactSize = true
+            minimumDeviceMemoryGb = 8
         ),
         LiteRtModelConfig(
             id = "gemma-4-e2b-compact",
@@ -100,8 +98,7 @@ object LiteRtModelCatalog {
             maxNumTokens = 1024,
             mainBackendOrder = listOf(ModelBackendKind.CPU),
             visionBackend = ModelBackendKind.CPU,
-            minimumDeviceMemoryGb = 5,
-            requireExactSize = true
+            minimumDeviceMemoryGb = 5
         ),
         LiteRtModelConfig(
             id = "gemma-4-e4b",
@@ -118,8 +115,7 @@ object LiteRtModelCatalog {
             maxNumTokens = 4000,
             mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
             visionBackend = ModelBackendKind.GPU,
-            minimumDeviceMemoryGb = 12,
-            requireExactSize = true
+            minimumDeviceMemoryGb = 12
         ),
         LiteRtModelConfig(
             id = "gemma-3n-e2b",
@@ -136,8 +132,7 @@ object LiteRtModelCatalog {
             maxNumTokens = 4096,
             mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
             visionBackend = ModelBackendKind.GPU,
-            minimumDeviceMemoryGb = 8,
-            requireExactSize = true
+            minimumDeviceMemoryGb = 8
         ),
         LiteRtModelConfig(
             id = "gemma-3n-e4b",
@@ -154,8 +149,7 @@ object LiteRtModelCatalog {
             maxNumTokens = 4096,
             mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
             visionBackend = ModelBackendKind.GPU,
-            minimumDeviceMemoryGb = 12,
-            requireExactSize = true
+            minimumDeviceMemoryGb = 12
         ),
         LiteRtModelConfig(
             id = "qwen-3_5-0_8b",

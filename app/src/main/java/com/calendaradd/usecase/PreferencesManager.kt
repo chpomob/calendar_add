@@ -20,9 +20,11 @@ class PreferencesManager(context: Context) {
         private const val KEY_HEAVY_ANALYSIS = "heavy_analysis"
         private const val KEY_DEBUG_FAILURE_JSON = "debug_failure_json"
         private const val KEY_PENDING_DEBUG_FAILURE_NONCE = "pending_debug_failure_nonce"
-        private const val KEY_LAST_ANALYSIS_OUTCOME = "last_analysis_outcome"
+        private const val KEY_PENDING_DEBUG_FAILURE_NONCES = "pending_debug_failure_nonces"
         private const val KEY_ACTIVE_MODEL_DOWNLOAD_ID = "active_model_download_id"
         private const val KEY_ACTIVE_MODEL_DOWNLOAD_MODEL_ID = "active_model_download_model_id"
+        private const val MAX_PENDING_DEBUG_FAILURE_NONCES = 8
+        private const val DEBUG_FAILURE_NONCE_TTL_MS = 24 * 60 * 60 * 1000L
     }
 
     var isAutoAddEnabled: Boolean
@@ -50,22 +52,61 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_DEBUG_FAILURE_JSON, false)
         set(value) = prefs.edit { putBoolean(KEY_DEBUG_FAILURE_JSON, value) }
 
-    var lastAnalysisOutcome: String?
-        get() = prefs.getString(KEY_LAST_ANALYSIS_OUTCOME, null)
-        set(value) = prefs.edit { putString(KEY_LAST_ANALYSIS_OUTCOME, value) }
-
     fun createDebugFailureNonce(): String {
         val nonce = UUID.randomUUID().toString()
-        prefs.edit { putString(KEY_PENDING_DEBUG_FAILURE_NONCE, nonce) }
+        val now = System.currentTimeMillis()
+        val pending = readPendingDebugFailureNonces(now)
+            .plus(nonce to now)
+            .sortedByDescending { it.second }
+            .take(MAX_PENDING_DEBUG_FAILURE_NONCES)
+        prefs.edit {
+            remove(KEY_PENDING_DEBUG_FAILURE_NONCE)
+            putString(KEY_PENDING_DEBUG_FAILURE_NONCES, pending.encodePendingNonces())
+        }
         return nonce
     }
 
     fun consumeDebugFailureNonce(nonce: String?): Boolean {
         if (nonce.isNullOrBlank()) return false
-        val expected = prefs.getString(KEY_PENDING_DEBUG_FAILURE_NONCE, null) ?: return false
-        if (nonce != expected) return false
-        prefs.edit { remove(KEY_PENDING_DEBUG_FAILURE_NONCE) }
-        return true
+        val now = System.currentTimeMillis()
+        val pending = readPendingDebugFailureNonces(now)
+        val matched = pending.any { it.first == nonce }
+        if (!matched) return false
+
+        prefs.edit {
+            remove(KEY_PENDING_DEBUG_FAILURE_NONCE)
+            putString(
+                KEY_PENDING_DEBUG_FAILURE_NONCES,
+                pending.filterNot { it.first == nonce }.encodePendingNonces()
+            )
+        }
+        return matched
+    }
+
+    private fun readPendingDebugFailureNonces(now: Long): List<Pair<String, Long>> {
+        val fromSet = prefs.getString(KEY_PENDING_DEBUG_FAILURE_NONCES, null)
+            .orEmpty()
+            .lineSequence()
+            .mapNotNull { encoded ->
+                val nonce = encoded.substringBefore('|')
+                val createdAt = encoded.substringAfter('|', "").toLongOrNull()
+                if (nonce.isBlank() || createdAt == null) null else nonce to createdAt
+            }
+            .filter { (_, createdAt) -> now - createdAt <= DEBUG_FAILURE_NONCE_TTL_MS }
+            .toList()
+
+        val legacy = prefs.getString(KEY_PENDING_DEBUG_FAILURE_NONCE, null)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { it to now }
+
+        return (fromSet + listOfNotNull(legacy))
+            .distinctBy { it.first }
+            .sortedByDescending { it.second }
+            .take(MAX_PENDING_DEBUG_FAILURE_NONCES)
+    }
+
+    private fun List<Pair<String, Long>>.encodePendingNonces(): String {
+        return joinToString(separator = "\n") { (nonce, createdAt) -> "$nonce|$createdAt" }
     }
 
     var activeModelDownloadId: Long

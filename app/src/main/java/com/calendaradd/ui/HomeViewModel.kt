@@ -98,7 +98,7 @@ class HomeViewModel(
                 _downloadProgress.value = 0
                 _uiState.value = HomeUiState.Loading("Starting download of ${currentModel.shortName} (${currentModel.sizeLabel})...")
                 val downloadId = modelDownloadManager.startDownload(currentModel)
-                modelDownloadManager.trackProgress(downloadId).collect { status ->
+                modelDownloadManager.trackProgress(downloadId, currentModel).collect { status ->
                     when (status) {
                         is DownloadStatus.Progress -> {
                             _downloadProgress.value = status.percentage
@@ -171,10 +171,6 @@ class HomeViewModel(
                 )
             } catch (e: Exception) {
                 _uiState.value = HomeUiState.Error("Failed to queue background image analysis: ${e.message}")
-            } finally {
-                if (!bitmap.isRecycled) {
-                    bitmap.recycle()
-                }
             }
         }
     }

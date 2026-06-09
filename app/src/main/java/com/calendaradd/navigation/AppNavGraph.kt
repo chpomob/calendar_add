@@ -14,6 +14,7 @@ import com.calendaradd.util.AppLog
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.ApkInstaller
 import com.calendaradd.util.FileImportHandler
+import com.calendaradd.util.SharedAudioContent
 
 /**
  * App navigation graph defining all routes and navigation logic.
@@ -35,7 +36,7 @@ fun AppNavGraph(
     startDestination: String = Screen.Home.route,
     sharedText: String? = null,
     sharedImage: Bitmap? = null,
-    sharedAudio: ByteArray? = null,
+    sharedAudio: SharedAudioContent? = null,
     openRoute: String? = null,
     onResetOpenRoute: () -> Unit = {},
     debugFailureTitle: String? = null,

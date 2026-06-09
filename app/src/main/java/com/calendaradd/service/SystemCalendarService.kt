@@ -10,6 +10,12 @@ import java.util.TimeZone
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+enum class SystemCalendarUpdateResult {
+    UPDATED,
+    MISSING,
+    ERROR
+}
+
 /**
  * Service for interacting with the Android System Calendar.
  */
@@ -116,10 +122,10 @@ class SystemCalendarService(
         startTimeMillis: Long,
         endTimeMillis: Long,
         location: String = ""
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): SystemCalendarUpdateResult = withContext(Dispatchers.IO) {
         if (!hasCalendarPermissions()) {
             AppLog.e(TAG, "Missing calendar permissions")
-            return@withContext false
+            return@withContext SystemCalendarUpdateResult.ERROR
         }
 
         val values = contentValuesFactory().apply {
@@ -132,19 +138,23 @@ class SystemCalendarService(
         }
 
         try {
-            if (!eventExists(systemEventId)) {
-                AppLog.w(TAG, "System event id=$systemEventId no longer exists — update skipped")
-                return@withContext false
+            when (eventExistence(systemEventId)) {
+                EventExistence.EXISTS -> Unit
+                EventExistence.MISSING -> {
+                    AppLog.w(TAG, "System event id=$systemEventId no longer exists — update skipped")
+                    return@withContext SystemCalendarUpdateResult.MISSING
+                }
+                EventExistence.ERROR -> return@withContext SystemCalendarUpdateResult.ERROR
             }
             val uri = eventUriForId(systemEventId)
             val updatedRows = appContext.contentResolver.update(uri, values, null, null)
             if (updatedRows <= 0) {
                 AppLog.w(TAG, "No system calendar event updated for id=$systemEventId")
             }
-            updatedRows > 0
+            if (updatedRows > 0) SystemCalendarUpdateResult.UPDATED else SystemCalendarUpdateResult.ERROR
         } catch (e: Exception) {
             AppLog.e(TAG, "Error updating calendar event", e)
-            false
+            SystemCalendarUpdateResult.ERROR
         }
     }
 
@@ -163,9 +173,13 @@ class SystemCalendarService(
             return@withContext false
         }
         try {
-            if (!eventExists(systemEventId)) {
-                AppLog.w(TAG, "System event id=$systemEventId no longer exists — delete skipped")
-                return@withContext false
+            when (eventExistence(systemEventId)) {
+                EventExistence.EXISTS -> Unit
+                EventExistence.MISSING -> {
+                    AppLog.w(TAG, "System event id=$systemEventId no longer exists — delete skipped")
+                    return@withContext false
+                }
+                EventExistence.ERROR -> return@withContext false
             }
             val uri = eventUriForId(systemEventId)
             val deleted = appContext.contentResolver.delete(uri, null, null)
@@ -181,16 +195,26 @@ class SystemCalendarService(
         }
     }
 
-    private fun eventExists(systemEventId: Long): Boolean {
+    private fun eventExistence(systemEventId: Long): EventExistence {
         val projection = arrayOf(CalendarContract.Events._ID)
         val uri = eventUriForId(systemEventId)
         return try {
             val cursor = appContext.contentResolver.query(uri, projection, null, null, null)
-            cursor?.use { it.moveToFirst() } ?: false
+            if (cursor?.use { it.moveToFirst() } == true) {
+                EventExistence.EXISTS
+            } else {
+                EventExistence.MISSING
+            }
         } catch (e: Exception) {
             AppLog.w(TAG, "Unable to verify system event id=$systemEventId exists", e)
-            false
+            EventExistence.ERROR
         }
     }
 
+}
+
+private enum class EventExistence {
+    EXISTS,
+    MISSING,
+    ERROR
 }

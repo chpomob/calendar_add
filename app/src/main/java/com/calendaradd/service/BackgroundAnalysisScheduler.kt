@@ -26,6 +26,7 @@ private const val ANALYSIS_INPUT_DIR = "background-analysis-inputs"
 private const val EVENT_SOURCE_DIR = "event-source-files"
 private const val MODEL_TAG_PREFIX = "calendaradd-model:"
 private const val INPUT_TAG_PREFIX = "calendaradd-input:"
+private const val INPUT_SWEEP_GRACE_PERIOD_MS = 10 * 60 * 1000L
 
 enum class AnalysisInputType {
     TEXT,
@@ -242,8 +243,10 @@ class BackgroundAnalysisScheduler(
     }
 
     private fun sweepUnreferencedInputs(referencedPaths: Set<String>) {
+        val now = System.currentTimeMillis()
         inputStorageDir().listFiles()?.forEach { file ->
-            if (file.isFile && file.absolutePath !in referencedPaths && !file.delete()) {
+            val isTooYoungToSweep = now - file.lastModified() < INPUT_SWEEP_GRACE_PERIOD_MS
+            if (file.isFile && !isTooYoungToSweep && file.absolutePath !in referencedPaths && !file.delete()) {
                 AppLog.w(TAG, "Failed to delete orphan queued input ${file.absolutePath}")
             }
         }

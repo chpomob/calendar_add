@@ -29,7 +29,6 @@ class VoiceRecordingSession private constructor(
 
         @SuppressLint("MissingPermission")
         fun start(context: Context): VoiceRecordingSession {
-            val appContext = context.applicationContext
             val minBufferSize = AudioRecord.getMinBufferSize(
                 MODEL_AUDIO_SAMPLE_RATE_HZ,
                 AUDIO_CHANNEL_CONFIG,
@@ -103,7 +102,7 @@ class VoiceRecordingSession private constructor(
             } catch (error: Exception) {
                 isRecording.set(false)
                 runCatching { recorder.release() }
-                throw IOException("Could not start microphone recording for ${appContext.packageName}.", error)
+                throw IOException("Could not start microphone recording.", error)
             }
         }
     }

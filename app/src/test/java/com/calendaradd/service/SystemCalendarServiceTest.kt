@@ -13,7 +13,6 @@ import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SystemCalendarServiceTest {
@@ -54,7 +53,7 @@ class SystemCalendarServiceTest {
             endTimeMillis = 2_000L
         )
 
-        assertFalse(updated)
+        assertEquals(SystemCalendarUpdateResult.MISSING, updated)
         verify(exactly = 0) { resolver.update(any(), any(), any(), any()) }
     }
 
@@ -83,7 +82,7 @@ class SystemCalendarServiceTest {
             endTimeMillis = 2_000L
         )
 
-        assertTrue(updated)
+        assertEquals(SystemCalendarUpdateResult.UPDATED, updated)
     }
 
     private fun service(): SystemCalendarService {

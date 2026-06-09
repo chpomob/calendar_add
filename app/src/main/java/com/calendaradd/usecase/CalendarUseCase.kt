@@ -195,7 +195,7 @@ class CalendarUseCase(
 
     suspend fun syncEventToSystem(event: Event, calendarId: Long): Long? {
         event.systemCalendarEventId?.let { existingSystemEventId ->
-            val updated = systemCalendarService.updateEvent(
+            val updateResult = systemCalendarService.updateEvent(
                 systemEventId = existingSystemEventId,
                 calendarId = calendarId,
                 title = event.title,
@@ -204,8 +204,13 @@ class CalendarUseCase(
                 endTimeMillis = event.endTime,
                 location = event.location
             )
-            if (updated) {
-                return existingSystemEventId
+            when (updateResult) {
+                SystemCalendarUpdateResult.UPDATED -> return existingSystemEventId
+                SystemCalendarUpdateResult.ERROR -> {
+                    AppLog.w(TAG, "System calendar update failed for id=$existingSystemEventId; keeping local link")
+                    return null
+                }
+                SystemCalendarUpdateResult.MISSING -> Unit
             }
             if (event.id != 0L) {
                 AppLog.w(TAG, "Clearing stale system calendar id=$existingSystemEventId for local event id=${event.id}")
@@ -488,7 +493,7 @@ private data class EventTimePolicy(
 
 private fun String.containsAnyWords(vararg needles: String): Boolean {
     return needles.any { needle ->
-        Regex("""\b${Regex.escape(needle)}\b""").containsMatchIn(this)
+        Regex("""\b${Regex.escape(needle)}s?\b""").containsMatchIn(this)
     }
 }
 

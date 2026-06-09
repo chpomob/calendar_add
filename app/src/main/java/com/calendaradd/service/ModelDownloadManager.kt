@@ -148,10 +148,7 @@ class ModelDownloadManager(
     /**
      * Tracks the progress of a download ID.
      */
-    fun trackProgress(
-        downloadId: Long,
-        model: LiteRtModelConfig = getSelectedModel()
-    ): Flow<DownloadStatus> = flow {
+    fun trackProgress(downloadId: Long, model: LiteRtModelConfig): Flow<DownloadStatus> = flow {
         if (downloadId == -1L) {
             emit(DownloadStatus.Success)
             return@flow

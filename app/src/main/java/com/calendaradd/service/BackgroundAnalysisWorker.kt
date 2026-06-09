@@ -70,6 +70,7 @@ class BackgroundAnalysisWorker(
         private const val KEY_CREATED_COUNT = "created_count"
         private const val KEY_FIRST_TITLE = "first_title"
         private const val KEY_ERROR = "error"
+        private const val KEY_ANALYSIS_FAILED = "analysis_failed"
     }
 
     override suspend fun doWork(): Result {
@@ -78,11 +79,11 @@ class BackgroundAnalysisWorker(
         val modelId = inputData.getString(BackgroundAnalysisScheduler.KEY_MODEL_ID)
 
         if (inputTypeName.isNullOrBlank() || inputPath.isNullOrBlank() || modelId.isNullOrBlank()) {
-            return Result.failure(workDataOf(KEY_ERROR to "Missing background analysis parameters."))
+            return analysisFailureResult("Missing background analysis parameters.", notify = false)
         }
 
         val inputType = runCatching { AnalysisInputType.valueOf(inputTypeName) }.getOrElse {
-            return Result.failure(workDataOf(KEY_ERROR to "Unsupported background analysis type."))
+            return analysisFailureResult("Unsupported background analysis type.", notify = false)
         }
         val inputFile = File(inputPath)
         val modelConfig = LiteRtModelCatalog.find(modelId)
@@ -119,7 +120,7 @@ class BackgroundAnalysisWorker(
             )
             if (hasExceededBackgroundAttemptLimit(runAttemptCount)) {
                 ensureNotificationChannels()
-                return failureResult(
+                return analysisFailureResult(
                     "Background analysis restarted too many times before completion. " +
                         "Try a smaller model, a smaller image, or plain text input."
                 )
@@ -137,7 +138,7 @@ class BackgroundAnalysisWorker(
                     "${modelConfig.shortName} is not downloaded anymore.",
                     Screen.Home.route
                 )
-                return Result.failure(workDataOf(KEY_ERROR to "Selected model is no longer downloaded."))
+                return analysisFailureResult("Selected model is no longer downloaded.", notify = false)
             }
 
             setForegroundSafe(createForegroundInfo(buildProgressMessage("Initializing ${modelConfig.shortName}...", runAttemptCount)))
@@ -233,7 +234,7 @@ class BackgroundAnalysisWorker(
                 }
             } catch (e: TimeoutCancellationException) {
                 AppLog.e(TAG, "Background analysis timed out for ${modelConfig.displayName} traceId=$traceId", e)
-                return failureResult(buildAnalysisTimeoutMessage())
+                return analysisFailureResult(buildAnalysisTimeoutMessage())
             }
 
             return when (result) {
@@ -264,7 +265,7 @@ class BackgroundAnalysisWorker(
                         destinationRoute = Screen.Home.route,
                         debug = result.debug
                     )
-                    Result.failure(workDataOf(KEY_ERROR to result.message))
+                    analysisFailureResult(result.message, notify = false)
                 }
             }
         } catch (e: CancellationException) {
@@ -276,7 +277,7 @@ class BackgroundAnalysisWorker(
                 buildUnexpectedFailureMessage(e.message, runAttemptCount),
                 Screen.Home.route
             )
-            return Result.failure(workDataOf(KEY_ERROR to (e.message ?: "Unexpected background analysis error.")))
+            return analysisFailureResult(e.message ?: "Unexpected background analysis error.", notify = false)
         } finally {
             oomCallback?.let { applicationContext.unregisterComponentCallbacks(it) }
             gemmaLlmService.close()
@@ -293,9 +294,16 @@ class BackgroundAnalysisWorker(
         }
     }
 
-    private fun failureResult(message: String): Result {
-        notifyResult("Analysis failed", message, Screen.Home.route)
-        return Result.failure(workDataOf(KEY_ERROR to message))
+    private fun analysisFailureResult(message: String, notify: Boolean = true): Result {
+        if (notify) {
+            notifyResult("Analysis failed", message, Screen.Home.route)
+        }
+        return Result.success(
+            workDataOf(
+                KEY_ERROR to message,
+                KEY_ANALYSIS_FAILED to true
+            )
+        )
     }
 
     private fun createForegroundInfo(message: String): ForegroundInfo {
@@ -341,14 +349,14 @@ class BackgroundAnalysisWorker(
         } else {
             message
         }
-        PreferencesManager(applicationContext).lastAnalysisOutcome = "$title\n$displayMessage"
+        val preferencesManager = PreferencesManager(applicationContext)
         val notification = NotificationCompat.Builder(applicationContext, ANALYSIS_RESULT_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(displayMessage)
             .setStyle(NotificationCompat.BigTextStyle().bigText(displayMessage))
             .setAutoCancel(true)
-            .setContentIntent(createLaunchIntent(destinationRoute, resultNotificationId, debug))
+            .setContentIntent(createLaunchIntent(destinationRoute, resultNotificationId, debug, preferencesManager))
             .build()
 
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -359,7 +367,8 @@ class BackgroundAnalysisWorker(
     private fun createLaunchIntent(
         destinationRoute: String,
         requestCode: Int,
-        debug: AnalysisFailureDebug?
+        debug: AnalysisFailureDebug?,
+        preferencesManager: PreferencesManager
     ): PendingIntent? {
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -369,7 +378,7 @@ class BackgroundAnalysisWorker(
                 putExtra(MainActivity.EXTRA_DEBUG_FAILURE_BODY, it.body)
                 putExtra(
                     MainActivity.EXTRA_DEBUG_FAILURE_NONCE,
-                    PreferencesManager(applicationContext).createDebugFailureNonce()
+                    preferencesManager.createDebugFailureNonce()
                 )
             }
         }
@@ -382,7 +391,6 @@ class BackgroundAnalysisWorker(
     }
 
     private fun ensureNotificationChannels() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val progressChannel = NotificationChannel(
             ANALYSIS_CHANNEL_ID,

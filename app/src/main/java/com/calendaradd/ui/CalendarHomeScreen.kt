@@ -38,6 +38,7 @@ import com.calendaradd.navigation.Screen
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.ModelImageLoader
+import com.calendaradd.util.SharedAudioContent
 import com.calendaradd.util.VoiceRecordingSession
 import java.io.File
 import kotlin.math.max
@@ -46,7 +47,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val MAX_VOICE_RECORDING_MS = 30_000L
+// Direct microphone capture is capped lower than imported audio to keep live
+// capture responsive and memory-bounded; imported files are validated later by
+// BackgroundAnalysisWorker's 5-minute limit.
+private const val MAX_VOICE_RECORDING_MS = 60_000L
 private const val VOICE_RECORDING_PROGRESS_TICK_MS = 250L
 
 /**
@@ -62,7 +66,7 @@ fun CalendarHomeScreen(
     fileImportHandler: FileImportHandler = FileImportHandler,
     sharedText: String? = null,
     sharedImage: Bitmap? = null,
-    sharedAudio: ByteArray? = null,
+    sharedAudio: SharedAudioContent? = null,
     debugFailureTitle: String? = null,
     debugFailureBody: String? = null,
     onResetDebugFailure: () -> Unit = {},
@@ -84,16 +88,22 @@ fun CalendarHomeScreen(
     var activeVoiceRecording by remember { mutableStateOf<VoiceRecordingSession?>(null) }
     var voiceRecordingElapsedMs by remember { mutableLongStateOf(0L) }
 
-    fun clearPendingCameraFile() {
-        pendingCameraImagePath?.let { path ->
-            runCatching { File(path).takeIf { it.exists() }?.delete() }
-        }
-        pendingCameraImagePath = null
-    }
-
-    fun cleanupCameraTempFile(uri: Uri) {
-        if (uri.scheme == "file" && uri.path?.startsWith(context.cacheDir.path) == true) {
-            runCatching { File(uri.path!!).delete() }
+    suspend fun cleanupCameraTempFile(uri: Uri? = null) {
+        val path = uri?.path ?: pendingCameraImagePath
+        if (uri?.scheme == "file" && uri.path?.startsWith(context.cacheDir.path) == true) {
+            withContext(Dispatchers.IO) {
+                runCatching { File(uri.path!!).takeIf { it.exists() }?.delete() }
+            }
+            if (pendingCameraImagePath == uri.path) {
+                pendingCameraImagePath = null
+            }
+        } else if (path != null && path.startsWith(context.cacheDir.path)) {
+            withContext(Dispatchers.IO) {
+                runCatching { File(path).takeIf { it.exists() }?.delete() }
+            }
+            if (pendingCameraImagePath == path) {
+                pendingCameraImagePath = null
+            }
         }
     }
 
@@ -196,18 +206,10 @@ fun CalendarHomeScreen(
                     if (bitmap != null) {
                         AppLog.i(tag, "$source decoded bitmap=${bitmap.width}x${bitmap.height}")
                         viewModel.processImage(bitmap)
-                        // Camera captures write to a temp file that must be deleted after
-                        // the decode completes, not before (see cameraCaptureLauncher).
-                        if (uri.scheme == "file" && uri.path?.startsWith(context.cacheDir.path) == true) {
-                            withContext(Dispatchers.IO) {
-                                runCatching { File(uri.path!!).delete() }
-                            }
-                            if (pendingCameraImagePath == uri.path) {
-                                pendingCameraImagePath = null
-                            }
-                        }
+                        cleanupCameraTempFile(uri)
                     } else {
                         AppLog.w(tag, "$source failed to decode uri=$uri")
+                        cleanupCameraTempFile(uri)
                         snackbarHostState.showSnackbar("Unable to load that image for analysis.")
                     }
                 }
@@ -327,7 +329,7 @@ fun CalendarHomeScreen(
             if (!isSuccess) {
                 AppLog.i(tag, "Camera capture cancelled")
             }
-            clearPendingCameraFile()
+            scope.launch { cleanupCameraTempFile() }
         }
     }
 
@@ -344,7 +346,7 @@ fun CalendarHomeScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            clearPendingCameraFile()
+            scope.launch { cleanupCameraTempFile() }
             activeVoiceRecording?.cancel()
             activeVoiceRecording = null
             voiceRecordingElapsedMs = 0L
@@ -404,9 +406,9 @@ fun CalendarHomeScreen(
         }
     }
     LaunchedEffect(sharedAudio, isModelReady) {
-        sharedAudio?.let { 
+        sharedAudio?.let {
             if (isModelReady) {
-                viewModel.processAudio(it)
+                viewModel.processAudio(it.bytes, it.mimeType)
                 onResetSharedContent()
             }
         }
@@ -635,7 +637,7 @@ fun CalendarHomeScreen(
                                 },
                                 caption = when {
                                     !selectedModel.supportsAudio -> "Current model has no audio"
-                                    activeVoiceRecording != null -> "Release to analyze • ${formatVoiceDuration(voiceRecordingElapsedMs)} / 00:30"
+                                    activeVoiceRecording != null -> "Release to analyze • ${formatVoiceDuration(voiceRecordingElapsedMs)} / 01:00"
                                     else -> "Hold while talking"
                                 },
                                 accent = MaterialTheme.colorScheme.secondaryContainer,

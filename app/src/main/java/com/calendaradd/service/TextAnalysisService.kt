@@ -237,6 +237,9 @@ class TextAnalysisService(
     ): Int? {
         val eventStart = event.startTime.toInstantOrNull(timezone)
         val eventEnd = event.endTime.toInstantOrNull(timezone)
+        // Limitation: OCR proximity matching depends on at least one model-provided
+        // timestamp. A time-less extraction cannot be safely matched to a schedule
+        // row without risking enrichment from the wrong OCR line.
         if (eventStart == null && eventEnd == null) {
             return null
         }

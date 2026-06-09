@@ -82,7 +82,7 @@ class HomeViewModelTest {
         every { modelDownloadManager.isModelDownloaded(any()) } returns false
         every { modelDownloadManager.hasEnoughSpace(any()) } returns true
         every { modelDownloadManager.startDownload(any()) } returns 42L
-        every { modelDownloadManager.trackProgress(42L) } returns flowOf(DownloadStatus.Success)
+        every { modelDownloadManager.trackProgress(42L, currentModel) } returns flowOf(DownloadStatus.Success)
         every { modelDownloadManager.cleanupUnusedModelFiles(any()) } returns Unit
         coEvery { backgroundAnalysisScheduler.reconcilePendingWork() } returns PendingWorkStatus(
             hasPendingWork = false,

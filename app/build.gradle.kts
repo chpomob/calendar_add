@@ -110,6 +110,7 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.exifinterface)
 
     // LiteRT-LM (2026 - Multimodal Gemma 4)
     implementation(libs.litertlm.android)
