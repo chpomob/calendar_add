@@ -1,5 +1,6 @@
 package com.calendaradd.service
 
+import android.app.DownloadManager
 import android.content.Context
 import androidx.work.Operation
 import androidx.work.WorkInfo
@@ -33,6 +34,8 @@ class BackgroundAnalysisSchedulerTest {
             mkdirs()
         }
 
+        val downloadManager = mockk<DownloadManager>(relaxed = true)
+        every { context.getSystemService(Context.DOWNLOAD_SERVICE) } returns downloadManager
         every { context.applicationContext } returns context
         every { context.noBackupFilesDir } returns inputDir
         every { context.filesDir } returns inputDir
