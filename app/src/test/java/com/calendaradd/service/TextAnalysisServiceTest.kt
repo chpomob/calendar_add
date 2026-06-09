@@ -335,7 +335,7 @@ class TextAnalysisServiceTest {
         val heavyResult = heavyService.analyzeImage(bitmap)
 
         assertEquals("Wellness Workshop Series", classicResult.single().title)
-        assertEquals("ABC's of Mindfulness", heavyResult.single().title)
+        assertEquals("Wellness Workshop Series", heavyResult.single().title)
         assertEquals("Counseling Center Main Office (203 Student Services I)", heavyResult.single().location)
     }
 

@@ -37,7 +37,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.calendaradd.navigation.Screen
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
-import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
 import com.calendaradd.util.VoiceRecordingSession
 import java.io.File
@@ -59,7 +58,6 @@ private const val VOICE_RECORDING_PROGRESS_TICK_MS = 250L
 fun CalendarHomeScreen(
     navController: androidx.navigation.NavController,
     viewModel: HomeViewModel,
-    linkPreviewService: LinkPreviewService,
     onResetSharedContent: () -> Unit,
     fileImportHandler: FileImportHandler = FileImportHandler,
     sharedText: String? = null,
@@ -126,7 +124,7 @@ fun CalendarHomeScreen(
         }.onSuccess { session ->
             activeVoiceRecording = session
             voiceRecordingElapsedMs = 0L
-            AppLog.i(tag, "Voice recording started file=${session.outputFile.absolutePath}")
+            AppLog.i(tag, "Voice recording started")
             scope.launch {
                 snackbarHostState.showSnackbar("Recording... keep holding, or release to analyze.")
             }
@@ -145,7 +143,9 @@ fun CalendarHomeScreen(
 
         scope.launch {
             runCatching {
-                session.stopAndReadBytes()
+                withContext(Dispatchers.IO) {
+                    session.stopAndReadBytes()
+                }
             }.onSuccess { audioBytes ->
                 AppLog.i(tag, "Voice recording stopped bytes=${audioBytes.size}")
                 if (audioBytes.isEmpty()) {
@@ -256,7 +256,7 @@ fun CalendarHomeScreen(
             }
             if (audioBytes != null) {
                 AppLog.i(tag, "$source loaded audio bytes=${audioBytes.size}")
-                viewModel.processAudio(audioBytes)
+                viewModel.processAudio(audioBytes, context.contentResolver.getType(uri))
             } else {
                 AppLog.w(tag, "$source failed to read uri=$uri")
                 snackbarHostState.showSnackbar("Unable to read that audio file for analysis.")

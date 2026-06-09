@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.usecase.SourceAttachment
 import com.calendaradd.util.AppLog
+import com.calendaradd.util.hasWavHeader
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
@@ -65,8 +66,13 @@ class BackgroundAnalysisScheduler(
         enqueueWork(AnalysisInputType.IMAGE, inputFile, model)
     }
 
-    suspend fun enqueueAudio(audioData: ByteArray, model: LiteRtModelConfig): UUID = withContext(Dispatchers.IO) {
-        val inputFile = persistBytes(audioData, "audio", ".bin")
+    suspend fun enqueueAudio(
+        audioData: ByteArray,
+        model: LiteRtModelConfig,
+        mimeType: String? = null
+    ): UUID = withContext(Dispatchers.IO) {
+        val resolvedMimeType = audioData.inferAudioMimeType(mimeType)
+        val inputFile = persistBytes(audioData, "audio", resolvedMimeType.audioFileExtension())
         enqueueWork(AnalysisInputType.AUDIO, inputFile, model)
     }
 
@@ -76,7 +82,7 @@ class BackgroundAnalysisScheduler(
 
         val extension = when (inputType) {
             AnalysisInputType.IMAGE -> ".jpg"
-            AnalysisInputType.AUDIO -> ".bin"
+            AnalysisInputType.AUDIO -> inputFile.extension.takeIf { it.isNotBlank() }?.let { ".$it" } ?: ".wav"
             AnalysisInputType.TEXT -> ".txt"
         }
         val prefix = when (inputType) {
@@ -86,7 +92,7 @@ class BackgroundAnalysisScheduler(
         }
         val mimeType = when (inputType) {
             AnalysisInputType.IMAGE -> "image/jpeg"
-            AnalysisInputType.AUDIO -> "audio/*"
+            AnalysisInputType.AUDIO -> inputFile.extension.audioMimeTypeForExtension()
             AnalysisInputType.TEXT -> "text/plain"
         }
         val targetDir = eventSourceStorageDir().apply { mkdirs() }
@@ -254,5 +260,33 @@ class BackgroundAnalysisScheduler(
     private fun extractInputPath(info: WorkInfo): String? {
         return info.tags.firstOrNull { it.startsWith(INPUT_TAG_PREFIX) }
             ?.removePrefix(INPUT_TAG_PREFIX)
+    }
+}
+
+private fun ByteArray.inferAudioMimeType(declaredMimeType: String?): String {
+    return declaredMimeType
+        ?.takeIf { it.startsWith("audio/", ignoreCase = true) }
+        ?: if (hasWavHeader()) "audio/wav" else "audio/mpeg"
+}
+
+private fun String.audioFileExtension(): String {
+    return when (lowercase()) {
+        "audio/wav", "audio/wave", "audio/x-wav" -> ".wav"
+        "audio/mpeg", "audio/mp3" -> ".mp3"
+        "audio/mp4", "audio/aac", "audio/x-m4a" -> ".m4a"
+        "audio/ogg" -> ".ogg"
+        "audio/flac" -> ".flac"
+        else -> ".audio"
+    }
+}
+
+private fun String.audioMimeTypeForExtension(): String {
+    return when (lowercase()) {
+        "wav" -> "audio/wav"
+        "mp3" -> "audio/mpeg"
+        "m4a", "mp4", "aac" -> "audio/mp4"
+        "ogg" -> "audio/ogg"
+        "flac" -> "audio/flac"
+        else -> "audio/*"
     }
 }

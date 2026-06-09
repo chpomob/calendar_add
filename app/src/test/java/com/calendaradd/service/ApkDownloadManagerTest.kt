@@ -165,7 +165,7 @@ class ApkDownloadManagerTest {
         val second = "b".repeat(64)
 
         assertNull(manager.invokeParseChecksum("$first\n$second", "CalendarAdd.apk"))
-        assertEquals(first, manager.invokeParseChecksum(first, "CalendarAdd.apk"))
+        assertEquals(first, manager.invokeParseChecksum("CalendarAdd.apk $first", "CalendarAdd.apk"))
     }
 }
 

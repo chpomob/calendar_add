@@ -230,44 +230,51 @@ class CalendarUseCase(
     }
 
     suspend fun updateEvent(event: Event): EventUpdateResult {
-        val updatedEvent = event.copy(updatedAt = System.currentTimeMillis())
-        eventDatabase.eventDao().update(updatedEvent)
+        return try {
+            val updatedEvent = event.copy(updatedAt = System.currentTimeMillis())
+            eventDatabase.eventDao().update(updatedEvent)
 
-        if (!preferencesManager.isAutoAddEnabled) {
-            return EventUpdateResult.Success(updatedEvent, syncedToSystem = false)
+            if (!preferencesManager.isAutoAddEnabled) {
+                return EventUpdateResult.Success(updatedEvent, syncedToSystem = false)
+            }
+
+            if (!systemCalendarService.hasCalendarPermissions()) {
+                return EventUpdateResult.Success(
+                    event = updatedEvent,
+                    syncedToSystem = false,
+                    warning = "Saved locally. Calendar permission is required to update the system calendar."
+                )
+            }
+
+            val calendars = systemCalendarService.getAvailableCalendars()
+            val preferredCalendarId = preferencesManager.targetCalendarId
+                .takeIf { id -> id != -1L && calendars.any { it.id == id } }
+                ?: calendars.find { it.isPrimary }?.id
+                ?: calendars.firstOrNull()?.id
+
+            if (preferredCalendarId == null) {
+                return EventUpdateResult.Success(
+                    event = updatedEvent,
+                    syncedToSystem = false,
+                    warning = "Saved locally. No system calendar was found for auto-sync."
+                )
+            }
+
+            val systemEventId = syncEventToSystem(updatedEvent, preferredCalendarId)
+                ?: return EventUpdateResult.Success(
+                    event = updatedEvent,
+                    syncedToSystem = false,
+                    warning = "Saved locally. System calendar update failed."
+                )
+
+            val syncedEvent = updatedEvent.copy(systemCalendarEventId = systemEventId)
+            EventUpdateResult.Success(syncedEvent, syncedToSystem = true)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Failed to update event id=${event.id}", e)
+            EventUpdateResult.Failure("Could not save event changes: ${e.message ?: e::class.java.simpleName}")
         }
-
-        if (!systemCalendarService.hasCalendarPermissions()) {
-            return EventUpdateResult.Success(
-                event = updatedEvent,
-                syncedToSystem = false,
-                warning = "Saved locally. Calendar permission is required to update the system calendar."
-            )
-        }
-
-        val calendars = systemCalendarService.getAvailableCalendars()
-        val preferredCalendarId = preferencesManager.targetCalendarId
-            .takeIf { id -> id != -1L && calendars.any { it.id == id } }
-            ?: calendars.find { it.isPrimary }?.id
-            ?: calendars.firstOrNull()?.id
-
-        if (preferredCalendarId == null) {
-            return EventUpdateResult.Success(
-                event = updatedEvent,
-                syncedToSystem = false,
-                warning = "Saved locally. No system calendar was found for auto-sync."
-            )
-        }
-
-        val systemEventId = syncEventToSystem(updatedEvent, preferredCalendarId)
-            ?: return EventUpdateResult.Success(
-                event = updatedEvent,
-                syncedToSystem = false,
-                warning = "Saved locally. System calendar update failed."
-            )
-
-        val syncedEvent = updatedEvent.copy(systemCalendarEventId = systemEventId)
-        return EventUpdateResult.Success(syncedEvent, syncedToSystem = true)
     }
 
     /**
@@ -395,7 +402,7 @@ private fun resolveEndTime(
 
     val parsedDuration = parsedEndTime - startTimeMillis
     return if (parsedDuration > timePolicy.maximumDurationMillis) {
-        fallbackEndTime
+        startTimeMillis + timePolicy.maximumDurationMillis
     } else {
         parsedEndTime
     }
@@ -425,12 +432,12 @@ private data class EventTimePolicy(
                 .lowercase(Locale.ROOT)
 
             return when {
-                text.containsAny("festival", "fest") -> EventTimePolicy(
+                text.containsAnyWords("festival", "fest") -> EventTimePolicy(
                     inferredStartTime = LocalTime.of(20, 0),
                     defaultDurationMillis = 4 * HOUR_MS,
                     maximumDurationMillis = 8 * HOUR_MS
                 )
-                text.containsAny(
+                text.containsAnyWords(
                     "concert",
                     "show",
                     "live music",
@@ -444,27 +451,27 @@ private data class EventTimePolicy(
                     defaultDurationMillis = 3 * HOUR_MS,
                     maximumDurationMillis = 6 * HOUR_MS
                 )
-                text.containsAny("theatre", "theater", "cinema", "film", "movie", "screening") -> EventTimePolicy(
+                text.containsAnyWords("theatre", "theater", "cinema", "film", "movie", "screening") -> EventTimePolicy(
                     inferredStartTime = LocalTime.of(19, 30),
                     defaultDurationMillis = 2 * HOUR_MS,
                     maximumDurationMillis = 5 * HOUR_MS
                 )
-                text.containsAny("dinner") -> EventTimePolicy(
+                text.containsAnyWords("dinner") -> EventTimePolicy(
                     inferredStartTime = LocalTime.of(19, 0),
                     defaultDurationMillis = 2 * HOUR_MS,
                     maximumDurationMillis = 4 * HOUR_MS
                 )
-                text.containsAny("lunch") -> EventTimePolicy(
+                text.containsAnyWords("lunch") -> EventTimePolicy(
                     inferredStartTime = LocalTime.of(12, 0),
                     defaultDurationMillis = HOUR_MS + HOUR_MS / 2,
                     maximumDurationMillis = 3 * HOUR_MS
                 )
-                text.containsAny("market", "picnic", "family day") -> EventTimePolicy(
+                text.containsAnyWords("market", "picnic", "family day") -> EventTimePolicy(
                     inferredStartTime = LocalTime.of(14, 0),
                     defaultDurationMillis = 3 * HOUR_MS,
                     maximumDurationMillis = 6 * HOUR_MS
                 )
-                text.containsAny("appointment", "meeting", "class", "workshop") -> EventTimePolicy(
+                text.containsAnyWords("appointment", "meeting", "class", "workshop") -> EventTimePolicy(
                     inferredStartTime = LocalTime.of(9, 0),
                     defaultDurationMillis = HOUR_MS,
                     maximumDurationMillis = 4 * HOUR_MS
@@ -479,8 +486,10 @@ private data class EventTimePolicy(
     }
 }
 
-private fun String.containsAny(vararg needles: String): Boolean {
-    return needles.any { contains(it) }
+private fun String.containsAnyWords(vararg needles: String): Boolean {
+    return needles.any { needle ->
+        Regex("""\b${Regex.escape(needle)}\b""").containsMatchIn(this)
+    }
 }
 
 data class SourceAttachment(
@@ -495,6 +504,8 @@ sealed class EventUpdateResult {
         val syncedToSystem: Boolean,
         val warning: String? = null
     ) : EventUpdateResult()
+
+    data class Failure(val message: String) : EventUpdateResult()
 }
 
 /**

@@ -123,7 +123,7 @@ class ShareImportActivity : ComponentActivity() {
                         AppLog.w(TAG, "Shared audio exceeds size limit uri=$uri", e)
                         return@withContext null
                     }
-                    backgroundAnalysisScheduler.enqueueAudio(audioBytes, selectedModel)
+                    backgroundAnalysisScheduler.enqueueAudio(audioBytes, selectedModel, contentResolver.getType(uri))
                 }
                 if (workId == null) return false
                 AppLog.i(TAG, "Queued shared audio directly workId=$workId model=${selectedModel.shortName}")

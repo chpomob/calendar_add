@@ -32,7 +32,6 @@ import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.ApkInstaller
 import com.calendaradd.util.FileImportHandler
-import com.calendaradd.util.LinkPreviewService
 import com.calendaradd.util.ModelImageLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,6 +42,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_OPEN_ROUTE = "open_route"
         const val EXTRA_DEBUG_FAILURE_TITLE = "debug_failure_title"
         const val EXTRA_DEBUG_FAILURE_BODY = "debug_failure_body"
+        const val EXTRA_DEBUG_FAILURE_NONCE = "debug_failure_nonce"
     }
 
     private lateinit var eventDatabase: EventDatabase
@@ -128,7 +128,6 @@ class MainActivity : ComponentActivity() {
                         onImportEvent = { input, sourceType ->
                             // Handled by ViewModels
                         },
-                        linkPreviewService = LinkPreviewService(),
                         calendarUseCase = calendarUseCase,
                         gemmaLlmService = gemmaLlmService,
                         modelDownloadManager = modelDownloadManager,
@@ -167,13 +166,20 @@ class MainActivity : ComponentActivity() {
         }
         val debugTitle = intent?.getStringExtra(EXTRA_DEBUG_FAILURE_TITLE)
         val debugBody = intent?.getStringExtra(EXTRA_DEBUG_FAILURE_BODY)
-        if (!debugBody.isNullOrBlank()) {
+        val debugNonce = intent?.getStringExtra(EXTRA_DEBUG_FAILURE_NONCE)
+        if (
+            !debugBody.isNullOrBlank() &&
+            preferencesManager.isFailureJsonDebugEnabled &&
+            preferencesManager.consumeDebugFailureNonce(debugNonce)
+        ) {
             AppLog.i(TAG, "Received debug failure payload chars=${debugBody.length}")
             pendingDebugFailureTitle.value = debugTitle ?: "Failure Debug JSON"
             pendingDebugFailureBody.value = debugBody
             if (pendingOpenRoute.value.isNullOrBlank()) {
                 pendingOpenRoute.value = "home"
             }
+        } else if (!debugBody.isNullOrBlank()) {
+            AppLog.w(TAG, "Rejected debug failure payload without enabled debug setting or valid nonce")
         }
         if (intent?.action == Intent.ACTION_SEND) {
             resetSharedContent()

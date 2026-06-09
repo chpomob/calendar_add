@@ -119,6 +119,9 @@ class DetailViewModel(
                         _syncStatus.value = SyncStatus.Idle
                     }
                 }
+                is EventUpdateResult.Failure -> {
+                    _editStatus.value = EditStatus.Error(result.message)
+                }
             }
         }
     }

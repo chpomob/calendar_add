@@ -4,8 +4,10 @@ import android.graphics.Bitmap
 import androidx.core.graphics.scale
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
+import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
+import java.io.IOException
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -18,6 +20,8 @@ import kotlinx.coroutines.Job
 private const val GEMMA_MAX_IMAGE_DIMENSION = 1280
 private const val GEMMA_PNG_QUALITY = 100
 private const val LITERTLM_CALLBACK_POLL_MS = 250L
+
+class LlmClosedException(message: String) : IOException(message)
 
 internal data class PreparedImageBytes(
     val bytes: ByteArray,
@@ -130,7 +134,11 @@ internal fun Conversation.awaitResponse(
         )
 
         while (!completed.await(LITERTLM_CALLBACK_POLL_MS, TimeUnit.MILLISECONDS)) {
-            if (cancellationJob?.isActive == false || shouldCancel()) {
+            if (shouldCancel()) {
+                cancelProcess()
+                throw LlmClosedException("LiteRT-LM request $requestId was closed")
+            }
+            if (cancellationJob?.isActive == false) {
                 cancelProcess()
                 throw CancellationException("LiteRT-LM request $requestId was cancelled")
             }
@@ -152,5 +160,7 @@ internal fun Conversation.awaitResponse(
 }
 
 private fun Message.textChunk(): String {
-    return toString()
+    return contents.contents
+        .filterIsInstance<Content.Text>()
+        .joinToString(separator = "") { it.text }
 }

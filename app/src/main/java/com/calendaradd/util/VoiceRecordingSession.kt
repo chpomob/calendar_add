@@ -7,22 +7,18 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.SystemClock
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 
-private const val RECORDING_DIR = "voice-recordings"
-private const val RECORDING_EXTENSION = ".wav"
 private const val AUDIO_CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
 private const val AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT
 private const val BYTES_PER_SAMPLE = 2
-private const val MAX_RECORDING_DURATION_MS = 30L * 60L * 1000L
-private const val MAX_RECORDING_PCM_BYTES = 500 * 1024 * 1024
+private const val MAX_RECORDING_DURATION_MS = 60L * 1000L
+private const val MAX_RECORDING_PCM_BYTES = MODEL_AUDIO_SAMPLE_RATE_HZ * BYTES_PER_SAMPLE * 60
 
 class VoiceRecordingSession private constructor(
     private val recorder: AudioRecord,
-    val outputFile: File,
     private val startedAtElapsedRealtime: Long,
     private val isRecording: AtomicBoolean,
     private val pcmOutput: ByteArrayOutputStream,
@@ -33,14 +29,13 @@ class VoiceRecordingSession private constructor(
 
         @SuppressLint("MissingPermission")
         fun start(context: Context): VoiceRecordingSession {
-            val outputFile = createOutputFile(context)
+            val appContext = context.applicationContext
             val minBufferSize = AudioRecord.getMinBufferSize(
                 MODEL_AUDIO_SAMPLE_RATE_HZ,
                 AUDIO_CHANNEL_CONFIG,
                 AUDIO_ENCODING
             )
             if (minBufferSize <= 0) {
-                outputFile.delete()
                 throw IOException("Could not create microphone recording buffer.")
             }
 
@@ -100,7 +95,6 @@ class VoiceRecordingSession private constructor(
 
                 return VoiceRecordingSession(
                     recorder = recorder,
-                    outputFile = outputFile,
                     startedAtElapsedRealtime = startedAt,
                     isRecording = isRecording,
                     pcmOutput = pcmOutput,
@@ -109,14 +103,8 @@ class VoiceRecordingSession private constructor(
             } catch (error: Exception) {
                 isRecording.set(false)
                 runCatching { recorder.release() }
-                outputFile.delete()
-                throw IOException("Could not start microphone recording.", error)
+                throw IOException("Could not start microphone recording for ${appContext.packageName}.", error)
             }
-        }
-
-        private fun createOutputFile(context: Context): File {
-            val dir = File(context.noBackupFilesDir, RECORDING_DIR).apply { mkdirs() }
-            return File(dir, "voice_${SystemClock.elapsedRealtime()}$RECORDING_EXTENSION")
         }
     }
 
@@ -133,14 +121,12 @@ class VoiceRecordingSession private constructor(
             throw IOException("Could not stop microphone recording cleanly.", error)
         } finally {
             runCatching { recorder.release() }
-            outputFile.delete()
         }
     }
 
     fun cancel() {
         runCatching { stopRecorder() }
         runCatching { recorder.release() }
-        outputFile.delete()
     }
 
     private fun stopRecorder() {

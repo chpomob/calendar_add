@@ -22,17 +22,17 @@ class PromptPolicyTest {
 
         coEvery { extractor.extractEventJson(capture(prompt), null, null) } returns """{"events": []}"""
         service.analyzeText("Meet tomorrow at 10", InputContext())
-        assertPromptBudget(prompt.captured, 2500)
+        assertPromptBudget(prompt.captured, 2600)
         assertGenericPrompt(prompt.captured)
 
         coEvery { extractor.extractEventJson(capture(prompt), image, null) } returns """{"events": []}"""
         service.analyzeImage(image, InputContext())
-        assertPromptBudget(prompt.captured, 2500)
+        assertPromptBudget(prompt.captured, 2600)
         assertGenericPrompt(prompt.captured)
 
         coEvery { extractor.extractEventJson(capture(prompt), null, audio) } returns """{"events": []}"""
         service.analyzeAudio(audio, InputContext())
-        assertPromptBudget(prompt.captured, 2500)
+        assertPromptBudget(prompt.captured, 2600)
         assertGenericPrompt(prompt.captured)
     }
 

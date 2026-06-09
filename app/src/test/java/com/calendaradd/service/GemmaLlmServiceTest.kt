@@ -611,7 +611,7 @@ class GemmaLlmServiceTest {
         val inferenceJob = launch(Dispatchers.Default) {
             try {
                 service.extractEventJson("extract an event")
-            } catch (_: CancellationException) {
+            } catch (_: LlmClosedException) {
                 // close() cancels the active LiteRT request cooperatively.
             }
         }

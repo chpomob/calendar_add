@@ -34,7 +34,6 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
-import java.util.UUID
 import kotlin.math.max
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -46,6 +45,8 @@ private const val ANALYSIS_RESULT_CHANNEL_ID = "analysis_results"
 private const val ANALYSIS_RESULT_CHANNEL_NAME = "Analysis results"
 private const val FOREGROUND_NOTIFICATION_ID = 1301
 private const val RESULT_NOTIFICATION_ID_BASE = 1302
+private const val RESULT_NOTIFICATION_PREFS = "analysis_notification_ids"
+private const val KEY_NEXT_RESULT_NOTIFICATION_ID = "next_result_notification_id"
 private const val MAX_BACKGROUND_RUN_ATTEMPTS = 2
 private const val QUEUED_IMAGE_MAX_DIMENSION = 1280
 private const val LLM_IMAGE_MAX_DIMENSION = 512
@@ -57,6 +58,7 @@ private const val BACKGROUND_ANALYSIS_TIMEOUT_MS = 10 * 60 * 1000L
 private const val WAV_HEADER_MIN_SIZE = 12
 private const val WAV_CHUNK_HEADER_SIZE = 8
 private const val WAV_BYTE_RATE_OFFSET_IN_FMT = 8
+private const val WAV_FMT_CHUNK_READ_LIMIT = 64
 
 class BackgroundAnalysisWorker(
     appContext: Context,
@@ -333,7 +335,7 @@ class BackgroundAnalysisWorker(
         destinationRoute: String,
         debug: AnalysisFailureDebug? = null
     ) {
-        val resultNotificationId = resultNotificationIdFor(id)
+        val resultNotificationId = nextResultNotificationId()
         val displayMessage = if (debug != null) {
             "$message\n\nDebug JSON available. Tap to inspect."
         } else {
@@ -365,6 +367,10 @@ class BackgroundAnalysisWorker(
             debug?.let {
                 putExtra(MainActivity.EXTRA_DEBUG_FAILURE_TITLE, it.title)
                 putExtra(MainActivity.EXTRA_DEBUG_FAILURE_BODY, it.body)
+                putExtra(
+                    MainActivity.EXTRA_DEBUG_FAILURE_NONCE,
+                    PreferencesManager(applicationContext).createDebugFailureNonce()
+                )
             }
         }
         return PendingIntent.getActivity(
@@ -410,11 +416,14 @@ class BackgroundAnalysisWorker(
             }
         }
     }
-}
 
-internal fun resultNotificationIdFor(workId: UUID): Int {
-    val boundedOffset = (workId.hashCode().toLong() and 0x7fffffffL) % 1_000_000L
-    return RESULT_NOTIFICATION_ID_BASE + boundedOffset.toInt()
+    private fun nextResultNotificationId(): Int {
+        val prefs = applicationContext.getSharedPreferences(RESULT_NOTIFICATION_PREFS, Context.MODE_PRIVATE)
+        val current = prefs.getInt(KEY_NEXT_RESULT_NOTIFICATION_ID, RESULT_NOTIFICATION_ID_BASE - 1)
+        val next = if (current >= Int.MAX_VALUE - 1) RESULT_NOTIFICATION_ID_BASE else current + 1
+        prefs.edit().putInt(KEY_NEXT_RESULT_NOTIFICATION_ID, next).apply()
+        return next
+    }
 }
 
 private fun File.deleteQuietly() {
@@ -489,10 +498,15 @@ internal fun readWavDurationMs(file: File): Long? {
             while (byteRate == null || dataSize == null) {
                 val chunkHeader = input.readFullyOrNull(WAV_CHUNK_HEADER_SIZE) ?: break
                 val chunkId = chunkHeader.toAsciiString(0, 4)
-                val chunkSize = chunkHeader.littleEndianUInt(4)
+                val chunkSize = chunkHeader.littleEndianInt(4)
+                if (chunkSize < 0) {
+                    return@runCatching null
+                }
                 when (chunkId) {
                     "fmt " -> {
-                        val chunk = input.readFullyOrNull(chunkSize) ?: return@runCatching null
+                        val bytesToRead = minOf(chunkSize, WAV_FMT_CHUNK_READ_LIMIT)
+                        val chunk = input.readFullyOrNull(bytesToRead) ?: return@runCatching null
+                        input.skipFully((chunkSize - bytesToRead).toLong())
                         if (chunk.size >= WAV_BYTE_RATE_OFFSET_IN_FMT + Int.SIZE_BYTES) {
                             byteRate = ByteBuffer.wrap(chunk)
                                 .order(ByteOrder.LITTLE_ENDIAN)
@@ -502,12 +516,12 @@ internal fun readWavDurationMs(file: File): Long? {
                     }
                     "data" -> {
                         dataSize = chunkSize.toLong()
-                        input.skipFully(chunkSize)
+                        input.skipFully(chunkSize.toLong())
                     }
-                    else -> input.skipFully(chunkSize)
+                    else -> input.skipFully(chunkSize.toLong())
                 }
                 if (chunkSize % 2 == 1) {
-                    input.skipFully(1)
+                    input.skipFully(1L)
                 }
             }
 
@@ -538,8 +552,8 @@ private fun java.io.InputStream.readFullyOrNull(size: Int): ByteArray? {
     return buffer
 }
 
-private fun java.io.InputStream.skipFully(byteCount: Int) {
-    var remaining = byteCount.toLong()
+private fun java.io.InputStream.skipFully(byteCount: Long) {
+    var remaining = byteCount
     while (remaining > 0L) {
         val skipped = skip(remaining)
         if (skipped <= 0L) {
@@ -560,7 +574,7 @@ private fun ByteArray.toAsciiString(offset: Int, length: Int): String {
     return String(this, offset, length, StandardCharsets.US_ASCII)
 }
 
-private fun ByteArray.littleEndianUInt(offset: Int): Int {
+private fun ByteArray.littleEndianInt(offset: Int): Int {
     return ByteBuffer.wrap(this, offset, Int.SIZE_BYTES)
         .order(ByteOrder.LITTLE_ENDIAN)
         .int

@@ -12,6 +12,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -36,6 +38,11 @@ open class GemmaLlmService(
         private const val TAG = "GemmaLlmService"
         private val processEngineGuard = Any()
         private var activeService = WeakReference<GemmaLlmService>(null)
+        private val engineCloseExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "calendaradd-litert-engine-close").apply {
+                isDaemon = true
+            }
+        }
     }
     private var engine: Engine? = null
     private val mutex = ReentrantLock()
@@ -97,12 +104,12 @@ open class GemmaLlmService(
                 closeRequested = false
                 if (engine != null && activeModelSignature != requestedModelSignature) {
                     AppLog.i(TAG, "Switching LiteRT-LM engine from $activeModelSignature to $requestedModelSignature")
-                    closeEngineLocked()
+                    closeEngineLocked(blocking = true)
                     lastInitializationFailure = null
                 }
 
                 val deviceMemoryGb = context.deviceMemoryGb()
-                modelConfig?.validateDeviceMemoryOrThrow(deviceMemoryGb)?.let { failure ->
+                modelConfig?.deviceMemoryValidationFailure(deviceMemoryGb)?.let { failure ->
                     lastInitializationFailure = failure
                     throw IllegalStateException(failure)
                 }
@@ -265,6 +272,9 @@ open class GemmaLlmService(
                     } catch (e: CancellationException) {
                         AppLog.w(TAG, "[$requestId] LiteRT-LM request cancelled backend=${activeBackendLabel ?: "unknown"} mode=$mode")
                         throw e
+                    } catch (e: LlmClosedException) {
+                        AppLog.w(TAG, "[$requestId] LiteRT-LM request closed backend=${activeBackendLabel ?: "unknown"} mode=$mode")
+                        throw e
                     } catch (e: IllegalStateException) {
                         AppLog.e(TAG, "[$requestId] Invalid request state before LiteRT-LM call", e)
                         isDone = true
@@ -297,6 +307,9 @@ open class GemmaLlmService(
             } catch (e: IllegalStateException) {
                 AppLog.e(TAG, "[$requestId] Invalid request state before LiteRT-LM call", e)
                 null
+            } catch (e: LlmClosedException) {
+                AppLog.w(TAG, "[$requestId] LiteRT-LM request closed backend=${activeBackendLabel ?: "unknown"} mode=$mode")
+                throw e
             } catch (e: OutOfMemoryError) {
                 AppLog.e(TAG, "[$requestId] Image preprocessing ran out of memory", e)
                 null
@@ -341,21 +354,34 @@ open class GemmaLlmService(
             CancellationException("LiteRT-LM service is transferring process ownership")
         )
         mutex.withLock {
-            closeEngineLocked()
+            closeEngineLocked(blocking = true)
             if (activeService.get() === this) {
                 activeService.clear()
             }
         }
     }
 
-    private fun closeEngineLocked() {
-        engine?.close()
+    private fun closeEngineLocked(blocking: Boolean = false) {
+        val engineToClose = engine
         engine = null
         activeBackendLabel = null
         activeModelSignature = null
         activeConversationConfig = ConversationConfig()
         activeBackendProfiles = emptyList()
         activeBackendIndex = null
+        engineToClose?.let { closeEngine(it, blocking) }
+    }
+
+    private fun closeEngine(engineToClose: Engine, blocking: Boolean) {
+        val closeTask = Runnable {
+            runCatching { engineToClose.close() }
+                .onFailure { error -> AppLog.w(TAG, "Failed to close LiteRT-LM engine", error) }
+        }
+        if (blocking) {
+            closeTask.run()
+        } else {
+            engineCloseExecutor.execute(closeTask)
+        }
     }
 
     private fun switchToNextBackendAfterRequestFailureLocked(
@@ -369,7 +395,7 @@ open class GemmaLlmService(
         if (currentIndex >= profiles.lastIndex) return false
 
         val remainingProfiles = profiles.drop(currentIndex + 1)
-        engine?.close()
+        engine?.let { closeEngine(it, blocking = true) }
         engine = null
         activeBackendLabel = null
         activeBackendIndex = null

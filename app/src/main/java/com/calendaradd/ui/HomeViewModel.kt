@@ -171,11 +171,15 @@ class HomeViewModel(
                 )
             } catch (e: Exception) {
                 _uiState.value = HomeUiState.Error("Failed to queue background image analysis: ${e.message}")
+            } finally {
+                if (!bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
             }
         }
     }
 
-    fun processAudio(audioData: ByteArray) {
+    fun processAudio(audioData: ByteArray, mimeType: String? = null) {
         val currentModel = _selectedModel.value
         if (!_isModelReady.value) return
         if (!currentModel.supportsAudio) {
@@ -185,7 +189,7 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 val pendingStatus = backgroundAnalysisScheduler.reconcilePendingWork()
-                val workId = backgroundAnalysisScheduler.enqueueAudio(audioData, currentModel)
+                val workId = backgroundAnalysisScheduler.enqueueAudio(audioData, currentModel, mimeType)
                 gemmaLlmService.close()
                 AppLog.i(TAG, "Queued background audio analysis workId=$workId model=${currentModel.shortName}")
                 _uiState.value = HomeUiState.Queued(

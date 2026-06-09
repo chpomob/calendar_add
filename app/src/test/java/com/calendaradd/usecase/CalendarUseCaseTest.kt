@@ -226,7 +226,7 @@ class CalendarUseCaseTest {
         val result = useCase.createEventFromText("Concert flyer")
 
         assertTrue(result is EventResult.Success)
-        assertEquals(3 * 60 * 60 * 1000L, insertedEvent.captured.endTime - insertedEvent.captured.startTime)
+        assertEquals(6 * 60 * 60 * 1000L, insertedEvent.captured.endTime - insertedEvent.captured.startTime)
     }
 
     @Test

@@ -44,7 +44,7 @@ class UpdateCheckerServiceTest {
 
         assertNull(service.invokeFindChecksumInReleaseNotes("$first\n$second", "CalendarAdd.apk"))
         assertEquals(first, service.invokeFindChecksumInReleaseNotes("CalendarAdd.apk $first\n$second", "CalendarAdd.apk"))
-        assertEquals(first, service.invokeFindChecksumInReleaseNotes(first, "CalendarAdd.apk"))
+        assertEquals(first, service.invokeFindChecksumInReleaseNotes("CalendarAdd.apk $first", "CalendarAdd.apk"))
     }
 }
 

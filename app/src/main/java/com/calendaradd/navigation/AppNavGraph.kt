@@ -14,7 +14,6 @@ import com.calendaradd.util.AppLog
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.ApkInstaller
 import com.calendaradd.util.FileImportHandler
-import com.calendaradd.util.LinkPreviewService
 
 /**
  * App navigation graph defining all routes and navigation logic.
@@ -23,7 +22,6 @@ import com.calendaradd.util.LinkPreviewService
 fun AppNavGraph(
     navController: NavHostController,
     onImportEvent: suspend (String, String) -> Unit,
-    linkPreviewService: LinkPreviewService,
     calendarUseCase: CalendarUseCase,
     gemmaLlmService: GemmaLlmService,
     modelDownloadManager: ModelDownloadManager,
@@ -77,7 +75,6 @@ fun AppNavGraph(
             CalendarHomeScreen(
                 navController = navController,
                 viewModel = homeViewModel,
-                linkPreviewService = linkPreviewService,
                 fileImportHandler = fileImportHandler,
                 sharedText = sharedText,
                 sharedImage = sharedImage,

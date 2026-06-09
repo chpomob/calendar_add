@@ -152,15 +152,10 @@ class UpdateCheckerService(context: Context) {
     private fun findChecksumInReleaseNotes(notes: String?, apkName: String?): String? {
         if (notes.isNullOrBlank()) return null
         val checksumPattern = Regex("""\b[a-fA-F0-9]{64}\b""")
-        if (!apkName.isNullOrBlank()) {
-            notes.lineSequence()
-                .firstOrNull { it.contains(apkName, ignoreCase = true) && checksumPattern.containsMatchIn(it) }
-                ?.let { return checksumPattern.find(it)?.value?.lowercase(Locale.ROOT) }
-        }
-        return checksumPattern.findAll(notes)
-            .map { it.value.lowercase(Locale.ROOT) }
-            .toList()
-            .singleOrNull()
+        if (apkName.isNullOrBlank()) return null
+        return notes.lineSequence()
+            .firstOrNull { it.contains(apkName, ignoreCase = true) && checksumPattern.containsMatchIn(it) }
+            ?.let { checksumPattern.find(it)?.value?.lowercase(Locale.ROOT) }
     }
 
     private fun isVersionNewer(candidateTag: String, currentVersionName: String): Boolean {

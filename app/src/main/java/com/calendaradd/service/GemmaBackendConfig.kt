@@ -116,7 +116,7 @@ private val ModelBackendKind.label: String
         ModelBackendKind.GPU -> "GPU"
     }
 
-internal fun LiteRtModelConfig.validateDeviceMemoryOrThrow(deviceMemoryGb: Double?): String? {
+internal fun LiteRtModelConfig.deviceMemoryValidationFailure(deviceMemoryGb: Double?): String? {
     val requiredMemoryGb = minimumDeviceMemoryGb ?: return null
     deviceMemoryGb ?: return null
     return if (deviceMemoryGb < requiredMemoryGb) {

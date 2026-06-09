@@ -116,6 +116,9 @@ class ApkDownloadManager(
             val totalBytes = it.contentLengthLong
             var downloadedBytes = 0L
             var lastProgress = -1
+            if (totalBytes <= 0L) {
+                onProgress(-1)
+            }
             targetFile.outputStream().use { output ->
                 it.inputStream.use { input ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -159,13 +162,10 @@ class ApkDownloadManager(
 
     private fun parseChecksum(content: String, apkName: String): String? {
         val checksumPattern = Regex("""\b[a-fA-F0-9]{64}\b""")
-        content.lineSequence()
+        if (apkName.isBlank()) return null
+        return content.lineSequence()
             .firstOrNull { it.contains(apkName, ignoreCase = true) && checksumPattern.containsMatchIn(it) }
-            ?.let { return checksumPattern.find(it)?.value?.lowercase(Locale.ROOT) }
-        return checksumPattern.findAll(content)
-            .map { it.value.lowercase(Locale.ROOT) }
-            .toList()
-            .singleOrNull()
+            ?.let { checksumPattern.find(it)?.value?.lowercase(Locale.ROOT) }
     }
 
     private fun checksumMatches(file: File, expectedSha256: String?): Boolean {

@@ -52,8 +52,10 @@ fun CalendarEventListScreen(
     modifier: Modifier = Modifier
 ) {
     val events by calendarUseCase.getAllEvents().collectAsState(initial = emptyList())
-    val sortedEvents = events.sortedBy { event ->
-        if (event.startTime > 0L) event.startTime else Long.MAX_VALUE
+    val sortedEvents = remember(events) {
+        events.sortedBy { event ->
+            if (event.startTime > 0L) event.startTime else Long.MAX_VALUE
+        }
     }
 
     Scaffold(

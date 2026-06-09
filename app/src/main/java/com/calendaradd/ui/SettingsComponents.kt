@@ -81,15 +81,23 @@ internal fun UpdateCheckSection(
                     }
                     is UpdateCheckState.Downloading -> {
                         Text(
-                            "Downloading ${updateState.updateInfo.latestVersion}: ${updateState.progress}%",
+                            if (updateState.progress >= 0) {
+                                "Downloading ${updateState.updateInfo.latestVersion}: ${updateState.progress}%"
+                            } else {
+                                "Downloading ${updateState.updateInfo.latestVersion}..."
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(8.dp))
-                        LinearProgressIndicator(
-                            progress = { updateState.progress / 100f },
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        if (updateState.progress >= 0) {
+                            LinearProgressIndicator(
+                                progress = { updateState.progress / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
                     }
                     is UpdateCheckState.Downloaded -> {
                         Text(

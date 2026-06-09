@@ -8,6 +8,11 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -212,18 +217,69 @@ class TextAnalysisService(
         }
 
         if (scheduleRows.size >= results.size) {
-            return results.mapIndexed { index, event ->
-                val row = scheduleRows.getOrNull(index) ?: return@mapIndexed event
-                event.copy(
-                    title = row.title,
-                    startTime = row.startTime.takeIf { it.isNotBlank() } ?: event.startTime,
-                    endTime = row.endTime.takeIf { it.isNotBlank() } ?: event.endTime,
-                    location = row.location.takeIf { it.isNotBlank() } ?: event.location
-                )
+            val usedRowIndexes = mutableSetOf<Int>()
+            return results.map { event ->
+                val rowIndex = bestScheduleRowIndex(event, scheduleRows, usedRowIndexes, context.timezone)
+                    ?: return@map event
+                usedRowIndexes += rowIndex
+                event.withMissingFieldsFrom(scheduleRows[rowIndex])
             }
         }
 
         return results
+    }
+
+    private fun bestScheduleRowIndex(
+        event: EventExtraction,
+        rows: List<HeavyImageScheduleRow>,
+        usedRowIndexes: Set<Int>,
+        timezone: String
+    ): Int? {
+        val eventStart = event.startTime.toInstantOrNull(timezone)
+        val eventEnd = event.endTime.toInstantOrNull(timezone)
+        if (eventStart == null && eventEnd == null) {
+            return null
+        }
+
+        val maxDistanceMillis = Duration.ofHours(12).toMillis()
+        return rows.withIndex()
+            .filter { it.index !in usedRowIndexes }
+            .mapNotNull { indexedRow ->
+                val rowStart = indexedRow.value.startTime.toInstantOrNull(timezone)
+                val rowEnd = indexedRow.value.endTime.toInstantOrNull(timezone)
+                val startDistance = eventStart?.let { start ->
+                    rowStart?.let { row -> kotlin.math.abs(Duration.between(start, row).toMillis()) }
+                }
+                val endDistance = eventEnd?.let { end ->
+                    rowEnd?.let { row -> kotlin.math.abs(Duration.between(end, row).toMillis()) }
+                }
+                val score = listOfNotNull(startDistance, endDistance).minOrNull() ?: return@mapNotNull null
+                indexedRow.index to score
+            }
+            .filter { (_, score) -> score <= maxDistanceMillis }
+            .minByOrNull { (_, score) -> score }
+            ?.first
+    }
+
+    private fun EventExtraction.withMissingFieldsFrom(row: HeavyImageScheduleRow): EventExtraction {
+        return copy(
+            title = title.ifBlank { row.title },
+            startTime = startTime.ifBlank { row.startTime },
+            endTime = endTime.ifBlank { row.endTime },
+            location = location.ifBlank { row.location }
+        )
+    }
+
+    private fun String.toInstantOrNull(timezone: String): Instant? {
+        val cleaned = trim()
+        if (cleaned.isBlank()) return null
+        return runCatching { Instant.parse(cleaned) }.getOrNull()
+            ?: runCatching { OffsetDateTime.parse(cleaned).toInstant() }.getOrNull()
+            ?: runCatching {
+                LocalDateTime.parse(cleaned)
+                    .atZone(ZoneId.of(timezone))
+                    .toInstant()
+            }.getOrNull()
     }
 
     private fun parseJsonToExtractions(jsonString: String?, traceId: String): List<EventExtraction> {
