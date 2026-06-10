@@ -111,7 +111,7 @@ Current Android configuration in [app/build.gradle.kts](app/build.gradle.kts):
 - `compileSdk = 35`
 - `targetSdk = 35`
 - `minSdk = 26`
-- `versionName = "0.3.0-alpha.1"`
+- `versionName = "0.4.0-beta.3"`
 
 ## Signed Releases
 
