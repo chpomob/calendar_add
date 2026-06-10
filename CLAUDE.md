@@ -18,6 +18,20 @@ Requires JDK 21 (LiteRT-LM 0.10.0+ hard requirement) and `sdk.dir` set in `local
 
 To run a single test class: `./gradlew test --tests "com.calendaradd.SomeTest"`
 
+## Version Bump Checklist
+
+When bumping `versionName` in `app/build.gradle.kts`, update these files too:
+
+1. **README.md** — the APK download URL (line containing `releases/download/v.../app-release.apk`) and the `versionName` in the "Current Android configuration" code block
+2. **docs/RELEASE.md** — `versionCode` and `versionName` in the "Current Release Build Status" section
+
+Verify with:
+```bash
+scripts/check_release_docs.sh
+```
+
+The CI runs `check_release_docs.sh` as its first step. If the README URL doesn't match `versionName`, the build fails immediately.
+
 ## Architecture
 
 Clean Architecture with three layers, all in the single module `app/src/main/java/com/calendaradd/`:
