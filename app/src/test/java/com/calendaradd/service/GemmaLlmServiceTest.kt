@@ -90,7 +90,7 @@ class GemmaLlmServiceTest {
         assertEquals(Backend.GPU::class.java.name, config.backend::class.java.name)
         assertEquals(Backend.GPU::class.java.name, requireNotNull(config.visionBackend)::class.java.name)
         assertEquals(Backend.CPU::class.java.name, requireNotNull(config.audioBackend)::class.java.name)
-        assertEquals(null, config.cacheDir)
+        assertEquals(liteRtCacheDir(context, "/tmp/fake-model.litertlm"), config.cacheDir)
     }
 
     @Test

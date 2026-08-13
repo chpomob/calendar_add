@@ -52,18 +52,21 @@ open class GemmaLlmService(
     private val activeRequestCancellationJob = AtomicReference<Job?>(null)
     @Volatile
     private var closeRequested = false
+    @Volatile
     private var activeBackendLabel: String? = null
     private var activeModelSignature: ActiveModelSignature? = null
     private var activeConversationConfig: ConversationConfig = ConversationConfig()
     private var activeBackendProfiles: List<BackendProfile> = emptyList()
     private var activeBackendIndex: Int? = null
-    
+
     /**
      * Tracks the last successfully initialized backend.
      */
+    @Volatile
     var lastBackendUsed: String? = null
         private set
 
+    @Volatile
     var lastInitializationFailure: String? = null
         private set
 
@@ -154,6 +157,7 @@ open class GemmaLlmService(
                         initializedEngine = createEngine(config).apply {
                             initialize()
                         }
+                        pruneLiteRtCacheAfterInit(context, modelPath)
                         if (closeRequested) {
                             initializedEngine.close()
                             throw CancellationException("LiteRT-LM initialization was cancelled by close()")
@@ -433,6 +437,7 @@ open class GemmaLlmService(
                 initializedEngine = createEngine(config).apply {
                     initialize()
                 }
+                pruneLiteRtCacheAfterInit(context, signature.modelPath)
                 engine = initializedEngine
                 activeBackendLabel = profile.label
                 activeBackendIndex = currentIndex + offset + 1

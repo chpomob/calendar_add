@@ -6,6 +6,8 @@ import android.os.Build
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.SamplerConfig
+import java.io.File
+import java.security.MessageDigest
 import java.util.Locale
 
 internal data class ActiveModelSignature(
@@ -143,13 +145,92 @@ internal fun Context.hasOpenClLibrary(): Boolean {
     return OPENCL_LIBRARY_PATHS.any { path -> java.io.File(path).exists() }
 }
 
-internal fun liteRtCacheDir(context: Context, modelPath: String): String? {
-    return if (modelPath.startsWith("/data/local/tmp")) {
-        context.getExternalFilesDir(null)?.absolutePath
-    } else {
-        null
+/**
+ * Persistent LiteRT-LM compile cache, one subdirectory per model under app-specific internal
+ * cache storage. Reusing the compiled graph across process launches avoids a multi-second
+ * recompile before the first analysis. The directory is created lazily and never returned as
+ * null; it lives under [Context.getCacheDir] so it is never treated as a managed model file by
+ * [ModelDownloadManager]'s quarantine/keep-set cleanup, which only inspects the external
+ * Downloads / internal files roots.
+ */
+internal fun liteRtCacheDir(context: Context, modelPath: String): String {
+    val root = File(context.cacheDir, LITERT_CACHE_ROOT_DIR_NAME)
+    val modelCacheDir = File(root, cacheKeyFor(modelPath))
+    if (!modelCacheDir.exists()) {
+        modelCacheDir.mkdirs()
+    }
+    touchLiteRtCacheAccessMarker(modelCacheDir)
+    pruneLiteRtCacheRoot(root, LITERT_CACHE_MAX_BYTES, protectedDirName = modelCacheDir.name)
+    return modelCacheDir.absolutePath
+}
+
+/**
+ * Bounds compile-cache size again after [modelPath]'s subdirectory has been populated by
+ * `Engine.initialize()`. [liteRtCacheDir] prunes before the engine writes its compiled
+ * artifacts, so a fresh compile is invisible to that first size check; calling this afterward
+ * ensures a successful initialization cannot leave the cache root over [LITERT_CACHE_MAX_BYTES].
+ */
+internal fun pruneLiteRtCacheAfterInit(context: Context, modelPath: String) {
+    val root = File(context.cacheDir, LITERT_CACHE_ROOT_DIR_NAME)
+    val modelCacheDir = File(root, cacheKeyFor(modelPath))
+    pruneLiteRtCacheRoot(root, LITERT_CACHE_MAX_BYTES, protectedDirName = modelCacheDir.name)
+}
+
+/**
+ * Marks [modelCacheDir] as just-used by updating a marker file's mtime, since reading the
+ * compiled artifacts LiteRT-LM already wrote does not itself change their mtime.
+ * [lastModifiedRecursively] picks up this marker like any other file, so a frequently reused
+ * cache is no longer mistaken for the oldest (least recently used) entry during eviction.
+ */
+private fun touchLiteRtCacheAccessMarker(modelCacheDir: File) {
+    val marker = File(modelCacheDir, LITERT_CACHE_ACCESS_MARKER_NAME)
+    if (!marker.exists()) {
+        marker.createNewFile()
+    }
+    marker.setLastModified(System.currentTimeMillis())
+}
+
+internal fun cacheKeyFor(modelPath: String): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(modelPath.toByteArray(Charsets.UTF_8))
+    return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
+}
+
+/**
+ * Bounds total compile-cache size by evicting the least-recently-touched model subdirectories
+ * first, skipping [protectedDirName] (the model about to be initialized) so a directory that is
+ * about to be used is never removed.
+ */
+internal fun pruneLiteRtCacheRoot(root: File, maxBytes: Long, protectedDirName: String?) {
+    val entries = root.listFiles()?.filter { it.name != protectedDirName }.orEmpty()
+    if (entries.isEmpty()) return
+    val protectedSize = protectedDirName?.let { File(root, it).sizeRecursively() } ?: 0L
+    val sizedEntries = entries.map { entry -> entry to entry.sizeRecursively() }
+    var totalBytes = protectedSize + sizedEntries.sumOf { it.second }
+    if (totalBytes <= maxBytes) return
+    val oldestFirst = sizedEntries.sortedBy { (entry, _) -> entry.lastModifiedRecursively() }
+    for ((entry, entrySize) in oldestFirst) {
+        if (totalBytes <= maxBytes) break
+        if (entry.deleteRecursively()) {
+            totalBytes -= entrySize
+        }
     }
 }
+
+private fun File.sizeRecursively(): Long = when {
+    isFile -> length()
+    isDirectory -> listFiles()?.sumOf { it.sizeRecursively() } ?: 0L
+    else -> 0L
+}
+
+private fun File.lastModifiedRecursively(): Long = when {
+    isFile -> lastModified()
+    isDirectory -> listFiles()?.maxOfOrNull { it.lastModifiedRecursively() } ?: lastModified()
+    else -> lastModified()
+}
+
+private const val LITERT_CACHE_ROOT_DIR_NAME = "litert_compile_cache"
+private const val LITERT_CACHE_ACCESS_MARKER_NAME = ".last_used"
+internal const val LITERT_CACHE_MAX_BYTES = 1_073_741_824L // 1 GB
 
 internal fun conversationConfigFor(modelConfig: LiteRtModelConfig?): ConversationConfig {
     return ConversationConfig(
