@@ -75,3 +75,9 @@ external/
 .adversarial-loop-p3/
 .adversarial-loop-final/
 .f5-final-fixes-spec.md
+
+# Adversarial pipeline artifacts
+.adversarial-spec/
+.adversarial-plan/
+BRIEF.md
+*.brief
