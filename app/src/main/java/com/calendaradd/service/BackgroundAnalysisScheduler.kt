@@ -1,7 +1,9 @@
 package com.calendaradd.service
 
 import android.content.Context
+import android.content.ContentResolver
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
@@ -13,10 +15,13 @@ import androidx.work.WorkManager
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.usecase.SourceAttachment
 import com.calendaradd.util.AppLog
+import com.calendaradd.util.FileImportHandler
+import com.calendaradd.util.ModelImageLoader
 import com.calendaradd.util.hasWavHeader
 import com.google.common.util.concurrent.ListenableFuture
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.Executor
@@ -37,6 +42,7 @@ private const val EVENT_SOURCE_DIR = "event-source-files"
 private const val MODEL_TAG_PREFIX = "calendaradd-model:"
 private const val INPUT_TAG_PREFIX = "calendaradd-input:"
 private const val INPUT_SWEEP_GRACE_PERIOD_MS = 10 * 60 * 1000L
+private const val MAX_TEXT_INPUT_LENGTH = 32_000
 
 enum class AnalysisInputType {
     TEXT,
@@ -116,6 +122,40 @@ class BackgroundAnalysisScheduler(
         val resolvedMimeType = audioData.inferAudioMimeType(mimeType)
         persistAndEnqueue(AnalysisInputType.AUDIO, model) {
             persistBytes(audioData, "audio", resolvedMimeType.audioFileExtension())
+        }
+    }
+
+    /**
+     * R2: bounded stream-to-file import for shared audio. Copies the ContentResolver stream
+     * straight to the queue file in 64 KiB chunks, counting bytes independently of any
+     * provider-declared size, so a shared clip is never materialized as a whole-file byte
+     * array. The 50 MiB ceiling is enforced during the copy, before any enqueue or model
+     * work. On any limit/cancellation/IO failure the partial queue file is deleted (AC3).
+     */
+    suspend fun enqueueAudioFromUri(
+        contentResolver: ContentResolver,
+        uri: Uri,
+        model: LiteRtModelConfig,
+        mimeType: String? = null
+    ): UUID = withContext(Dispatchers.IO) {
+        persistAndEnqueue(AnalysisInputType.AUDIO, model) {
+            persistAudioStream(contentResolver, uri, mimeType)
+        }
+    }
+
+    /**
+     * R2/R3: bounded import for a shared image. [ModelImageLoader] enforces the scheme/type,
+     * independent 20 MiB compressed ceiling and dimension/sampling bounds before any pixel
+     * allocation, then this re-encodes the result to the JPEG queue file. On decode or encode
+     * failure the partial queue file is deleted (AC3).
+     */
+    suspend fun enqueueImageFromUri(
+        contentResolver: ContentResolver,
+        uri: Uri,
+        model: LiteRtModelConfig
+    ): UUID = withContext(Dispatchers.IO) {
+        persistAndEnqueue(AnalysisInputType.IMAGE, model) {
+            persistImageFromUri(contentResolver, uri)
         }
     }
 
@@ -411,25 +451,90 @@ class BackgroundAnalysisScheduler(
     }
 
     private fun persistText(text: String): File {
+        // R4: deterministic text cap at write time. The worker applies the same 32,000-char
+        // ceiling late (defense-in-depth); truncating here means the queued file is already
+        // bounded and the model context window is never fed an oversized prompt.
         val file = createInputFile("text", ".txt")
-        file.writeText(text, StandardCharsets.UTF_8)
+        try {
+            file.writeText(text.take(MAX_TEXT_INPUT_LENGTH), StandardCharsets.UTF_8)
+        } catch (e: Exception) {
+            file.delete()
+            throw e
+        }
         return file
     }
 
     private fun persistBitmap(bitmap: Bitmap): File {
         val file = createInputFile("image", ".jpg")
-        FileOutputStream(file).use { output ->
-            check(bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
-                "Failed to persist image input"
+        try {
+            FileOutputStream(file).use { output ->
+                check(bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
+                    "Failed to persist image input"
+                }
             }
+        } catch (e: Exception) {
+            file.delete()
+            throw e
         }
         return file
     }
 
     private fun persistBytes(bytes: ByteArray, prefix: String, suffix: String): File {
         val file = createInputFile(prefix, suffix)
-        file.writeBytes(bytes)
+        try {
+            file.writeBytes(bytes)
+        } catch (e: Exception) {
+            file.delete()
+            throw e
+        }
         return file
+    }
+
+    /**
+     * R2: chunked bounded copy of a shared audio stream straight to its queue file (never a
+     * whole-file byte array). The `completed` flag drives a `finally` that deletes the partial
+     * file on any failure path — limit exceeded, IO error, or coroutine cancellation arriving
+     * at a suspension boundary around this blocking copy (AC3).
+     */
+    private fun persistAudioStream(
+        contentResolver: ContentResolver,
+        uri: Uri,
+        mimeType: String?
+    ): File {
+        val file = createInputFile("audio", audioExtensionFor(mimeType))
+        var completed = false
+        try {
+            val stream = contentResolver.openInputStream(uri)
+                ?: throw IOException("Could not open shared audio stream for $uri")
+            stream.use { input ->
+                FileImportHandler.copyBoundedToFile(
+                    source = input,
+                    target = file,
+                    maxBytes = FileImportHandler.MAX_AUDIO_BYTES,
+                    label = "Shared audio"
+                )
+            }
+            completed = true
+            return file
+        } finally {
+            if (!completed) file.delete()
+        }
+    }
+
+    /**
+     * R2/R3: decode a shared image through [ModelImageLoader] (which rejects before allocation)
+     * and re-encode it to the JPEG queue file. The decoded bitmap is recycled in a `finally`;
+     * the partial queue file is deleted if the encode fails (AC3). A decode failure throws
+     * before any queue file is created, so nothing leaks.
+     */
+    private fun persistImageFromUri(contentResolver: ContentResolver, uri: Uri): File {
+        val bitmap = ModelImageLoader.loadForInference(contentResolver, uri)
+            ?: throw IOException("Unable to decode shared image uri=$uri")
+        return try {
+            persistBitmap(bitmap)
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
     }
 
     private fun createInputFile(prefix: String, suffix: String): File {
@@ -540,6 +645,15 @@ private fun String.audioFileExtension(): String {
         "audio/flac" -> ".flac"
         else -> ".audio"
     }
+}
+
+/**
+ * R2: extension hint for the stream-imported audio queue file. Only the declared mime is
+ * available without materializing the stream; the worker detects the real format from content
+ * (MediaMetadataRetriever / WAV header), so this is purely a queue-file hint.
+ */
+private fun audioExtensionFor(mimeType: String?): String {
+    return mimeType?.audioFileExtension() ?: ".audio"
 }
 
 private fun String.audioMimeTypeForExtension(): String {

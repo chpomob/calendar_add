@@ -112,18 +112,17 @@ class ShareImportActivity : ComponentActivity() {
                 }
                 val uri = intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return false
                 val workId = withContext(Dispatchers.IO) {
-                    val audioBytes = try {
-                        FileImportHandler.readBytesWithLimit(
-                            contentResolver = contentResolver,
-                            uri = uri,
-                            maxBytes = FileImportHandler.MAX_AUDIO_BYTES,
-                            label = "Shared audio"
+                    try {
+                        backgroundAnalysisScheduler.enqueueAudioFromUri(
+                            contentResolver,
+                            uri,
+                            selectedModel,
+                            contentResolver.getType(uri)
                         )
                     } catch (e: FileImportHandler.FileTooLargeException) {
                         AppLog.w(TAG, "Shared audio exceeds size limit uri=$uri", e)
-                        return@withContext null
+                        null
                     }
-                    backgroundAnalysisScheduler.enqueueAudio(audioBytes, selectedModel, contentResolver.getType(uri))
                 }
                 if (workId == null) return false
                 AppLog.i(TAG, "Queued shared audio directly workId=$workId model=${selectedModel.shortName}")

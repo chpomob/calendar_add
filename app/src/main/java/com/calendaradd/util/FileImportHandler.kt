@@ -7,7 +7,10 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.net.toUri
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 
 /**
  * Handles file import from share intents.
@@ -21,6 +24,7 @@ object FileImportHandler {
     const val FILE_TYPE_AUDIO = "audio/*"
     const val MAX_AUDIO_BYTES = 50L * 1024L * 1024L
     const val MAX_COMPRESSED_IMAGE_BYTES = 20L * 1024L * 1024L
+    const val STREAM_COPY_BUFFER_BYTES = 64 * 1024
 
     /**
      * Creates intent for picking files from Files app.
@@ -104,6 +108,8 @@ object FileImportHandler {
         maxBytes: Long,
         label: String
     ): ByteArray {
+        // Declared size is a cheap fast-reject for honest providers only; the running [total]
+        // below is the authority (R1: declared sizes can be absent or dishonest).
         querySizeBytes(contentResolver, uri)?.let { declaredSize ->
             if (declaredSize > maxBytes) {
                 throw FileTooLargeException(label, declaredSize, maxBytes)
@@ -126,6 +132,39 @@ object FileImportHandler {
                 output.write(buffer, 0, read)
             }
             output.toByteArray()
+        }
+    }
+
+    /**
+     * R1/R2: bounded stream-to-file copy. Reads [source] in [STREAM_COPY_BUFFER_BYTES] chunks
+     * straight into [target], counting every byte independently of any provider-declared size
+     * (the running total is the authority — declared sizes can be absent or dishonest). Throws
+     * [FileTooLargeException] the moment the running total exceeds [maxBytes]; any other
+     * IOException propagates. The caller owns [target]: on any failure it is left partial and
+     * the caller must delete it (the background scheduler wraps this and deletes on failure).
+     * Never materializes a whole-file byte array — only the chunk buffer.
+     */
+    @Throws(IOException::class)
+    fun copyBoundedToFile(
+        source: InputStream,
+        target: File,
+        maxBytes: Long,
+        label: String
+    ): Long {
+        target.parentFile?.mkdirs()
+        FileOutputStream(target).use { output ->
+            val buffer = ByteArray(STREAM_COPY_BUFFER_BYTES)
+            var total = 0L
+            while (true) {
+                val read = source.read(buffer)
+                if (read == -1) break
+                total += read.toLong()
+                if (total > maxBytes) {
+                    throw FileTooLargeException(label, total, maxBytes)
+                }
+                output.write(buffer, 0, read)
+            }
+            return total
         }
     }
 
