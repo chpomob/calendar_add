@@ -81,3 +81,4 @@ external/
 .adversarial-plan/
 BRIEF.md
 *.brief
+.adversarial-loop/

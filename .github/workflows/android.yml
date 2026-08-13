@@ -35,6 +35,15 @@ jobs:
       - name: Check release documentation
         run: scripts/check_release_docs.sh
 
+      # Trusted-context only: this step carries HF_TOKEN. Fork PRs lack the
+      # secret (the verifier fails-closed) and same-repo PR code is mutable by
+      # the author (exfiltration risk), so run it solely on `push`.
+      - name: Verify model catalog hashes against HuggingFace
+        if: github.event_name == 'push'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: bash scripts/check_model_catalog_hashes.sh
+
       - name: Build with Gradle
         run: ./gradlew build
 
