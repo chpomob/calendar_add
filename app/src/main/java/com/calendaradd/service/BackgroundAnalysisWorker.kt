@@ -229,7 +229,11 @@ class BackgroundAnalysisWorker(
             modelDownloadManager.cleanupUnusedModelFiles(keepModels)
 
             val traceId = "bg-${System.currentTimeMillis().toString(16)}"
-            val inputContext = InputContext(traceId = traceId)
+            // A1: requestId must stay identical across retry attempts of this same job — unlike
+            // traceId, which is intentionally fresh per attempt. WorkManager's own job id (id)
+            // is stable for the lifetime of the enqueued work request, including every retry, so
+            // it's the correct anchor for extraction-batch idempotency (see InputContext.requestId).
+            val inputContext = InputContext(traceId = traceId, requestId = id.toString())
             sourceAttachment = backgroundAnalysisScheduler.promoteInputToEventSource(inputFile, inputType)
             val result = try {
                 withTimeout(BACKGROUND_ANALYSIS_TIMEOUT_MS) {

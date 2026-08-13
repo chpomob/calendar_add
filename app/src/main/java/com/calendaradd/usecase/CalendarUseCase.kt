@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import com.calendaradd.service.*
 import com.calendaradd.util.AppLog
 import java.io.File
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -25,6 +26,14 @@ class CalendarUseCase(
 ) {
     companion object {
         private const val TAG = "CalendarUseCase"
+
+        /**
+         * R1: hard cap on how many events a single extraction may persist. Applied before any
+         * Room insert or system-calendar call, over the model's own output order (first
+         * [MAX_EVENTS_PER_EXTRACTION] kept), so a runaway extraction can't flood local storage
+         * or the system calendar.
+         */
+        const val MAX_EVENTS_PER_EXTRACTION = 20
     }
 
     suspend fun createEventFromText(
@@ -96,47 +105,109 @@ class CalendarUseCase(
             )
         }
 
-        // A2: tracks every row actually committed during this attempt so a mid-batch
-        // insert/sync failure can be unwound below, instead of leaving partial rows behind for
-        // the worker's retry to re-extract and re-insert a second time under new ids.
-        val insertedIds = mutableListOf<Long>()
+        // R1: cap applied before any Room insert or system-calendar call, over the model's own
+        // (deterministic) output order, so replaying the same extraction always keeps the same
+        // first MAX_EVENTS_PER_EXTRACTION events in the same order (R3).
+        val cappedAnalyses = validAnalyses.take(MAX_EVENTS_PER_EXTRACTION)
+        val droppedCount = validAnalyses.size - cappedAnalyses.size
+        if (droppedCount > 0) {
+            AppLog.w(
+                TAG,
+                "[${context.traceId}] Extraction produced ${validAnalyses.size} events; capping to " +
+                    "$MAX_EVENTS_PER_EXTRACTION and dropping $droppedCount source=$sourceType"
+            )
+        }
+
+        val dao = eventDatabase.eventDao()
+        // R3: derived from context.requestId (stable per logical request; see
+        // InputContext.requestId) plus the capped extraction payload, never from
+        // context.timestamp/traceId, so the same logical extraction replayed by a worker retry
+        // resolves to the same journal row. requestId — not sourceAttachment.path, which
+        // BackgroundAnalysisWorker recreates via a fresh File.createTempFile on every retry
+        // attempt (A1) — is what makes that stable across retries, and it's also what keeps two
+        // independent interactive requests with identical extracted content from colliding into
+        // the same batch (A2).
+        val batchKey = extractionBatchKey(context.requestId, sourceType, sourceAttachment, cappedAnalyses)
+
+        val calendars = if (preferencesManager.isAutoAddEnabled && systemCalendarService.hasCalendarPermissions()) {
+            systemCalendarService.getAvailableCalendars()
+        } else {
+            emptyList()
+        }
+        val preferredCalendarId = preferencesManager.targetCalendarId
+            .takeIf { id -> id != -1L && calendars.any { it.id == id } }
+            ?: calendars.find { it.isPrimary }?.id
+            ?: calendars.firstOrNull()?.id
+
         return try {
-            val calendars = if (preferencesManager.isAutoAddEnabled && systemCalendarService.hasCalendarPermissions()) {
-                systemCalendarService.getAvailableCalendars()
-            } else {
-                emptyList()
+            val batch = dao.getOrCreateBatch(
+                batchKey = batchKey,
+                sourceType = sourceType,
+                sourceAttachmentPath = sourceAttachment?.path.orEmpty(),
+                sourceAttachmentMimeType = sourceAttachment?.mimeType.orEmpty(),
+                sourceAttachmentName = sourceAttachment?.displayName.orEmpty()
+            )
+
+            if (batch.status == BatchStatus.ROLLED_BACK.name) {
+                AppLog.w(TAG, "[${context.traceId}] Batch id=${batch.id} already rolled back; refusing to retry source=$sourceType")
+                return EventResult.Failure(
+                    message = "Could not save extracted events for the $sourceType input.",
+                    debug = buildFailureDebug(
+                        message = "The extraction batch journal already recorded this batch as rolled back.",
+                        sourceType = sourceType,
+                        context = context
+                    )
+                )
             }
-            val preferredCalendarId = preferencesManager.targetCalendarId
-                .takeIf { id -> id != -1L && calendars.any { it.id == id } }
-                ?: calendars.find { it.isPrimary }?.id
-                ?: calendars.firstOrNull()?.id
+
+            val pendingItems = buildPendingItems(cappedAnalyses, sourceType, context, sourceAttachment, preferredCalendarId)
+            if (pendingItems.isEmpty()) {
+                AppLog.w(TAG, "[${context.traceId}] No extracted events had a valid start time source=$sourceType")
+                // A4: nothing was ever (or will ever be) journaled under this batchKey — this
+                // batch is a permanent dead end, not an in-progress one. Delete the PENDING row
+                // rather than leaving it in getUnfinishedBatches forever.
+                deleteEmptyBatchQuietly(dao, batch.id, context, sourceType)
+                return EventResult.Failure(
+                    message = "Could not extract a valid event date and time from the $sourceType input.",
+                    debug = buildFailureDebug(
+                        message = "The model response did not contain any event with a parseable absolute start time.",
+                        sourceType = sourceType,
+                        context = context
+                    )
+                )
+            }
 
             AppLog.i(
                 TAG,
-                "[${context.traceId}] Saving ${validAnalyses.size} extracted event(s) source=$sourceType autoSync=${preferredCalendarId != null}"
+                "[${context.traceId}] Saving ${pendingItems.size} extracted event(s) source=$sourceType autoSync=${preferredCalendarId != null}"
             )
-            val savedEvents = validAnalyses.mapNotNull { analysis ->
-                val event = analysis.toEventOrNull(sourceType, context, sourceAttachment, ::parseIso8601)
-                if (event == null) {
-                    AppLog.w(
-                        TAG,
-                        "[${context.traceId}] Skipping extracted event without parseable start time title=${analysis.title.ifBlank { "<untitled>" }}"
-                    )
-                    return@mapNotNull null
-                }
-                val internalId = eventDatabase.eventDao().insert(event)
-                insertedIds += internalId
-                val savedEvent = event.copy(id = internalId)
 
-                val systemCalendarEventId = preferredCalendarId?.let { calendarId ->
-                    syncEventToSystem(savedEvent, calendarId)
-                }
+            // R2: every event row plus its journal item lands in one Room transaction (P7's
+            // commitBatchItems). A failure here leaves zero rows for this batch and the batch
+            // row stays PENDING, so a later call with the same deterministic batchKey resumes
+            // cleanly (idempotent per-ordinal reuse) instead of duplicating work.
+            val committedItems = dao.commitBatchItems(batch.id, pendingItems)
 
-                savedEvent.copy(systemCalendarEventId = systemCalendarEventId)
+            // Provider sync + outcome bookkeeping happen after local persistence has already
+            // committed. That part is best-effort only (P8A owns the system-calendar provider
+            // itself): a sync or journal-update failure here is logged and skipped rather than
+            // unwinding the already-committed local event.
+            val savedEvents = syncCommittedItems(dao, committedItems, preferredCalendarId, context, sourceType)
+
+            // A3: the local event rows (and any provider outcomes) are already committed by
+            // this point. Marking the batch COMMITTED is bookkeeping on top of that durable
+            // state, not a precondition for it — a failure here must not turn an already-saved
+            // extraction into a reported failure that invites a duplicate-causing retry.
+            try {
+                dao.completeBatch(batch.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(TAG, "[${context.traceId}] Failed to mark batch id=${batch.id} complete; events already committed source=$sourceType", e)
             }
 
             if (savedEvents.isEmpty()) {
-                AppLog.w(TAG, "[${context.traceId}] No extracted events had a valid start time source=$sourceType")
+                AppLog.w(TAG, "[${context.traceId}] Batch id=${batch.id} committed with no readable events source=$sourceType")
                 return EventResult.Failure(
                     message = "Could not extract a valid event date and time from the $sourceType input.",
                     debug = buildFailureDebug(
@@ -153,18 +224,6 @@ class CalendarUseCase(
             throw e
         } catch (e: Exception) {
             AppLog.e(TAG, "[${context.traceId}] Failed to persist extracted events source=$sourceType", e)
-            // A2: unwind every row this attempt committed before the failure, so the worker's
-            // retry starts clean instead of re-inserting them alongside the leftovers.
-            insertedIds.forEach { insertedId ->
-                runCatching { eventDatabase.eventDao().deleteEvent(insertedId) }
-                    .onFailure { rollbackError ->
-                        AppLog.w(
-                            TAG,
-                            "[${context.traceId}] Failed to roll back event id=$insertedId after persistence failure",
-                            rollbackError
-                        )
-                    }
-            }
             EventResult.Failure(
                 message = "Database error: ${e.message}",
                 debug = buildFailureDebug(
@@ -174,6 +233,134 @@ class CalendarUseCase(
                 )
             )
         }
+    }
+
+    private fun buildPendingItems(
+        cappedAnalyses: List<EventExtraction>,
+        sourceType: String,
+        context: InputContext,
+        sourceAttachment: SourceAttachment?,
+        preferredCalendarId: Long?
+    ): List<PendingBatchItem> {
+        val destination = if (preferredCalendarId != null) {
+            BatchDestination.LOCAL_AND_SYSTEM
+        } else {
+            BatchDestination.LOCAL_ONLY
+        }
+        val items = mutableListOf<PendingBatchItem>()
+        cappedAnalyses.forEachIndexed { ordinal, analysis ->
+            val event = analysis.toEventOrNull(sourceType, context, sourceAttachment, ::parseIso8601)
+            if (event == null) {
+                AppLog.w(
+                    TAG,
+                    "[${context.traceId}] Skipping extracted event without parseable start time title=${analysis.title.ifBlank { "<untitled>" }}"
+                )
+                return@forEachIndexed
+            }
+            items += PendingBatchItem(ordinal = ordinal, event = event, destination = destination)
+        }
+        return items
+    }
+
+    private suspend fun syncCommittedItems(
+        dao: EventDao,
+        committedItems: List<ExtractionBatchItemEntity>,
+        preferredCalendarId: Long?,
+        context: InputContext,
+        sourceType: String
+    ): List<Event> {
+        return committedItems.sortedBy { it.ordinal }.mapNotNull { item ->
+            val eventId = item.eventId ?: return@mapNotNull null
+            val event = dao.getEventByIdOnce(eventId) ?: return@mapNotNull null
+
+            if (preferredCalendarId == null) return@mapNotNull event
+            if (item.syncState == BatchSyncState.PROVIDER_COMMITTED.name && item.providerId != null) {
+                return@mapNotNull event.copy(systemCalendarEventId = item.providerId)
+            }
+
+            val systemCalendarEventId = try {
+                syncEventToSystem(event, preferredCalendarId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(TAG, "[${context.traceId}] System calendar sync failed for event id=$eventId source=$sourceType", e)
+                null
+            }
+
+            try {
+                dao.recordProviderOutcome(
+                    itemId = item.id,
+                    providerId = systemCalendarEventId,
+                    syncState = if (systemCalendarEventId != null) {
+                        BatchSyncState.PROVIDER_COMMITTED.name
+                    } else {
+                        BatchSyncState.PROVIDER_FAILED.name
+                    },
+                    recoveryStatus = BatchRecoveryStatus.COMMITTED.name
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(TAG, "[${context.traceId}] Failed to record provider outcome for item id=${item.id} source=$sourceType", e)
+            }
+
+            event.copy(systemCalendarEventId = systemCalendarEventId)
+        }
+    }
+
+    /**
+     * A4: best-effort cleanup of a PENDING batch row that will never receive any journaled
+     * items (buildPendingItems returned empty for this batchKey, and batchKey is deterministic
+     * over that same content, so it never will). Failure here is logged and swallowed — the
+     * batch row would simply persist as an ignorable empty PENDING row, which is the pre-fix
+     * behavior, not a data-loss risk.
+     */
+    private suspend fun deleteEmptyBatchQuietly(
+        dao: EventDao,
+        batchId: Long,
+        context: InputContext,
+        sourceType: String
+    ) {
+        try {
+            dao.deleteBatchJournal(batchId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.w(TAG, "[${context.traceId}] Failed to delete empty batch journal id=$batchId source=$sourceType", e)
+        }
+    }
+
+    /**
+     * SHA-256 digest over the request's stable identity ([InputContext.requestId]) and the
+     * capped extraction payload (never [InputContext.timestamp]/[InputContext.traceId]) so the
+     * same logical extraction always resolves to the same journal row, regardless of when or how
+     * many times it's replayed. [SourceAttachment.path] is deliberately excluded: for
+     * image/audio it is a fresh temp-file path minted per attempt and is not stable across
+     * worker retries (A1); mimeType/displayName are stable and kept for extra collision safety.
+     */
+    private fun extractionBatchKey(
+        requestId: String,
+        sourceType: String,
+        sourceAttachment: SourceAttachment?,
+        cappedAnalyses: List<EventExtraction>
+    ): String {
+        val builder = StringBuilder()
+        builder.append(requestId).append('')
+        builder.append(sourceType).append('')
+        builder.append(sourceAttachment?.mimeType.orEmpty()).append('')
+        builder.append(sourceAttachment?.displayName.orEmpty())
+        cappedAnalyses.forEach { analysis ->
+            builder.append('')
+            builder.append(analysis.title).append('')
+            builder.append(analysis.description).append('')
+            builder.append(analysis.startTime).append('')
+            builder.append(analysis.endTime).append('')
+            builder.append(analysis.location).append('')
+            builder.append(analysis.attendees.joinToString(",")).append('')
+            builder.append(analysis.confidence?.toString().orEmpty())
+        }
+        val digest = MessageDigest.getInstance("SHA-256").digest(builder.toString().toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
     }
 
     private fun buildFailureDebug(
