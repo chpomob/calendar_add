@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.calendaradd.service.*
 import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.util.AppLog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.CoroutineDispatcher
@@ -30,7 +31,12 @@ class HomeViewModel(
     companion object {
         private const val TAG = "HomeViewModel"
     }
+
     private val isDownloadingModel = java.util.concurrent.atomic.AtomicBoolean(false)  // P1.3: atomic
+
+    // R3: monotonic single-use consent tokens. Each consent request mints a fresh value, so a
+    // stale or replayed confirm event never matches the current pending consent.
+    private val consentTokenCounter = java.util.concurrent.atomic.AtomicLong(0L)
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -50,47 +56,87 @@ class HomeViewModel(
 
     fun refreshModelState() {
         viewModelScope.launch {
-            val pendingStatus = backgroundAnalysisScheduler.reconcilePendingWork()
-            val currentModel = modelDownloadManager.getSelectedModel()
-            val hasModelChanged = currentModel.id != _selectedModel.value.id
-
-            if (hasModelChanged) {
-                AppLog.i(TAG, "Switching selected model to ${currentModel.displayName}")
-                gemmaLlmService.close()
-                _selectedModel.value = currentModel
+            // R2: a scheduler/storage failure during refresh must surface a retryable state
+            // instead of escaping the ViewModel coroutine and crashing the process. This same
+            // path runs on init, every ON_RESUME, and after each process*() call.
+            try {
+                refreshModelStateUnsafe()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.e(TAG, "Model state refresh failed", e)
+                // A2: drop readiness so CalendarHomeScreen renders the RefreshFailed message +
+                // Retry button, which live in its !isModelReady branch. Without this a refresh
+                // that fails after readiness was established leaves the error invisible.
                 _isModelReady.value = false
-                _downloadProgress.value = null
-                if (_uiState.value !is HomeUiState.Loading || isDownloadingModel.get()) {
-                    _uiState.value = HomeUiState.Idle
-                }
-            }
-
-            if (!withContext(ioDispatcher) { modelDownloadManager.isModelDownloaded(currentModel) }) {
-                _isModelReady.value = false
-                _uiState.value = HomeUiState.ModelMissing
-                return@launch
-            }
-
-            if (pendingStatus.hasPendingWork) {
-                _isModelReady.value = true
-                _uiState.value = HomeUiState.Queued(
-                    "Analysis is still running in the background. You can leave the app and watch the notification."
+                _uiState.value = HomeUiState.RefreshFailed(
+                    "Could not check the model status (${e.message ?: "unknown error"}). Tap retry to try again."
                 )
-                return@launch
             }
-
-            if (_uiState.value is HomeUiState.Queued) {
-                _uiState.value = HomeUiState.Idle
-            }
-            _isModelReady.value = true
-            _uiState.value = HomeUiState.Idle
         }
     }
 
-    fun downloadModel(policy: NetworkPolicy = NetworkPolicy.CONSERVATIVE) {
+    private suspend fun refreshModelStateUnsafe() {
+        val pendingStatus = backgroundAnalysisScheduler.reconcilePendingWork()
+        // A1: a real WorkManager lookup failure does not throw — the scheduler returns a
+        // non-throwing status with reconcileSucceeded=false and leaves the queue untouched.
+        // The queue state is then unknown, so neither Idle/Queued nor ModelMissing can be
+        // trusted; surface the retryable RefreshFailed state R2 promises instead.
+        if (!pendingStatus.reconcileSucceeded) {
+            _isModelReady.value = false
+            _uiState.value = HomeUiState.RefreshFailed(
+                "Could not check background work status. Tap retry to try again."
+            )
+            return
+        }
+        val currentModel = modelDownloadManager.getSelectedModel()
+        val hasModelChanged = currentModel.id != _selectedModel.value.id
+
+        if (hasModelChanged) {
+            AppLog.i(TAG, "Switching selected model to ${currentModel.displayName}")
+            gemmaLlmService.close()
+            _selectedModel.value = currentModel
+            _isModelReady.value = false
+            _downloadProgress.value = null
+            if (_uiState.value !is HomeUiState.Loading || isDownloadingModel.get()) {
+                _uiState.value = HomeUiState.Idle
+            }
+        }
+
+        if (!withContext(ioDispatcher) { modelDownloadManager.isModelDownloaded(currentModel) }) {
+            _isModelReady.value = false
+            _uiState.value = HomeUiState.ModelMissing
+            return
+        }
+
+        if (pendingStatus.hasPendingWork) {
+            _isModelReady.value = true
+            _uiState.value = HomeUiState.Queued(
+                "Analysis is still running in the background. You can leave the app and watch the notification."
+            )
+            return
+        }
+
+        if (_uiState.value is HomeUiState.Queued) {
+            _uiState.value = HomeUiState.Idle
+        }
+        _isModelReady.value = true
+        _uiState.value = HomeUiState.Idle
+    }
+
+    // ----- R3: one-shot download consent -------------------------------------------------
+
+    /**
+     * R3: entry point for a user-initiated download. On an unmetered, non-roaming network the
+     * download starts directly under the restrictive [NetworkPolicy.CONSERVATIVE] policy. On a
+     * metered or roaming network it surfaces a [HomeUiState.DownloadConsentNeeded] state and
+     * enqueues nothing until the UI confirms; only the affirmative result may call the permissive
+     * [NetworkPolicy.UNRESTRICTED] policy via [confirmConsentedDownload].
+     */
+    fun requestDownload(networkCondition: NetworkCondition) {
         if (_isModelReady.value || isDownloadingModel.get()) return
         val currentModel = _selectedModel.value
-        
+
         if (!modelDownloadManager.hasEnoughSpace(currentModel)) {
             _uiState.value = HomeUiState.Error(
                 "Not enough disk space. Please free up at least ${currentModel.requiredFreeSpaceLabel}."
@@ -98,22 +144,66 @@ class HomeViewModel(
             return
         }
 
+        if (networkCondition == NetworkCondition.UNMETERED_NON_ROAMING) {
+            performDownload(currentModel, NetworkPolicy.CONSERVATIVE)
+        } else {
+            _uiState.value = HomeUiState.DownloadConsentNeeded(
+                DownloadConsent(
+                    model = currentModel,
+                    networkCondition = networkCondition,
+                    token = consentTokenCounter.incrementAndGet()
+                )
+            )
+        }
+    }
+
+    /**
+     * R3: affirmative consent result. Only the current pending consent, matched by its single-use
+     * token, may authorize a permissive download. The consent is consumed (state cleared) before
+     * the download starts, so a replayed or stale confirm finds nothing to match and enqueues
+     * nothing.
+     */
+    fun confirmConsentedDownload(token: Long) {
+        val consent = (_uiState.value as? HomeUiState.DownloadConsentNeeded)?.consent ?: return
+        if (consent.token != token) return
+        // Consume exactly once: clear the consent state before starting so a replay cannot
+        // authorize a second download.
+        _uiState.value = HomeUiState.Idle
+        performDownload(consent.model, NetworkPolicy.UNRESTRICTED)
+    }
+
+    /**
+     * R3: denial or dismissal. Keeps the model missing and enqueues nothing.
+     */
+    fun denyConsent() {
+        if (_uiState.value is HomeUiState.DownloadConsentNeeded) {
+            _uiState.value = HomeUiState.ModelMissing
+        }
+    }
+
+    /**
+     * Runs the actual download under [policy]. Guarded so a concurrent/attempted second start is
+     * a no-op; a failure (incl. [startDownload]'s insufficient-space throw) surfaces as Error.
+     */
+    private fun performDownload(model: LiteRtModelConfig, policy: NetworkPolicy) {
+        if (_isModelReady.value || isDownloadingModel.get()) return
+
         isDownloadingModel.set(true)
         viewModelScope.launch {
             try {
                 _downloadProgress.value = 0
-                _uiState.value = HomeUiState.Loading("Starting download of ${currentModel.shortName} (${currentModel.sizeLabel})...")
-                val downloadId = withContext(ioDispatcher) { modelDownloadManager.startDownload(currentModel, policy) }
-                modelDownloadManager.trackProgress(downloadId, currentModel, policy).collect { status ->
+                _uiState.value = HomeUiState.Loading("Starting download of ${model.shortName} (${model.sizeLabel})...")
+                val downloadId = withContext(ioDispatcher) { modelDownloadManager.startDownload(model, policy) }
+                modelDownloadManager.trackProgress(downloadId, model, policy).collect { status ->
                     when (status) {
                         is DownloadStatus.Progress -> {
                             _downloadProgress.value = status.percentage
-                            _uiState.value = HomeUiState.Loading("Downloading ${currentModel.shortName}: ${status.percentage}%")
+                            _uiState.value = HomeUiState.Loading("Downloading ${model.shortName}: ${status.percentage}%")
                         }
                         is DownloadStatus.Success -> {
                             isDownloadingModel.set(false)
                             _downloadProgress.value = 100
-                            val keepModels = backgroundAnalysisScheduler.getPendingModels() + currentModel
+                            val keepModels = backgroundAnalysisScheduler.getPendingModels() + model
                             modelDownloadManager.cleanupUnusedModelFiles(keepModels)
                             _isModelReady.value = true
                             _uiState.value = HomeUiState.Idle
@@ -215,6 +305,19 @@ class HomeViewModel(
     }
 }
 
+/** R3: coarse classification of the current network used to decide whether download consent is
+ *  required. Computed by the UI (which owns the platform ConnectivityManager) and handed to
+ *  [HomeViewModel.requestDownload]. */
+enum class NetworkCondition { UNMETERED_NON_ROAMING, METERED_OR_ROAMING }
+
+/** R3: attempt-scoped, single-use consent payload surfaced for confirmation on a metered/roaming
+ *  network. The token authorizes exactly one permissive download. */
+data class DownloadConsent(
+    val model: LiteRtModelConfig,
+    val networkCondition: NetworkCondition,
+    val token: Long
+)
+
 sealed class HomeUiState {
     object Idle : HomeUiState()
     object ModelMissing : HomeUiState()
@@ -222,4 +325,8 @@ sealed class HomeUiState {
     data class Queued(val message: String) : HomeUiState()
     data class Success(val createdCount: Int, val firstEventTitle: String) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
+    /** R2: a model-state refresh could not complete; the UI offers a retry that re-runs refresh. */
+    data class RefreshFailed(val message: String) : HomeUiState()
+    /** R3: a metered/roaming download is waiting on an affirmative, single-use confirmation. */
+    data class DownloadConsentNeeded(val consent: DownloadConsent) : HomeUiState()
 }

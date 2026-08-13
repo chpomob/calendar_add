@@ -18,6 +18,10 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -59,6 +63,10 @@ class ModelDownloadManagerTest {
     @Test
     fun `cleanupUnusedModelFiles should keep selected model and delete known stale files`() {
         val keepModel = LiteRtModelCatalog.find("qwen-3_5-0_8b")
+        // A3: cleanup unconditionally preserves the live selection, so make keepModel the
+        // selected model; gemma-4-e2b is then genuinely unused and eligible for deletion.
+        every { preferencesManager.selectedModelId } returns keepModel.id
+
         val keepFile = File(modelDir, keepModel.fileName).apply { writeText("keep") }
         val currentOtherFile = File(modelDir, LiteRtModelCatalog.find("gemma-4-e2b").fileName).apply { writeText("delete") }
         val legacyFile = File(modelDir, "qwen3.5-4b-model_multimodal.litertlm").apply { writeText("delete") }
@@ -70,6 +78,24 @@ class ModelDownloadManagerTest {
         assertFalse(currentOtherFile.exists())
         assertFalse(legacyFile.exists())
         assertTrue(unrelatedFile.exists())
+    }
+
+    // ----- A3: cleanup always preserves the live selection, even when the caller's snapshot is stale -----
+
+    @Test
+    fun `A3 cleanup preserves the currently-selected model even when absent from keepModels`() {
+        val keepModel = LiteRtModelCatalog.find("qwen-3_5-0_8b")
+        val selectedModel = LiteRtModelCatalog.find("gemma-4-e2b")
+        every { preferencesManager.selectedModelId } returns selectedModel.id
+
+        val keepFile = File(modelDir, keepModel.fileName).apply { writeText("keep") }
+        val selectedFile = File(modelDir, selectedModel.fileName).apply { writeText("selected") }
+
+        // Caller passes a stale snapshot that omits the model the user just selected.
+        manager.cleanupUnusedModelFiles(listOf(keepModel))
+
+        assertTrue(keepFile.exists())
+        assertTrue(selectedFile.exists())
     }
 
     @Test
@@ -299,6 +325,55 @@ class ModelDownloadManagerTest {
         assertTrue(qDir.listFiles()!!.any { !it.name.endsWith(".diag") })
     }
 
+    // ----- A3: cleanup holds the selection lock across read+delete, so a concurrent selection
+    //           change cannot land mid-cleanup and have its just-selected file deleted -----
+
+    @Test
+    fun `A3 cleanup holds the selection lock across its read-then-delete critical section`() {
+        val realLock = ReentrantLock()
+        every { preferencesManager.modelSelectionLock } returns realLock
+        every { preferencesManager.selectedModelId } returns LiteRtModelCatalog.DEFAULT_MODEL_ID
+
+        // An unused file that cleanup will delete once it is past the activeDownloads query.
+        val unusedModel = LiteRtModelCatalog.find("gemma-4-e4b")
+        val unusedFile = File(modelDir, unusedModel.fileName).apply { writeText("unused") }
+
+        // Gate the activeDownloads query so cleanup pauses mid-critical-section, holding the lock.
+        val enteredCleanup = CountDownLatch(1)
+        val releaseCleanup = CountDownLatch(1)
+        val slowCursor = mockk<Cursor>(relaxed = true)
+        every { slowCursor.getColumnIndexOrThrow(any()) } returns 0
+        every { slowCursor.moveToNext() } answers {
+            enteredCleanup.countDown()
+            releaseCleanup.await(5, TimeUnit.SECONDS)
+            false
+        }
+        val managerWithCursor = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { slowCursor })
+
+        val cleanupDone = AtomicBoolean(false)
+        val cleanupThread = Thread {
+            managerWithCursor.cleanupUnusedModelFiles(emptyList())
+            cleanupDone.set(true)
+        }
+        cleanupThread.start()
+
+        // Cleanup is now inside its locked critical section, blocked on the slow cursor.
+        assertTrue(enteredCleanup.await(2, TimeUnit.SECONDS))
+
+        // While cleanup holds the lock, a different thread (the setter runs on the UI thread)
+        // cannot acquire it — proving a concurrent selectModel would block until cleanup finishes.
+        assertFalse(realLock.tryLock(500, TimeUnit.MILLISECONDS))
+
+        releaseCleanup.countDown()
+        cleanupThread.join(5_000)
+        assertTrue(cleanupDone.get())
+        assertFalse(unusedFile.exists()) // the delete ran inside the locked section
+
+        // After cleanup releases, the lock is free for the next selection write.
+        assertTrue(realLock.tryLock(1, TimeUnit.SECONDS))
+        realLock.unlock()
+    }
+
     // ----- A2: cleanup protects an in-progress download target even when unselected -----
 
     @Test
@@ -319,6 +394,38 @@ class ModelDownloadManagerTest {
 
         // Active target is preserved even though it is not in keepModels.
         assertTrue(activeFile.exists())
+    }
+
+    // ----- R1 / AC1: startup keep-set preserves selected, queued and active-download, removes only unused -----
+
+    @Test
+    fun `AC1 startup keep-set preserves selected queued and active-download and removes only unused`() {
+        val selectedModel = LiteRtModelCatalog.find("gemma-4-e2b")
+        val queuedModel = LiteRtModelCatalog.find("gemma-4-e4b")
+        val activeModel = LiteRtModelCatalog.find("gemma-3n-e2b")
+        val unusedModel = LiteRtModelCatalog.find("qwen-3_5-0_8b")
+
+        val selectedFile = File(modelDir, selectedModel.fileName).apply { writeText("selected") }
+        val queuedFile = File(modelDir, queuedModel.fileName).apply { writeText("queued") }
+        val activeFile = File(modelDir, activeModel.fileName).apply { writeText("downloading") }
+        val unusedFile = File(modelDir, unusedModel.fileName).apply { writeText("unused") }
+
+        val cursor = mockk<Cursor>(relaxed = true)
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID) } returns 0
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI) } returns 1
+        every { cursor.moveToNext() } returnsMany listOf(true, false)
+        every { cursor.getLong(0) } returns 555L
+        every { cursor.getString(1) } returns "file://${activeFile.absolutePath}"
+        val managerWithCursor = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { cursor })
+
+        // Startup keep-set = selected + queued. The active-download target is additionally
+        // protected by the activeDownloads() query that cleanup runs internally.
+        managerWithCursor.cleanupUnusedModelFiles(listOf(selectedModel, queuedModel))
+
+        assertTrue(selectedFile.exists())
+        assertTrue(queuedFile.exists())
+        assertTrue(activeFile.exists())
+        assertFalse(unusedFile.exists())
     }
 
     // ----- A3: internal streaming aborts a response larger than the expected model size -----

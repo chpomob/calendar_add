@@ -5,12 +5,25 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.calendaradd.service.LiteRtModelCatalog
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Manages user preferences persistence.
  */
 class PreferencesManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("calendar_add_prefs", Context.MODE_PRIVATE)
+
+    /**
+     * Coordinates model-selection writes with
+     * [com.calendaradd.service.ModelDownloadManager.cleanupUnusedModelFiles]. Cleanup acquires
+     * this lock for its whole read-selection-then-delete critical section, and the
+     * [selectedModelId] setter acquires the same lock to write, so a selection change cannot
+     * land between cleanup reading the selection and deleting unused files. Closes the A3
+     * startup-cleanup TOCTOU. Held only for ms-scale work, so the UI-thread setter stalls at
+     * most one frame.
+     */
+    val modelSelectionLock: ReentrantLock = ReentrantLock()
 
     companion object {
         private const val KEY_AUTO_ADD = "auto_add_to_calendar"
@@ -42,7 +55,11 @@ class PreferencesManager(context: Context) {
     var selectedModelId: String
         get() = prefs.getString(KEY_SELECTED_MODEL_ID, LiteRtModelCatalog.DEFAULT_MODEL_ID)
             ?: LiteRtModelCatalog.DEFAULT_MODEL_ID
-        set(value) = prefs.edit { putString(KEY_SELECTED_MODEL_ID, value) }
+        set(value) {
+            modelSelectionLock.withLock {
+                prefs.edit { putString(KEY_SELECTED_MODEL_ID, value) }
+            }
+        }
 
     var isHeavyAnalysisEnabled: Boolean
         get() = prefs.getBoolean(KEY_HEAVY_ANALYSIS, false)

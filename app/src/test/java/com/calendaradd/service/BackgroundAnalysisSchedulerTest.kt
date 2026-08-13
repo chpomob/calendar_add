@@ -288,6 +288,9 @@ class BackgroundAnalysisSchedulerTest {
         assertTrue("reconcile exceeded the bounded deadline: ${elapsed}ms", elapsed < 2000L)
         assertFalse(status.hasPendingWork)
         assertFalse(status.clearedStaleWork)
+        // A1: the inconclusive path surfaces reconcileSucceeded=false instead of throwing,
+        // so callers can treat the unknown queue state as retryable.
+        assertFalse(status.reconcileSucceeded)
         verify(exactly = 0) { workManager.cancelWorkById(any()) }
     }
 
@@ -312,8 +315,10 @@ class BackgroundAnalysisSchedulerTest {
 
         assertFalse(first.hasPendingWork)
         assertFalse(first.clearedStaleWork)
+        assertFalse(first.reconcileSucceeded)
         assertTrue(second.hasPendingWork)
         assertFalse(second.clearedStaleWork)
+        assertTrue(second.reconcileSucceeded)
         assertTrue(inputFile.exists())
     }
 

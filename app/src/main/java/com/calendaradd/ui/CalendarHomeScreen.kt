@@ -2,11 +2,15 @@ package com.calendaradd.ui
 
 import android.graphics.Bitmap
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.telephony.TelephonyManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -109,6 +113,23 @@ fun CalendarHomeScreen(
 
     fun refreshNotificationState() {
         notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+    // R3: classify the active network so requestDownload can decide whether metered/roaming
+    // consent is required. Fail-safe: if the network cannot be classified it is treated as
+    // metered/roaming, so a costly download never starts without consent.
+    fun currentNetworkCondition(): NetworkCondition {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return NetworkCondition.METERED_OR_ROAMING
+        val network = cm.activeNetwork ?: return NetworkCondition.METERED_OR_ROAMING
+        val caps = cm.getNetworkCapabilities(network) ?: return NetworkCondition.METERED_OR_ROAMING
+        val unmetered = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+        val notRoaming = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING)
+        } else {
+            (context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager)?.isNetworkRoaming != true
+        }
+        return if (unmetered && notRoaming) NetworkCondition.UNMETERED_NON_ROAMING else NetworkCondition.METERED_OR_ROAMING
     }
 
     fun hasAudioPermission(): Boolean {
@@ -513,7 +534,7 @@ fun CalendarHomeScreen(
                         )
                         Spacer(Modifier.height(18.dp))
                         Button(
-                            onClick = { viewModel.downloadModel() },
+                            onClick = { viewModel.requestDownload(currentNetworkCondition()) },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             enabled = uiState !is HomeUiState.Loading,
                             shape = RoundedCornerShape(18.dp)
@@ -541,6 +562,27 @@ fun CalendarHomeScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+
+                    // R2: a failed model-state refresh offers a retry; the model status is unknown so
+                    // the user gets a clear recovery path instead of being stuck on the setup view.
+                    if (uiState is HomeUiState.RefreshFailed) {
+                        Spacer(Modifier.height(16.dp))
+                        HomeSectionCard(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                (uiState as HomeUiState.RefreshFailed).message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick = { viewModel.refreshModelState() },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp)
+                            ) {
+                                Text("Retry")
+                            }
                         }
                     }
 
@@ -816,6 +858,34 @@ fun CalendarHomeScreen(
                     confirmButton = {
                         Button(onClick = { viewModel.resetState() }) {
                             Text("OK")
+                        }
+                    }
+                )
+            }
+
+            // R3: metered/roaming download consent. Dismissal keeps the model missing and
+            // enqueues nothing; only an affirmative, single-use confirmation starts a permissive
+            // (UNRESTRICTED) download.
+            if (uiState is HomeUiState.DownloadConsentNeeded) {
+                val consent = (uiState as HomeUiState.DownloadConsentNeeded).consent
+                AlertDialog(
+                    onDismissRequest = { viewModel.denyConsent() },
+                    title = { Text("Download over mobile data?") },
+                    text = {
+                        Text(
+                            "You're on a metered or roaming network. " +
+                                "${consent.model.displayName} is ${consent.model.sizeLabel} and will be " +
+                                "downloaded now. This may use significant mobile data. Continue?"
+                        )
+                    },
+                    confirmButton = {
+                        Button(onClick = { viewModel.confirmConsentedDownload(consent.token) }) {
+                            Text("Download now")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.denyConsent() }) {
+                            Text("Not now")
                         }
                     }
                 )

@@ -46,7 +46,12 @@ enum class AnalysisInputType {
 
 data class PendingWorkStatus(
     val hasPendingWork: Boolean,
-    val clearedStaleWork: Boolean
+    val clearedStaleWork: Boolean,
+    // A1: false only on the inconclusive path (WorkInfo query threw or hit the deadline). The
+    // scheduler deliberately does NOT throw there — it leaves WorkManager untouched so callers
+    // can retry safely — so the failure is surfaced here instead, letting callers distinguish
+    // "confirmed no pending work" from "could not tell".
+    val reconcileSucceeded: Boolean = true
 )
 
 class BackgroundAnalysisScheduler(
@@ -189,8 +194,14 @@ class BackgroundAnalysisScheduler(
         val query = getPendingInfos()
         if (query is PendingInfoQuery.RecoverableError) {
             // R3: could not read the queue within the deadline. Do not claim work was cleared
-            // and do not claim nothing is pending; surface "no change" so callers retry later.
-            return PendingWorkStatus(hasPendingWork = false, clearedStaleWork = false)
+            // and do not claim nothing is pending; leave WorkManager untouched so callers can
+            // retry safely. A1: surface reconcileSucceeded=false so callers do not mistake the
+            // unknown state for a clean "no pending work".
+            return PendingWorkStatus(
+                hasPendingWork = false,
+                clearedStaleWork = false,
+                reconcileSucceeded = false
+            )
         }
 
         val infos = (query as PendingInfoQuery.Success).infos

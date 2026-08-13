@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlin.concurrent.withLock
 
 /**
  * Manages downloads for selectable LiteRT-LM models.
@@ -146,33 +147,46 @@ class ModelDownloadManager(
 
     /**
      * Removes stale model files managed by the app while preserving the active ones.
+     *
+     * A3 (TOCTOU on model selection): the read of the live selection and the delete loop run
+     * inside [PreferencesManager.modelSelectionLock], the same lock acquired by the
+     * [PreferencesManager.selectedModelId] setter (the only writer). A model the user selects
+     * while cleanup runs therefore cannot land between this read and the deletes: the setter
+     * blocks until cleanup releases the lock, so cleanup either sees the new selection (and
+     * keeps it) or finishes before the selection changes. The caller's [keepModels] snapshot —
+     * which may be seconds stale (the WorkManager pending-model query has a 10s deadline) — is
+     * still unioned with the live selection under the lock as defense-in-depth. The lock covers
+     * only ms-scale work (one DownloadManager query + a few unlink()s), so the UI-thread setter
+     * stalls at most one frame.
      */
-    fun cleanupUnusedModelFiles(keepModels: Collection<LiteRtModelConfig> = listOf(getSelectedModel())) {
+    fun cleanupUnusedModelFiles(keepModels: Collection<LiteRtModelConfig> = emptyList()) {
         val dir = resolveStorageRoot()
         if (!dir.exists()) return
-        val keepFileNames = keepModels.mapTo(mutableSetOf()) { it.fileName }
-        // R5: never delete the destination of a pending/running DownloadManager job, even if it
-        // is no longer in keepModels (e.g. the user switched model mid-download).
-        val activeTargetNames = activeDownloads().mapTo(mutableSetOf()) { it.targetFile.name }
+        preferencesManager.modelSelectionLock.withLock {
+            val keepFileNames = (keepModels + getSelectedModel()).mapTo(mutableSetOf()) { it.fileName }
+            // R5: never delete the destination of a pending/running DownloadManager job, even if it
+            // is no longer in keepModels (e.g. the user switched model mid-download).
+            val activeTargetNames = activeDownloads().mapTo(mutableSetOf()) { it.targetFile.name }
 
-        val managedFileNames = LiteRtModelCatalog.models.mapTo(mutableSetOf<String>()) { it.fileName }.apply {
-            addAll(LEGACY_MODEL_FILE_NAMES)
-        }
-
-        dir.listFiles()
-            ?.filter { file ->
-                file.isFile &&
-                    file.name in managedFileNames &&
-                    file.name !in keepFileNames &&
-                    file.name !in activeTargetNames
+            val managedFileNames = LiteRtModelCatalog.models.mapTo(mutableSetOf<String>()) { it.fileName }.apply {
+                addAll(LEGACY_MODEL_FILE_NAMES)
             }
-            ?.forEach { file ->
-                if (file.delete()) {
-                    AppLog.i(TAG, "Removed unused model file ${file.name}")
-                } else {
-                    AppLog.w(TAG, "Failed to remove unused model file ${file.name}")
+
+            dir.listFiles()
+                ?.filter { file ->
+                    file.isFile &&
+                        file.name in managedFileNames &&
+                        file.name !in keepFileNames &&
+                        file.name !in activeTargetNames
                 }
-            }
+                ?.forEach { file ->
+                    if (file.delete()) {
+                        AppLog.i(TAG, "Removed unused model file ${file.name}")
+                    } else {
+                        AppLog.w(TAG, "Failed to remove unused model file ${file.name}")
+                    }
+                }
+        }
     }
 
     /**

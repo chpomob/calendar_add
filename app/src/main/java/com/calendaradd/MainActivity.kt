@@ -20,6 +20,7 @@ import com.calendaradd.navigation.AppNavGraph
 import com.calendaradd.service.BackgroundAnalysisScheduler
 import com.calendaradd.service.ApkDownloadManager
 import com.calendaradd.service.GemmaLlmService
+import com.calendaradd.service.LiteRtModelCatalog
 import com.calendaradd.service.ModelDownloadManager
 import com.calendaradd.service.OcrService
 import com.calendaradd.service.SystemCalendarService
@@ -95,13 +96,30 @@ class MainActivity : ComponentActivity() {
         apkDownloadManager = ApkDownloadManager(appContext)
         updateCheckerService = UpdateCheckerService(appContext)
         apkInstaller = ApkInstaller(appContext)
-        // Clean up unused model files on startup (e.g., after app update,
-        // after switching models in a previous session).
-        modelDownloadManager.cleanupUnusedModelFiles()
         apkDownloadManager.cleanupOldDownloads()
         backgroundAnalysisScheduler = BackgroundAnalysisScheduler(appContext)
         systemCalendarService = SystemCalendarService(appContext)
         ocrService = OcrService()
+
+        // R1: fail-safe startup cleanup. Runs AFTER the scheduler exists so the keep-set can
+        // include every model referenced by unfinished WorkManager work AND every active download
+        // target (downloads survive process death). If any protected-set query fails or times
+        // out, delete nothing — a queued job or in-progress download must never lose its file.
+        lifecycleScope.launch(Dispatchers.IO) {
+            val keepSet = runCatching {
+                val selected = modelDownloadManager.getSelectedModel()
+                val pending = backgroundAnalysisScheduler.getPendingModels()
+                val active = modelDownloadManager.activeDownloads().mapNotNull { active ->
+                    LiteRtModelCatalog.models.firstOrNull { it.fileName == active.targetFile.name }
+                }
+                setOf(selected) + pending + active
+            }
+            keepSet.onSuccess { models ->
+                modelDownloadManager.cleanupUnusedModelFiles(models)
+            }.onFailure { error ->
+                AppLog.w(TAG, "Skipping startup model cleanup: protected-set discovery failed", error)
+            }
+        }
 
         val textAnalysisService = TextAnalysisService(
             gemmaLlmService,
