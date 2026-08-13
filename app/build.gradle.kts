@@ -131,4 +131,5 @@ dependencies {
     testImplementation(libs.androidx.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk)
+    testImplementation(libs.androidx.sqlite.bundled.jvm)
 }

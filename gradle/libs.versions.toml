@@ -10,6 +10,7 @@ coroutines = "1.11.0"
 mlkitTextRecognition = "19.0.1"
 litertlm = "0.12.0"
 room = "2.8.4"
+sqlite = "2.6.2"
 work = "2.11.2"
 ksp = "2.2.21-2.0.4"
 mockk = "1.14.9"
@@ -43,6 +44,7 @@ mlkit-text-recognition = { group = "com.google.android.gms", name = "play-servic
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-sqlite-bundled-jvm = { group = "androidx.sqlite", name = "sqlite-bundled-jvm", version.ref = "sqlite" }
 
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
