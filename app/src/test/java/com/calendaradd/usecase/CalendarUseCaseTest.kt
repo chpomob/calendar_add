@@ -993,4 +993,9 @@ private class FaultInjectingEventDao(private val real: EventDao) : EventDao {
     }
 
     override suspend fun deleteBatchJournal(batchId: Long) = real.deleteBatchJournal(batchId)
+
+    override suspend fun findBatchesByAttachmentPath(path: String): List<ExtractionBatchEntity> =
+        real.findBatchesByAttachmentPath(path)
+
+    override suspend fun markBatchAttachmentEvicted(batchId: Long) = real.markBatchAttachmentEvicted(batchId)
 }

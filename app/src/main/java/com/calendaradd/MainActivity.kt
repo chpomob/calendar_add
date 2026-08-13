@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.calendaradd.navigation.AppNavGraph
+import com.calendaradd.service.AttachmentRetention
 import com.calendaradd.service.BackgroundAnalysisScheduler
 import com.calendaradd.service.ApkDownloadManager
 import com.calendaradd.service.GemmaLlmService
@@ -118,6 +119,19 @@ class MainActivity : ComponentActivity() {
                 modelDownloadManager.cleanupUnusedModelFiles(models)
             }.onFailure { error ->
                 AppLog.w(TAG, "Skipping startup model cleanup: protected-set discovery failed", error)
+            }
+        }
+
+        // P11: same fail-safe startup pattern as the model cleanup above — bound total queued/
+        // attached media to AttachmentRetention.QUOTA_BYTES so it never grows unbounded across
+        // app sessions. Failures are logged and swallowed; a missed pass just means the quota is
+        // enforced on the next app open.
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                AttachmentRetention(appContext, eventDatabase.eventDao())
+                    .enforceQuota()
+            }.onFailure { error ->
+                AppLog.w(TAG, "Skipping startup attachment retention pass", error)
             }
         }
 

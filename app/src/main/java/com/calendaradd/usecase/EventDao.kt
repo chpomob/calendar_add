@@ -196,6 +196,27 @@ interface EventDao {
      */
     @Query("DELETE FROM extraction_batches WHERE id = :batchId")
     suspend fun deleteBatchJournal(batchId: Long)
+
+    // ---- P11: attachment retention (oldest-first eviction of queued media) ----
+
+    /**
+     * Looks up every batch journal row still pointing at [path] as its source attachment.
+     * [AttachmentRetention] uses this to decide whether a queued/promoted media file on disk
+     * is a live reference (PENDING or COMMITTED batch — never evict) or safe to reclaim
+     * (ROLLED_BACK, past its grace period) versus a plain orphan (no row at all).
+     */
+    @Query("SELECT * FROM extraction_batches WHERE sourceAttachmentPath = :path")
+    suspend fun findBatchesByAttachmentPath(path: String): List<ExtractionBatchEntity>
+
+    /**
+     * Marks a batch's source attachment as evicted by clearing [ExtractionBatchEntity.sourceAttachmentPath]
+     * (no schema change needed: an empty path is otherwise never written by [getOrCreateBatch]
+     * for a real attachment). This only ever runs against a terminal (ROLLED_BACK) batch whose
+     * file [AttachmentRetention] already deleted, so it is pure bookkeeping — the row itself,
+     * its items, and any `events` rows are left untouched (R3: mark, never cascade).
+     */
+    @Query("UPDATE extraction_batches SET sourceAttachmentPath = '' WHERE id = :batchId")
+    suspend fun markBatchAttachmentEvicted(batchId: Long)
 }
 
 /**
