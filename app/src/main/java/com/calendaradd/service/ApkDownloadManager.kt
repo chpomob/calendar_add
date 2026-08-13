@@ -140,9 +140,22 @@ class ApkDownloadManager(
         }
     }
 
+    /**
+     * Resolves the SHA-256 to verify the APK against. The sidecar file at [UpdateInfo.checksumUrl]
+     * is fetched with its own HTTP request, independent of the response that carries the APK
+     * download URL, so it is preferred over [UpdateInfo.checksumSha256] (which is embedded in
+     * that same response). See the trust-boundary note on [UpdateInfo] for what this
+     * check does and does not protect against.
+     */
     private fun resolveChecksum(updateInfo: UpdateInfo, apkName: String): String? {
-        updateInfo.checksumSha256?.let { return it }
-        val checksumUrl = updateInfo.checksumUrl ?: return null
+        val checksumUrl = updateInfo.checksumUrl
+        if (checksumUrl != null) {
+            fetchSidecarChecksum(checksumUrl, apkName)?.let { return it }
+        }
+        return updateInfo.checksumSha256
+    }
+
+    private fun fetchSidecarChecksum(checksumUrl: String, apkName: String): String? {
         return try {
             val connection = connectionFactory(checksumUrl).apply {
                 connectTimeout = CONNECT_TIMEOUT_MS
@@ -155,7 +168,7 @@ class ApkDownloadManager(
                 parseChecksum(it.inputStream.bufferedReader().use { reader -> reader.readText() }, apkName)
             }
         } catch (e: Exception) {
-            AppLog.w(TAG, "Unable to read checksum asset", e)
+            AppLog.w(TAG, "Unable to read sidecar checksum asset", e)
             null
         }
     }

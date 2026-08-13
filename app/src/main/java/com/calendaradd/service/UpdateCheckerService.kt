@@ -8,6 +8,20 @@ import java.net.URL
 import java.util.Locale
 import org.json.JSONObject
 
+/**
+ * Trust boundary (see [ApkDownloadManager]): [checksumSha256] is parsed out of the same
+ * GitHub Releases API response that supplies [downloadUrl], so a compromised or MITM'd release
+ * endpoint can rewrite the APK and this value together. [checksumUrl] points at a separate
+ * sidecar asset (e.g. `*.sha256`) fetched with its own HTTP request; [ApkDownloadManager]
+ * prefers that sidecar value when present because it is independent of the payload describing
+ * the APK. Neither value protects against a fully compromised update server -- checksum,
+ * sidecar, and APK are each fetched over their own separate HTTPS connection (GitHub asset
+ * URLs may redirect to a different host per request), so this is a shared trust model, not a
+ * shared transport, and only raises the bar against accidental corruption or a
+ * partial/truncated download. The real trust root for update installs is
+ * Android's APK signature verification: PackageManager refuses to install an update whose
+ * signing certificate does not match the certificate already on the device.
+ */
 data class UpdateInfo(
     val available: Boolean,
     val latestVersion: String,

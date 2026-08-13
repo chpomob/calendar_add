@@ -160,6 +160,69 @@ class ApkDownloadManagerTest {
     }
 
     @Test
+    fun `downloadApkResult should reject sidecar mismatch even when embedded checksum matches tampered bytes`() = runBlocking {
+        val cacheDir = File("build/tmp/apk-download-manager-test").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val context = contextWithCache(cacheDir)
+        val tamperedBytes = "tampered apk".toByteArray()
+        val genuineChecksum = "not-tampered apk".toByteArray().sha256()
+        val manager = ApkDownloadManager(context) { url ->
+            if (url.contains("sha256")) {
+                FakeHttpURLConnection(url, "CalendarAdd.apk $genuineChecksum".toByteArray())
+            } else {
+                FakeHttpURLConnection(url, tamperedBytes)
+            }
+        }
+
+        val result = manager.downloadApkResult(
+            UpdateInfo(
+                available = true,
+                latestVersion = "v9.9.9",
+                downloadUrl = "https://example.com/CalendarAdd.apk",
+                releaseNotes = null,
+                apkSizeBytes = tamperedBytes.size.toLong(),
+                checksumSha256 = tamperedBytes.sha256(),
+                checksumUrl = "https://example.com/CalendarAdd.apk.sha256"
+            )
+        )
+
+        assertTrue(result is ApkDownloadResult.ChecksumMismatch)
+    }
+
+    @Test
+    fun `downloadApkResult should accept sidecar checksum that matches downloaded bytes`() = runBlocking {
+        val cacheDir = File("build/tmp/apk-download-manager-test").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val context = contextWithCache(cacheDir)
+        val downloadBytes = "genuine apk".toByteArray()
+        val manager = ApkDownloadManager(context) { url ->
+            if (url.contains("sha256")) {
+                FakeHttpURLConnection(url, "CalendarAdd.apk ${downloadBytes.sha256()}".toByteArray())
+            } else {
+                FakeHttpURLConnection(url, downloadBytes)
+            }
+        }
+
+        val result = manager.downloadApkResult(
+            UpdateInfo(
+                available = true,
+                latestVersion = "v9.9.9",
+                downloadUrl = "https://example.com/CalendarAdd.apk",
+                releaseNotes = null,
+                apkSizeBytes = downloadBytes.size.toLong(),
+                checksumSha256 = "0".repeat(64),
+                checksumUrl = "https://example.com/CalendarAdd.apk.sha256"
+            )
+        )
+
+        assertTrue(result is ApkDownloadResult.Success)
+    }
+
+    @Test
     fun `parseChecksum should not use ambiguous global hash fallback`() {
         val first = "a".repeat(64)
         val second = "b".repeat(64)
