@@ -77,13 +77,26 @@ class BackgroundAnalysisWorker(
         val inputTypeName = inputData.getString(BackgroundAnalysisScheduler.KEY_INPUT_TYPE)
         val inputPath = inputData.getString(BackgroundAnalysisScheduler.KEY_INPUT_PATH)
         val modelId = inputData.getString(BackgroundAnalysisScheduler.KEY_MODEL_ID)
+        // Constructed up front (cheap: field assignment only, no I/O) so every terminal-failure
+        // path below — including the parameter-validation checks — can rescue chain successors.
+        val backgroundAnalysisScheduler = BackgroundAnalysisScheduler(applicationContext)
 
+        // Terminal: malformed job metadata can never resolve by retrying, and the queued
+        // input (if any) is left for the scheduler's orphan sweep rather than deleted here.
         if (inputTypeName.isNullOrBlank() || inputPath.isNullOrBlank() || modelId.isNullOrBlank()) {
-            return analysisFailureResult("Missing background analysis parameters.", notify = false)
+            return terminalFailureResult(
+                backgroundAnalysisScheduler,
+                "Missing background analysis parameters.",
+                notify = false
+            )
         }
 
         val inputType = runCatching { AnalysisInputType.valueOf(inputTypeName) }.getOrElse {
-            return analysisFailureResult("Unsupported background analysis type.", notify = false)
+            return terminalFailureResult(
+                backgroundAnalysisScheduler,
+                "Unsupported background analysis type.",
+                notify = false
+            )
         }
         val inputFile = File(inputPath)
         val modelConfig = LiteRtModelCatalog.find(modelId)
@@ -96,7 +109,6 @@ class BackgroundAnalysisWorker(
 
         val preferencesManager = PreferencesManager(applicationContext)
         val modelDownloadManager = ModelDownloadManager(applicationContext, preferencesManager)
-        val backgroundAnalysisScheduler = BackgroundAnalysisScheduler(applicationContext)
         val gemmaLlmService = GemmaLlmService(applicationContext)
         val ocrService = OcrService()
         val textAnalysisService = TextAnalysisService(
@@ -119,16 +131,21 @@ class BackgroundAnalysisWorker(
                 "Starting background analysis workId=$id attempt=$attemptNumber inputType=$inputType model=${modelConfig.shortName}"
             )
             if (hasExceededBackgroundAttemptLimit(runAttemptCount)) {
+                // Exhaustion: every allowed attempt already ran (or the process was killed and
+                // WorkManager auto-restarted us past the limit). No further retry is coming, so
+                // the queued input is deleted here rather than lingering for the orphan sweep.
                 ensureNotificationChannels()
-                return analysisFailureResult(
+                return terminalFailureResult(
+                    backgroundAnalysisScheduler,
                     "Background analysis restarted too many times before completion. " +
-                        "Try a smaller model, a smaller image, or plain text input."
+                        "Try a smaller model, a smaller image, or plain text input.",
+                    inputFile = inputFile
                 )
             }
 
             if (!inputFile.exists()) {
                 AppLog.w(TAG, "Dropping stale background analysis workId=$id missing input=$inputPath")
-                return Result.failure(workDataOf(KEY_ERROR to "Queued input file is missing."))
+                return terminalFailureResult(backgroundAnalysisScheduler, "Queued input file is missing.", notify = false)
             }
 
             ensureNotificationChannels()
@@ -138,7 +155,48 @@ class BackgroundAnalysisWorker(
                     "${modelConfig.shortName} is not downloaded anymore.",
                     Screen.Home.route
                 )
-                return analysisFailureResult("Selected model is no longer downloaded.", notify = false)
+                // Transient: a concurrent download or user re-download could resolve this before
+                // the retry limit is hit.
+                return handleTransientFailure(
+                    backgroundAnalysisScheduler,
+                    "Selected model is no longer downloaded.",
+                    attemptNumber,
+                    inputFile,
+                    notify = false
+                )
+            }
+
+            if (!modelConfig.supportsInputType(inputType)) {
+                return terminalFailureResult(
+                    backgroundAnalysisScheduler,
+                    "${modelConfig.shortName} does not support $inputType input.",
+                    inputFile = inputFile
+                )
+            }
+
+            if (inputType == AnalysisInputType.AUDIO) {
+                // R4: probe size/duration before paying for model initialization — an
+                // oversize/too-long clip is terminal regardless of how well the model loads.
+                if (exceedsMaxAudioBytes(inputFile.length())) {
+                    AppLog.w(
+                        TAG,
+                        "Rejecting audio input bytes=${inputFile.length()} > ${FileImportHandler.MAX_AUDIO_BYTES}"
+                    )
+                    return terminalFailureResult(
+                        backgroundAnalysisScheduler,
+                        "That audio file is too large to analyze safely.",
+                        inputFile = inputFile
+                    )
+                }
+                val probedDurationMs = probeAudioDurationMs(inputFile)
+                if (exceedsMaxAudioDuration(probedDurationMs)) {
+                    AppLog.w(TAG, "Rejecting audio input duration=${probedDurationMs}ms > ${MAX_AUDIO_DURATION_MS}ms")
+                    return terminalFailureResult(
+                        backgroundAnalysisScheduler,
+                        buildAudioTooLongMessage(),
+                        inputFile = inputFile
+                    )
+                }
             }
 
             setForegroundSafe(createForegroundInfo(buildProgressMessage("Initializing ${modelConfig.shortName}...", runAttemptCount)))
@@ -195,8 +253,10 @@ class BackgroundAnalysisWorker(
                         }
                         AnalysisInputType.IMAGE -> {
                             setForegroundSafe(createForegroundInfo(buildProgressMessage("Analyzing image with ${modelConfig.shortName}...", runAttemptCount)))
+                            // Parse-invalid input: the file exists but isn't a decodable image.
+                            // Terminal — decoding will not succeed on retry either.
                             val bitmap = decodeQueuedImage(inputFile)
-                                ?: return@withTimeout EventResult.Failure("Unable to decode the queued image.")
+                                ?: throw TerminalAnalysisException("Unable to decode the queued image.")
                             try {
                                 calendarUseCase.createEventFromImage(bitmap, inputContext, sourceAttachment)
                             } finally {
@@ -207,34 +267,18 @@ class BackgroundAnalysisWorker(
                         }
                         AnalysisInputType.AUDIO -> {
                             setForegroundSafe(createForegroundInfo(buildProgressMessage("Analyzing audio with ${modelConfig.shortName}...", runAttemptCount)))
-                            // Reject audio clips longer than MAX_AUDIO_DURATION_MS. We probe with
-                            // MediaMetadataRetriever first (handles MP3/MP4/AAC/etc.); for WAV
-                            // produced in-app the retriever sometimes returns null on certain
-                            // OEM builds, so we fall back to a WAV-header byte-rate computation.
-                            // If neither yields a duration the audio is passed through —
-                            // model-side processing will surface the failure.
-                            val durationMs = probeAudioDurationMs(inputFile)
-                            if (durationMs != null && durationMs > MAX_AUDIO_DURATION_MS) {
-                                AppLog.w(
-                                    TAG,
-                                    "Rejecting audio input duration=${durationMs}ms > ${MAX_AUDIO_DURATION_MS}ms traceId=$traceId"
-                                )
-                                return@withTimeout EventResult.Failure(buildAudioTooLongMessage())
-                            }
-                            if (inputFile.length() > FileImportHandler.MAX_AUDIO_BYTES) {
-                                AppLog.w(
-                                    TAG,
-                                    "Rejecting audio input bytes=${inputFile.length()} > ${FileImportHandler.MAX_AUDIO_BYTES} traceId=$traceId"
-                                )
-                                return@withTimeout EventResult.Failure("That audio file is too large to analyze safely.")
-                            }
+                            // R4: size/duration were already probed and bounded before model
+                            // initialization; the audio bytes are read here exactly once, within
+                            // the already-verified MAX_AUDIO_BYTES ceiling — no additional
+                            // whole-file copy of the queued input.
                             calendarUseCase.createEventFromAudio(inputFile.readBytes(), inputContext, sourceAttachment)
                         }
                     }
                 }
             } catch (e: TimeoutCancellationException) {
                 AppLog.e(TAG, "Background analysis timed out for ${modelConfig.displayName} traceId=$traceId", e)
-                return analysisFailureResult(buildAnalysisTimeoutMessage())
+                // Transient: load-dependent, a retry may complete within the deadline.
+                return handleTransientFailure(backgroundAnalysisScheduler, buildAnalysisTimeoutMessage(), attemptNumber, inputFile)
             }
 
             return when (result) {
@@ -251,6 +295,10 @@ class BackgroundAnalysisWorker(
                         Screen.EventList.route
                     }
                     notifyResult("Analysis complete", message, destinationRoute)
+                    // R3: the queued input is durably superseded by the saved event(s); delete
+                    // only the queue copy — the promoted source attachment is kept via
+                    // keepSourceAttachment below.
+                    inputFile.deleteQuietly()
                     Result.success(
                         workDataOf(
                             KEY_CREATED_COUNT to result.events.size,
@@ -265,11 +313,38 @@ class BackgroundAnalysisWorker(
                         destinationRoute = Screen.Home.route,
                         debug = result.debug
                     )
-                    analysisFailureResult(result.message, notify = false)
+                    // Transient: extraction/persistence issues surfaced by the use case may not
+                    // reproduce on retry (model backend fallback, transient DB contention, etc.).
+                    handleTransientFailure(backgroundAnalysisScheduler, result.message, attemptNumber, inputFile, notify = false)
                 }
             }
         } catch (e: CancellationException) {
             throw e
+        } catch (e: TerminalAnalysisException) {
+            AppLog.w(TAG, "Terminal background analysis failure attempt=$attemptNumber: ${e.message}")
+            notifyResult("Analysis failed", e.message ?: "Analysis failed.", Screen.Home.route)
+            return terminalFailureResult(
+                backgroundAnalysisScheduler,
+                e.message ?: "Analysis failed.",
+                notify = false,
+                inputFile = inputFile
+            )
+        } catch (e: OutOfMemoryError) {
+            AppLog.e(TAG, "Out of memory during background analysis attempt=$attemptNumber", e)
+            notifyResult(
+                "Analysis failed",
+                "Ran out of memory during analysis. Try a smaller model, image, or audio clip.",
+                Screen.Home.route
+            )
+            // Transient: memory pressure often clears by the next attempt (device GC, other
+            // apps trimmed, the oomCallback above already released the LLM model early).
+            return handleTransientFailure(
+                backgroundAnalysisScheduler,
+                "Ran out of memory during analysis.",
+                attemptNumber,
+                inputFile,
+                notify = false
+            )
         } catch (e: Exception) {
             AppLog.e(TAG, "Background analysis crashed for ${modelConfig.displayName} attempt=$attemptNumber", e)
             notifyResult(
@@ -277,33 +352,108 @@ class BackgroundAnalysisWorker(
                 buildUnexpectedFailureMessage(e.message, runAttemptCount),
                 Screen.Home.route
             )
-            return analysisFailureResult(e.message ?: "Unexpected background analysis error.", notify = false)
+            return handleTransientFailure(
+                backgroundAnalysisScheduler,
+                e.message ?: "Unexpected background analysis error.",
+                attemptNumber,
+                inputFile,
+                notify = false
+            )
         } finally {
             oomCallback?.let { applicationContext.unregisterComponentCallbacks(it) }
-            gemmaLlmService.close()
+            closeResourceQuietly("GemmaLlmService") { gemmaLlmService.close() }
             // ML Kit text recognizer holds native resources; release them so retries
             // and the next worker invocation start from a clean slate.
-            runCatching { ocrService.close() }
-                .onFailure { error -> AppLog.w(TAG, "Failed to close OcrService", error) }
+            closeResourceQuietly("OcrService") { ocrService.close() }
             // Force GC to release native LiteRT engine memory before next retry
             Runtime.getRuntime().gc()
             if (!keepSourceAttachment) {
                 sourceAttachment?.path?.let { File(it).deleteQuietly() }
             }
-            inputFile.deleteQuietly()
         }
     }
 
-    private fun analysisFailureResult(message: String, notify: Boolean = true): Result {
+    /**
+     * Non-allocating, idempotent resource close: swallows both a normal failure and an
+     * out-of-memory close so one stuck resource never blocks the rest of cleanup or lets an
+     * OOM escape [doWork] from within `finally` (R2 "resource close" injection point).
+     */
+    private inline fun closeResourceQuietly(label: String, close: () -> Unit) {
+        try {
+            close()
+        } catch (e: OutOfMemoryError) {
+            AppLog.w(TAG, "OOM while closing $label")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "Failed to close $label", e)
+        }
+    }
+
+    /**
+     * Terminal (no retry): the failure cannot resolve by re-running the same job. [inputFile],
+     * when supplied, is a genuinely dead queued input (A3) and is deleted immediately rather
+     * than left for the scheduler's orphan sweep grace period.
+     */
+    private suspend fun terminalFailureResult(
+        scheduler: BackgroundAnalysisScheduler,
+        message: String,
+        notify: Boolean = true,
+        inputFile: File? = null
+    ): Result {
         if (notify) {
             notifyResult("Analysis failed", message, Screen.Home.route)
         }
-        return Result.success(
+        rescueSuccessorsBeforeFailure(scheduler)
+        inputFile?.deleteQuietly()
+        return Result.failure(
             workDataOf(
                 KEY_ERROR to message,
                 KEY_ANALYSIS_FAILED to true
             )
         )
+    }
+
+    /**
+     * Transient failure: retries while attempts remain (R1), keeping the queued input for the
+     * next run. Once [attemptNumber] reaches [MAX_BACKGROUND_RUN_ATTEMPTS] the job is exhausted —
+     * no further attempt is coming, so the queued input is deleted here (R3).
+     */
+    private suspend fun handleTransientFailure(
+        scheduler: BackgroundAnalysisScheduler,
+        message: String,
+        attemptNumber: Int,
+        inputFile: File,
+        notify: Boolean = true
+    ): Result {
+        if (notify) {
+            notifyResult("Analysis failed", message, Screen.Home.route)
+        }
+        if (shouldRetryBackgroundFailure(attemptNumber)) {
+            return Result.retry()
+        }
+        rescueSuccessorsBeforeFailure(scheduler)
+        inputFile.deleteQuietly()
+        return Result.failure(
+            workDataOf(
+                KEY_ERROR to message,
+                KEY_ANALYSIS_FAILED to true
+            )
+        )
+    }
+
+    /**
+     * A1: WorkManager cascades this worker's imminent FAILED state forward to every dependent
+     * appended after it in the unique-work chain, even though those jobs are otherwise valid.
+     * Best-effort: a failure here just means the cascade proceeds unrescued, which is the
+     * pre-existing (if flawed) behavior — it must never mask or replace the real failure result.
+     */
+    private suspend fun rescueSuccessorsBeforeFailure(scheduler: BackgroundAnalysisScheduler) {
+        try {
+            scheduler.rescueSuccessorsBeforeFailure(id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.w(TAG, "Failed to rescue chain successors before terminal failure workId=$id", e)
+        }
     }
 
     private fun createForegroundInfo(message: String): ForegroundInfo {
@@ -442,6 +592,36 @@ private fun File.deleteQuietly() {
 
 internal fun hasExceededBackgroundAttemptLimit(runAttemptCount: Int): Boolean {
     return runAttemptCount >= MAX_BACKGROUND_RUN_ATTEMPTS
+}
+
+/**
+ * R1: whether a transient failure at [attemptNumber] (1-indexed: `runAttemptCount + 1`) should
+ * retry. Once the current attempt is already the last one [MAX_BACKGROUND_RUN_ATTEMPTS] allows,
+ * the failure is exhausted and must resolve to `Result.failure()` instead of another retry.
+ */
+internal fun shouldRetryBackgroundFailure(attemptNumber: Int): Boolean {
+    return attemptNumber < MAX_BACKGROUND_RUN_ATTEMPTS
+}
+
+/** R4/AC4: exact five-minute boundary — a clip of exactly [MAX_AUDIO_DURATION_MS] is accepted. */
+internal fun exceedsMaxAudioDuration(durationMs: Long?): Boolean {
+    return durationMs != null && durationMs > MAX_AUDIO_DURATION_MS
+}
+
+/** R4/AC4: exact byte-ceiling boundary — a file of exactly the max size is accepted. */
+internal fun exceedsMaxAudioBytes(sizeBytes: Long): Boolean {
+    return sizeBytes > FileImportHandler.MAX_AUDIO_BYTES
+}
+
+/** R1: signals a failure the same job can never resolve by retrying. */
+private class TerminalAnalysisException(message: String) : Exception(message)
+
+private fun LiteRtModelConfig.supportsInputType(inputType: AnalysisInputType): Boolean {
+    return when (inputType) {
+        AnalysisInputType.IMAGE -> supportsImage
+        AnalysisInputType.AUDIO -> supportsAudio
+        AnalysisInputType.TEXT -> true
+    }
 }
 
 internal fun buildProgressMessage(message: String, runAttemptCount: Int): String {

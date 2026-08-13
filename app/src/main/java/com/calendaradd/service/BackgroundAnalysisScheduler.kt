@@ -218,6 +218,27 @@ class BackgroundAnalysisScheduler(
     }
 
     /**
+     * A1: called by the worker itself just before it resolves to a terminal `Result.failure()`.
+     * WorkManager cascades a FAILED prerequisite forward to every dependent appended after it
+     * in the unique-work chain (APPEND_OR_REPLACE), permanently failing those jobs too — even
+     * though they were never stale and are otherwise fully valid. Detach and re-enqueue every
+     * such successor now, while it is still observable in ENQUEUED/BLOCKED state, so the
+     * cascade about to fire against [failingWorkId] does not take them down with it. Mirrors
+     * [reEnqueueSurvivor]'s per-item cancel-then-append recovery used for stale-node cascades.
+     */
+    suspend fun rescueSuccessorsBeforeFailure(failingWorkId: UUID) = withContext(Dispatchers.IO) {
+        coordinatorMutex.withLock {
+            val query = getPendingInfos()
+            if (query !is PendingInfoQuery.Success) return@withLock
+            for (info in query.infos) {
+                if (info.id != failingWorkId && info.state != WorkInfo.State.RUNNING) {
+                    reEnqueueSurvivor(info)
+                }
+            }
+        }
+    }
+
+    /**
      * R2: per-item reconciliation. Each pending WorkInfo is classified independently; only a
      * genuinely stale item is cancelled by id and (if its input still exists) has that single
      * input deleted. We never issue chain-wide [WorkManager.cancelUniqueWork], never prune the

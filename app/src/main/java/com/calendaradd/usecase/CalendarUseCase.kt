@@ -96,6 +96,10 @@ class CalendarUseCase(
             )
         }
 
+        // A2: tracks every row actually committed during this attempt so a mid-batch
+        // insert/sync failure can be unwound below, instead of leaving partial rows behind for
+        // the worker's retry to re-extract and re-insert a second time under new ids.
+        val insertedIds = mutableListOf<Long>()
         return try {
             val calendars = if (preferencesManager.isAutoAddEnabled && systemCalendarService.hasCalendarPermissions()) {
                 systemCalendarService.getAvailableCalendars()
@@ -121,6 +125,7 @@ class CalendarUseCase(
                     return@mapNotNull null
                 }
                 val internalId = eventDatabase.eventDao().insert(event)
+                insertedIds += internalId
                 val savedEvent = event.copy(id = internalId)
 
                 val systemCalendarEventId = preferredCalendarId?.let { calendarId ->
@@ -148,6 +153,18 @@ class CalendarUseCase(
             throw e
         } catch (e: Exception) {
             AppLog.e(TAG, "[${context.traceId}] Failed to persist extracted events source=$sourceType", e)
+            // A2: unwind every row this attempt committed before the failure, so the worker's
+            // retry starts clean instead of re-inserting them alongside the leftovers.
+            insertedIds.forEach { insertedId ->
+                runCatching { eventDatabase.eventDao().deleteEvent(insertedId) }
+                    .onFailure { rollbackError ->
+                        AppLog.w(
+                            TAG,
+                            "[${context.traceId}] Failed to roll back event id=$insertedId after persistence failure",
+                            rollbackError
+                        )
+                    }
+            }
             EventResult.Failure(
                 message = "Database error: ${e.message}",
                 debug = buildFailureDebug(

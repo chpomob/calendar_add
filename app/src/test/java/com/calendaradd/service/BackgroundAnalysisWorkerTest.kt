@@ -1,5 +1,6 @@
 package com.calendaradd.service
 
+import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.pcm16MonoToWav
 import java.io.File
 import java.nio.ByteBuffer
@@ -16,6 +17,28 @@ class BackgroundAnalysisWorkerTest {
         assertFalse(hasExceededBackgroundAttemptLimit(0))
         assertFalse(hasExceededBackgroundAttemptLimit(1))
         assertTrue(hasExceededBackgroundAttemptLimit(2))
+    }
+
+    @Test
+    fun `shouldRetryBackgroundFailure should retry only before the attempt limit`() {
+        assertTrue(shouldRetryBackgroundFailure(1))
+        assertFalse(shouldRetryBackgroundFailure(2))
+        assertFalse(shouldRetryBackgroundFailure(3))
+    }
+
+    @Test
+    fun `exceedsMaxAudioDuration should reject only beyond the five-minute boundary`() {
+        val maxDurationMs = 5 * 60 * 1000L
+
+        assertFalse(exceedsMaxAudioDuration(null))
+        assertFalse(exceedsMaxAudioDuration(maxDurationMs))
+        assertTrue(exceedsMaxAudioDuration(maxDurationMs + 1))
+    }
+
+    @Test
+    fun `exceedsMaxAudioBytes should reject only beyond the byte ceiling`() {
+        assertFalse(exceedsMaxAudioBytes(FileImportHandler.MAX_AUDIO_BYTES))
+        assertTrue(exceedsMaxAudioBytes(FileImportHandler.MAX_AUDIO_BYTES + 1))
     }
 
     @Test
