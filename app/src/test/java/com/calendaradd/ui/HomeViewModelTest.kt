@@ -63,7 +63,8 @@ class HomeViewModelTest {
             calendarUseCase = calendarUseCase,
             gemmaLlmService = gemmaLlmService,
             modelDownloadManager = modelDownloadManager,
-            backgroundAnalysisScheduler = backgroundAnalysisScheduler
+            backgroundAnalysisScheduler = backgroundAnalysisScheduler,
+            ioDispatcher = dispatcher
         )
 
         advanceUntilIdle()
@@ -81,8 +82,8 @@ class HomeViewModelTest {
         every { modelDownloadManager.getSelectedModel() } returns currentModel
         every { modelDownloadManager.isModelDownloaded(any()) } returns false
         every { modelDownloadManager.hasEnoughSpace(any()) } returns true
-        every { modelDownloadManager.startDownload(any()) } returns 42L
-        every { modelDownloadManager.trackProgress(42L, currentModel) } returns flowOf(DownloadStatus.Success)
+        every { modelDownloadManager.startDownload(any(), any()) } returns 42L
+        every { modelDownloadManager.trackProgress(42L, currentModel, any()) } returns flowOf(DownloadStatus.Success)
         every { modelDownloadManager.cleanupUnusedModelFiles(any()) } returns Unit
         coEvery { backgroundAnalysisScheduler.reconcilePendingWork() } returns PendingWorkStatus(
             hasPendingWork = false,
@@ -94,7 +95,8 @@ class HomeViewModelTest {
             calendarUseCase = calendarUseCase,
             gemmaLlmService = gemmaLlmService,
             modelDownloadManager = modelDownloadManager,
-            backgroundAnalysisScheduler = backgroundAnalysisScheduler
+            backgroundAnalysisScheduler = backgroundAnalysisScheduler,
+            ioDispatcher = dispatcher
         )
 
         advanceUntilIdle()
@@ -105,6 +107,66 @@ class HomeViewModelTest {
             modelDownloadManager.cleanupUnusedModelFiles(match { keepModels ->
                 keepModels.size == 2 && keepModels.any { it === queuedModel }
             })
+        }
+    }
+
+    @Test
+    fun `AC3 downloadModel defaults to conservative network policy`() = runTest(dispatcher) {
+        val currentModel = LiteRtModelCatalog.find("gemma-4-e2b")
+        every { modelDownloadManager.getSelectedModel() } returns currentModel
+        every { modelDownloadManager.isModelDownloaded(any()) } returns false
+        every { modelDownloadManager.hasEnoughSpace(any()) } returns true
+        every { modelDownloadManager.startDownload(any(), any()) } returns 42L
+        every { modelDownloadManager.trackProgress(42L, currentModel, any()) } returns flowOf(DownloadStatus.Success)
+        coEvery { backgroundAnalysisScheduler.reconcilePendingWork() } returns PendingWorkStatus(
+            hasPendingWork = false,
+            clearedStaleWork = false
+        )
+
+        val viewModel = HomeViewModel(
+            calendarUseCase = calendarUseCase,
+            gemmaLlmService = gemmaLlmService,
+            modelDownloadManager = modelDownloadManager,
+            backgroundAnalysisScheduler = backgroundAnalysisScheduler,
+            ioDispatcher = dispatcher
+        )
+
+        advanceUntilIdle()
+        viewModel.downloadModel()
+        advanceUntilIdle()
+
+        io.mockk.verify {
+            modelDownloadManager.startDownload(currentModel, com.calendaradd.service.NetworkPolicy.CONSERVATIVE)
+        }
+    }
+
+    @Test
+    fun `AC3 downloadModel forwards unrestricted policy for a consented attempt`() = runTest(dispatcher) {
+        val currentModel = LiteRtModelCatalog.find("gemma-4-e2b")
+        every { modelDownloadManager.getSelectedModel() } returns currentModel
+        every { modelDownloadManager.isModelDownloaded(any()) } returns false
+        every { modelDownloadManager.hasEnoughSpace(any()) } returns true
+        every { modelDownloadManager.startDownload(any(), any()) } returns 42L
+        every { modelDownloadManager.trackProgress(42L, currentModel, any()) } returns flowOf(DownloadStatus.Success)
+        coEvery { backgroundAnalysisScheduler.reconcilePendingWork() } returns PendingWorkStatus(
+            hasPendingWork = false,
+            clearedStaleWork = false
+        )
+
+        val viewModel = HomeViewModel(
+            calendarUseCase = calendarUseCase,
+            gemmaLlmService = gemmaLlmService,
+            modelDownloadManager = modelDownloadManager,
+            backgroundAnalysisScheduler = backgroundAnalysisScheduler,
+            ioDispatcher = dispatcher
+        )
+
+        advanceUntilIdle()
+        viewModel.downloadModel(com.calendaradd.service.NetworkPolicy.UNRESTRICTED)
+        advanceUntilIdle()
+
+        io.mockk.verify {
+            modelDownloadManager.startDownload(currentModel, com.calendaradd.service.NetworkPolicy.UNRESTRICTED)
         }
     }
 }

@@ -8,8 +8,11 @@ import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.util.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * ViewModel for the Calendar Home Screen.
@@ -19,7 +22,10 @@ class HomeViewModel(
     private val calendarUseCase: CalendarUseCase,
     private val gemmaLlmService: GemmaLlmService,
     private val modelDownloadManager: ModelDownloadManager,
-    private val backgroundAnalysisScheduler: BackgroundAnalysisScheduler
+    private val backgroundAnalysisScheduler: BackgroundAnalysisScheduler,
+    // A1: readiness checks stream a multi-GB SHA-256, so run them off the UI thread. Defaulted so
+    // the prod factory is unchanged; tests inject a controlled dispatcher.
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
     companion object {
         private const val TAG = "HomeViewModel"
@@ -59,7 +65,7 @@ class HomeViewModel(
                 }
             }
 
-            if (!modelDownloadManager.isModelDownloaded(currentModel)) {
+            if (!withContext(ioDispatcher) { modelDownloadManager.isModelDownloaded(currentModel) }) {
                 _isModelReady.value = false
                 _uiState.value = HomeUiState.ModelMissing
                 return@launch
@@ -81,7 +87,7 @@ class HomeViewModel(
         }
     }
 
-    fun downloadModel() {
+    fun downloadModel(policy: NetworkPolicy = NetworkPolicy.CONSERVATIVE) {
         if (_isModelReady.value || isDownloadingModel.get()) return
         val currentModel = _selectedModel.value
         
@@ -97,8 +103,8 @@ class HomeViewModel(
             try {
                 _downloadProgress.value = 0
                 _uiState.value = HomeUiState.Loading("Starting download of ${currentModel.shortName} (${currentModel.sizeLabel})...")
-                val downloadId = modelDownloadManager.startDownload(currentModel)
-                modelDownloadManager.trackProgress(downloadId, currentModel).collect { status ->
+                val downloadId = withContext(ioDispatcher) { modelDownloadManager.startDownload(currentModel, policy) }
+                modelDownloadManager.trackProgress(downloadId, currentModel, policy).collect { status ->
                     when (status) {
                         is DownloadStatus.Progress -> {
                             _downloadProgress.value = status.percentage

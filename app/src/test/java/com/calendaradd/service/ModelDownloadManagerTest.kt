@@ -2,16 +2,33 @@ package com.calendaradd.service
 
 import android.app.DownloadManager
 import android.content.Context
+import android.database.Cursor
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Environment
+import android.telephony.TelephonyManager
 import com.calendaradd.usecase.PreferencesManager
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.io.File
-import java.io.RandomAccessFile
 
 class ModelDownloadManagerTest {
 
@@ -72,36 +89,371 @@ class ModelDownloadManagerTest {
         assertFalse(otherFile.exists())
     }
 
+    // ----- AC1: verified readiness is cached across launches, zero enqueues -----
+
     @Test
-    fun `isModelDownloaded should require exact size for Gallery pinned Gemma models`() {
-        val model = LiteRtModelCatalog.find("gemma-4-e2b")
-        val modelFile = File(modelDir, model.fileName)
+    fun `AC1 verified file is ready across two launches and triggers no enqueue`() {
+        val content = "verified model payload".toByteArray()
+        val model = testModel("ac1", content)
+        val modelFile = File(modelDir, model.fileName).apply { writeBytes(content) }
 
-        modelFile.setSparseLength(model.sizeBytes - 1L)
-        assertFalse(manager.isModelDownloaded(model))
+        assertFalse(File(modelDir, model.fileName + ".verified").exists())
 
-        modelFile.setSparseLength(model.sizeBytes)
+        // First launch: verifies (streams SHA) and records the sidecar.
+        assertTrue(manager.isModelDownloaded(model))
+        assertTrue(File(modelDir, model.fileName + ".verified").exists())
+
+        // Second launch is recognised from the sidecar: tamper the content but preserve length
+        // and last-modified, then assert readiness still holds without re-hashing.
+        val tampered = ByteArray(content.size) { (('A'.code + it).toByte()) }
+        modelFile.writeBytes(tampered)
+        val recordedMtime = readSidecarLastModified(modelFile)!!
+        modelFile.setLastModified(recordedMtime)
         assertTrue(manager.isModelDownloaded(model))
 
-        modelFile.setSparseLength(model.sizeBytes + 1L)
-        assertFalse(manager.isModelDownloaded(model))
+        // Ready model short-circuits startDownload without enqueueing.
+        assertEquals(-1L, manager.startDownload(model))
+        verify(exactly = 0) { downloadManager.enqueue(any()) }
+    }
+
+    // ----- AC2: mismatched completed files are quarantined, not deleted, excluded from lookup -----
+
+    @Test
+    fun `AC2 wrong-length completed file is quarantined with diagnostic and excluded from lookup`() {
+        val content = "verified".toByteArray()
+        val model = testModel("ac2-len", content)
+        val bad = File(modelDir, model.fileName).apply { writeBytes(content + "X".toByteArray()) }
+
+        val result = manager.isModelDownloaded(model)
+        assertFalse(result)
+
+        // Atomically moved out of the lookup location.
+        assertFalse(bad.exists())
+        assertFalse(manager.getModelFile(model).exists())
+
+        val qDir = File(modelDir, ".model-quarantine")
+        assertTrue(qDir.exists())
+        val quarantined = qDir.listFiles()!!.first { !it.name.endsWith(".diag") }
+        assertEquals(content.size + 1L, quarantined.length())
+
+        // User-visible diagnostic recorded.
+        val diag = qDir.listFiles()!!.first { it.name.endsWith(".diag") }
+        val diagText = diag.readText()
+        assertTrue(diagText.contains("modelId=ac2-len"))
+        assertTrue(diagText.contains("reason=size mismatch"))
+
+        // No automatic retry: a readiness check never enqueues.
+        verify(exactly = 0) { downloadManager.enqueue(any()) }
     }
 
     @Test
-    fun `isModelDownloaded should keep threshold validation for approximate third party models`() {
-        val model = LiteRtModelCatalog.find("qwen-3_5-0_8b")
-        val modelFile = File(modelDir, model.fileName)
+    fun `AC2 size-correct wrong-digest file is quarantined and never deleted`() {
+        val content = "verified".toByteArray() // 8 bytes
+        val model = testModel("ac2-sha", content)
+        val wrongContent = "XERIFIED".toByteArray() // same length, different digest
+        assertEquals(content.size, wrongContent.size)
+        val bad = File(modelDir, model.fileName).apply { writeBytes(wrongContent) }
 
-        modelFile.setSparseLength(model.minimumExpectedBytes - 1L)
         assertFalse(manager.isModelDownloaded(model))
+        assertFalse(bad.exists())
 
-        modelFile.setSparseLength(model.minimumExpectedBytes)
-        assertTrue(manager.isModelDownloaded(model))
+        val qDir = File(modelDir, ".model-quarantine")
+        val quarantined = qDir.listFiles()!!.first { !it.name.endsWith(".diag") }
+        // Never deleted: the original bytes are preserved in quarantine.
+        assertArrayEquals(wrongContent, quarantined.readBytes())
+    }
+
+    // ----- AC3: explicit network policy (conservative by default, unrestricted by consent) -----
+
+    @Test
+    fun `AC3 default conservative policy disables metered and roaming`() {
+        val model = testModel("ac3", "x".toByteArray())
+        val plan = manager.downloadPlan(model, NetworkPolicy.CONSERVATIVE)
+        assertFalse(plan.allowMetered)
+        assertFalse(plan.allowRoaming)
+    }
+
+    @Test
+    fun `AC3 explicit unrestricted policy enables metered and roaming`() {
+        val model = testModel("ac3", "x".toByteArray())
+        val plan = manager.downloadPlan(model, NetworkPolicy.UNRESTRICTED)
+        assertTrue(plan.allowMetered)
+        assertTrue(plan.allowRoaming)
+    }
+
+    // ----- AC4: lookup and destination share the one resolved root -----
+
+    @Test
+    fun `AC4 lookup and destination share the resolved external root`() {
+        val model = testModel("ac4ext", "x".toByteArray())
+        val plan = manager.downloadPlan(model)
+
+        assertTrue(plan.useExternal)
+        assertEquals(manager.getModelFile(model).absolutePath, plan.targetFile.absolutePath)
+        assertEquals(modelDir.absolutePath, plan.targetFile.parentFile?.absolutePath)
+        assertNull(plan.partFile)
+    }
+
+    @Test
+    fun `AC4 lookup and destination share the resolved internal root when external is unavailable`() {
+        val internalDir = File("build/tmp/model-download-manager-internal").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val localContext = mockk<Context>(relaxed = true)
+        every { localContext.getSystemService(Context.DOWNLOAD_SERVICE) } returns downloadManager
+        every { localContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) } returns null
+        every { localContext.filesDir } returns internalDir
+        every { localContext.getSystemService(Context.CONNECTIVITY_SERVICE) } returns null
+        val localManager = ModelDownloadManager(localContext, preferencesManager)
+
+        val model = testModel("ac4int", "x".toByteArray())
+        val plan = localManager.downloadPlan(model)
+
+        assertFalse(plan.useExternal)
+        // Lookup path == destination path, both under the resolved internal root.
+        assertEquals(localManager.getModelFile(model).absolutePath, plan.targetFile.absolutePath)
+        assertEquals(internalDir.absolutePath, plan.targetFile.parentFile?.absolutePath)
+        assertNotNull(plan.partFile)
+        assertEquals(internalDir.absolutePath, plan.partFile?.parentFile?.absolutePath)
+    }
+
+    // ----- AC5: active-download discovery returns pending jobs' target files -----
+
+    @Test
+    fun `AC5 activeDownloads returns target file of a pending DownloadManager job`() {
+        val model = LiteRtModelCatalog.find("gemma-4-e2b")
+        val target = File(modelDir, model.fileName)
+        val cursor = mockk<Cursor>(relaxed = true)
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID) } returns 0
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI) } returns 1
+        every { cursor.moveToNext() } returnsMany listOf(true, false)
+        every { cursor.getLong(0) } returns 777L
+        every { cursor.getString(1) } returns "file://${target.absolutePath}"
+        val managerWithCursor = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { cursor })
+
+        val actives = managerWithCursor.activeDownloads()
+
+        assertEquals(1, actives.size)
+        assertEquals(777L, actives[0].downloadId)
+        assertEquals(target.absolutePath, actives[0].targetFile.absolutePath)
+    }
+
+    // ----- R4: internal streaming path promotes verified content, quarantines bad content -----
+
+    @Test
+    fun `R4 internal streaming promotes verified content into the resolved internal root`() {
+        val internalDir = File("build/tmp/model-download-manager-r4-ok").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val localContext = mockk<Context>(relaxed = true)
+        every { localContext.getSystemService(Context.DOWNLOAD_SERVICE) } returns downloadManager
+        every { localContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) } returns null
+        every { localContext.filesDir } returns internalDir
+        val bytes = "streamed verified payload".toByteArray()
+        val model = testModel("r4ok", bytes)
+        val localManager = ModelDownloadManager(localContext, preferencesManager, connectionFactory = {
+            FakeHttpConnection(it, bytes)
+        })
+
+        val downloadId = localManager.startDownload(model, NetworkPolicy.UNRESTRICTED)
+        assertEquals(ModelDownloadManager.INTERNAL_STREAM_ID, downloadId)
+
+        val statuses = runBlocking { localManager.trackProgress(downloadId, model, NetworkPolicy.UNRESTRICTED).toList() }
+
+        assertTrue(statuses.any { it is DownloadStatus.Progress })
+        assertEquals(DownloadStatus.Success, statuses.last())
+        val target = File(internalDir, model.fileName)
+        assertTrue(target.exists())
+        assertArrayEquals(bytes, target.readBytes())
+        assertFalse(File(internalDir, model.fileName + ".part").exists())
+        assertTrue(File(internalDir, model.fileName + ".verified").exists())
+    }
+
+    @Test
+    fun `R4 internal streaming quarantines wrong-digest content and reports failure`() {
+        val internalDir = File("build/tmp/model-download-manager-r4-bad").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val localContext = mockk<Context>(relaxed = true)
+        every { localContext.getSystemService(Context.DOWNLOAD_SERVICE) } returns downloadManager
+        every { localContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) } returns null
+        every { localContext.filesDir } returns internalDir
+        val goodBytes = "verified payload!!".toByteArray()
+        val model = testModel("r4bad", goodBytes)
+        val tampered = "tampered payload!!".toByteArray()
+        assertEquals(goodBytes.size, tampered.size)
+        val localManager = ModelDownloadManager(localContext, preferencesManager, connectionFactory = {
+            FakeHttpConnection(it, tampered)
+        })
+
+        val downloadId = localManager.startDownload(model, NetworkPolicy.UNRESTRICTED)
+        val statuses = runBlocking { localManager.trackProgress(downloadId, model, NetworkPolicy.UNRESTRICTED).toList() }
+
+        assertTrue(statuses.last() is DownloadStatus.Failed)
+        assertFalse(File(internalDir, model.fileName).exists())
+        assertFalse(File(internalDir, model.fileName + ".part").exists())
+        val qDir = File(internalDir, ".model-quarantine")
+        assertTrue(qDir.listFiles()!!.any { !it.name.endsWith(".diag") })
+    }
+
+    // ----- A2: cleanup protects an in-progress download target even when unselected -----
+
+    @Test
+    fun `A2 cleanup preserves the target file of an active pending download`() {
+        val activeModel = LiteRtModelCatalog.find("gemma-4-e2b")
+        val keepModel = LiteRtModelCatalog.find("gemma-4-e4b")
+        val activeFile = File(modelDir, activeModel.fileName).apply { writeText("downloading") }
+
+        val cursor = mockk<Cursor>(relaxed = true)
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID) } returns 0
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI) } returns 1
+        every { cursor.moveToNext() } returnsMany listOf(true, false)
+        every { cursor.getLong(0) } returns 999L
+        every { cursor.getString(1) } returns "file://${activeFile.absolutePath}"
+        val managerWithCursor = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { cursor })
+
+        managerWithCursor.cleanupUnusedModelFiles(listOf(keepModel))
+
+        // Active target is preserved even though it is not in keepModels.
+        assertTrue(activeFile.exists())
+    }
+
+    // ----- A3: internal streaming aborts a response larger than the expected model size -----
+
+    @Test
+    fun `A3 internal streaming aborts a response larger than the expected model size`() {
+        val internalDir = File("build/tmp/model-download-manager-a3").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val localContext = mockk<Context>(relaxed = true)
+        every { localContext.getSystemService(Context.DOWNLOAD_SERVICE) } returns downloadManager
+        every { localContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) } returns null
+        every { localContext.filesDir } returns internalDir
+        val good = "verified payload!".toByteArray() // 16 bytes
+        val oversized = ByteArray(good.size + 64) { 'A'.code.toByte() }
+        val model = testModel("a3", good)
+        val localManager = ModelDownloadManager(localContext, preferencesManager, connectionFactory = {
+            FakeHttpConnection(it, oversized)
+        })
+
+        val downloadId = localManager.startDownload(model, NetworkPolicy.UNRESTRICTED)
+        val statuses = runBlocking { localManager.trackProgress(downloadId, model, NetworkPolicy.UNRESTRICTED).toList() }
+
+        assertTrue(statuses.last() is DownloadStatus.Failed)
+        assertFalse(File(internalDir, model.fileName).exists())          // never promoted
+        assertFalse(File(internalDir, model.fileName + ".part").exists()) // part cleaned up on failure
+    }
+
+    // ----- A4: conservative policy blocks an internal download on a roaming unmetered net -----
+
+    @Test
+    fun `A4 conservative internal download is blocked on a roaming unmetered network`() {
+        val internalDir = File("build/tmp/model-download-manager-a4").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val caps = mockk<NetworkCapabilities>(relaxed = true)
+        every { caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) } returns true
+        // NET_CAPABILITY_NOT_ROAMING left as relaxed-false -> treated as roaming.
+        val network = mockk<Network>()
+        val cm = mockk<ConnectivityManager>()
+        every { cm.activeNetwork } returns network
+        every { cm.getNetworkCapabilities(network) } returns caps
+        val localContext = mockk<Context>(relaxed = true)
+        every { localContext.getSystemService(Context.DOWNLOAD_SERVICE) } returns downloadManager
+        every { localContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) } returns null
+        every { localContext.filesDir } returns internalDir
+        every { localContext.getSystemService(Context.CONNECTIVITY_SERVICE) } returns cm
+        val localManager = ModelDownloadManager(
+            localContext, preferencesManager,
+            connectionFactory = { FakeHttpConnection(it, "x".toByteArray()) },
+            sdkIntProvider = { 28 } // >= P so the NET_CAPABILITY_NOT_ROAMING guard runs
+        )
+
+        val model = testModel("a4", "x".toByteArray())
+        val downloadId = localManager.startDownload(model, NetworkPolicy.CONSERVATIVE)
+        assertEquals(ModelDownloadManager.INTERNAL_STREAM_ID, downloadId)
+
+        val statuses = runBlocking { localManager.trackProgress(downloadId, model, NetworkPolicy.CONSERVATIVE).toList() }
+        val failed = statuses.last() as DownloadStatus.Failed
+        assertTrue(failed.error.contains("policy"))
+    }
+
+    // A4 (API 26/27): NET_CAPABILITY_NOT_ROAMING is unavailable; the TelephonyManager fallback
+    // must still block a conservative internal download when isNetworkRoaming is true.
+    @Test
+    fun `A4 conservative internal download is blocked on roaming via TelephonyManager on pre-P`() {
+        val internalDir = File("build/tmp/model-download-manager-a4-prep").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val caps = mockk<NetworkCapabilities>(relaxed = true)
+        every { caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) } returns true
+        val network = mockk<Network>()
+        val cm = mockk<ConnectivityManager>()
+        every { cm.activeNetwork } returns network
+        every { cm.getNetworkCapabilities(network) } returns caps
+        val telephony = mockk<TelephonyManager>()
+        every { telephony.isNetworkRoaming } returns true
+        val localContext = mockk<Context>(relaxed = true)
+        every { localContext.getSystemService(Context.DOWNLOAD_SERVICE) } returns downloadManager
+        every { localContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) } returns null
+        every { localContext.filesDir } returns internalDir
+        every { localContext.getSystemService(Context.CONNECTIVITY_SERVICE) } returns cm
+        every { localContext.getSystemService(Context.TELEPHONY_SERVICE) } returns telephony
+        val localManager = ModelDownloadManager(
+            localContext, preferencesManager,
+            connectionFactory = { FakeHttpConnection(it, "x".toByteArray()) },
+            sdkIntProvider = { Build.VERSION_CODES.O } // pre-P (26/27)
+        )
+
+        val model = testModel("a4prep", "x".toByteArray())
+        val downloadId = localManager.startDownload(model, NetworkPolicy.CONSERVATIVE)
+        assertEquals(ModelDownloadManager.INTERNAL_STREAM_ID, downloadId)
+
+        val statuses = runBlocking { localManager.trackProgress(downloadId, model, NetworkPolicy.CONSERVATIVE).toList() }
+        val failed = statuses.last() as DownloadStatus.Failed
+        assertTrue(failed.error.contains("policy"))
+    }
+
+    private fun testModel(id: String, content: ByteArray): LiteRtModelConfig {
+        val sha = MessageDigest.getInstance("SHA-256").digest(content).joinToString("") { "%02x".format(it) }
+        return LiteRtModelConfig(
+            id = id,
+            displayName = id,
+            shortName = id,
+            description = "test model",
+            source = "test",
+            downloadUrl = "https://example.com/$id",
+            fileName = "$id.litertlm",
+            sizeBytes = content.size.toLong(),
+            sha256 = sha,
+            capabilities = setOf(ModelCapability.TEXT),
+            executionProfile = ModelExecutionProfile.CPU_ONLY_MULTIMODAL
+        )
+    }
+
+    private fun readSidecarLastModified(modelFile: File): Long? {
+        val sidecar = File(modelFile.parentFile, modelFile.name + ".verified")
+        if (!sidecar.exists()) return null
+        return sidecar.readLines()
+            .firstOrNull { it.startsWith("verifiedLastModified=") }
+            ?.substringAfter("=")
+            ?.toLongOrNull()
     }
 }
 
-private fun File.setSparseLength(length: Long) {
-    RandomAccessFile(this, "rw").use { file ->
-        file.setLength(length)
-    }
+private class FakeHttpConnection(
+    url: String,
+    private val body: ByteArray
+) : HttpURLConnection(URL(url)) {
+    override fun disconnect() = Unit
+    override fun usingProxy(): Boolean = false
+    override fun connect() = Unit
+    override fun getResponseCode(): Int = HTTP_OK
+    override fun getInputStream() = ByteArrayInputStream(body)
 }
