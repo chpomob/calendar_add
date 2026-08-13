@@ -183,7 +183,9 @@ fun CalendarHomeScreen(
                     snackbarHostState.showSnackbar("The recording was empty.")
                 } else {
                     if (limitReached) {
-                        snackbarHostState.showSnackbar("Reached the 30-second limit. Analyzing the recording.")
+                        snackbarHostState.showSnackbar(
+                            "Reached the ${MAX_VOICE_RECORDING_MS / 1000}-second limit. Analyzing the recording."
+                        )
                     }
                     viewModel.processAudio(audioBytes)
                 }
