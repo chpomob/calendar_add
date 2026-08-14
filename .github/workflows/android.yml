@@ -42,7 +42,12 @@ jobs:
         if: github.event_name == 'push'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: bash scripts/check_model_catalog_hashes.sh
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::HF_TOKEN secret is not configured in this repository. Add a HuggingFace access token with read access to the gated google/gemma-3n-* repos (the token is used to fetch real LFS digests; without it the verifier fails closed)."
+            exit 1
+          fi
+          bash scripts/check_model_catalog_hashes.sh
 
       - name: Build with Gradle
         run: ./gradlew build
