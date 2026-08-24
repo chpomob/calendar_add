@@ -598,6 +598,51 @@ class CalendarUseCase(
     }
 
     suspend fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
+
+    /**
+     * R6: moves every synced local event (a row with a linked provider event) to
+     * [toCalendarId]. Returns true only when every move succeeded. A per-event failure is
+     * recorded by returning false while the event's existing link is left intact (AC11), so
+     * the migration stays retriable (AC16). [syncEventToSystem] does the actual move now that
+     * [SystemCalendarService.updateEvent] writes CALENDAR_ID.
+     */
+    suspend fun migrateSyncedEvents(toCalendarId: Long): Boolean {
+        val dao = eventDatabase.eventDao()
+        val synced = dao.getAllEventsOnce().filter { it.systemCalendarEventId != null }
+        var allMoved = true
+        for (event in synced) {
+            val moved = try {
+                syncEventToSystem(event, toCalendarId) != null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(TAG, "Migration failed for local event id=${event.id}", e)
+                false
+            }
+            if (!moved) allMoved = false
+        }
+        return allMoved
+    }
+
+    /**
+     * AC16: runs any migration still recorded in
+     * [PreferencesManager.pendingCalendarMigrationTo], clearing the flag only after a fully
+     * successful pass. Returns false (leaving the flag set) when permission is missing or any
+     * event failed to move, so the next launch or target change can retry.
+     */
+    suspend fun retryPendingMigration(): Boolean {
+        val target = preferencesManager.pendingCalendarMigrationTo
+        if (target == -1L) return true
+        if (!systemCalendarService.hasCalendarPermissions()) return false
+        val moved = migrateSyncedEvents(target)
+        // AC16: only clear the flag when the target is still the one we just migrated. A newer
+        // target written while this pass was suspending must survive so the queued pass migrates
+        // to it instead of leaving events stranded in the old calendar.
+        if (moved && preferencesManager.pendingCalendarMigrationTo == target) {
+            preferencesManager.pendingCalendarMigrationTo = -1L
+        }
+        return moved
+    }
 }
 
 /**

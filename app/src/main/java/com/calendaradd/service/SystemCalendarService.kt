@@ -203,6 +203,11 @@ class SystemCalendarService(
             put(CalendarContract.Events.DTEND, endTimeMillis)
             put(CalendarContract.Events.TITLE, title)
             put(CalendarContract.Events.DESCRIPTION, description)
+            // R6: writing CALENDAR_ID makes an update able to *move* the provider row to a
+            // different calendar, which is exactly what calendar migration needs. On a normal
+            // re-sync of the same event this is idempotent (same calendar id), so no behavior
+            // change for existing update callers.
+            put(CalendarContract.Events.CALENDAR_ID, calendarId)
             put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
             put(CalendarContract.Events.EVENT_LOCATION, location)
         }

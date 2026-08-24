@@ -37,6 +37,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_PENDING_DEBUG_FAILURE_NONCES = "pending_debug_failure_nonces"
         private const val KEY_ACTIVE_MODEL_DOWNLOAD_ID = "active_model_download_id"
         private const val KEY_ACTIVE_MODEL_DOWNLOAD_MODEL_ID = "active_model_download_model_id"
+        private const val KEY_PENDING_CALENDAR_MIGRATION_TO = "pending_calendar_migration_to"
         const val DEFAULT_REMINDER_MINUTES = 10
         private const val MAX_PENDING_DEBUG_FAILURE_NONCES = 8
         private const val DEBUG_FAILURE_NONCE_TTL_MS = 24 * 60 * 60 * 1000L
@@ -131,6 +132,15 @@ class PreferencesManager(context: Context) {
     private fun List<Pair<String, Long>>.encodePendingNonces(): String {
         return joinToString(separator = "\n") { (nonce, createdAt) -> "$nonce|$createdAt" }
     }
+
+    /**
+     * R6/AC16: calendar id that synced events must still be migrated to. Set when the target
+     * calendar changes and cleared only after a fully successful migration pass, so a failed
+     * move can be retried on the next launch without re-triggering a duplicate move.
+     */
+    var pendingCalendarMigrationTo: Long
+        get() = prefs.getLong(KEY_PENDING_CALENDAR_MIGRATION_TO, -1L)
+        set(value) = prefs.edit { putLong(KEY_PENDING_CALENDAR_MIGRATION_TO, value) }
 
     var activeModelDownloadId: Long
         get() = prefs.getLong(KEY_ACTIVE_MODEL_DOWNLOAD_ID, -1L)

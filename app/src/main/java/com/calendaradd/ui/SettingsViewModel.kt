@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 sealed class UpdateCheckState {
@@ -67,12 +69,28 @@ class SettingsViewModel(
 
     val currentVersion: String = "v${BuildConfig.VERSION_NAME}"
 
+    /**
+     * AC16: serializes migration passes so rapid target changes never interleave two moves of
+     * the same event. Each pass reads [PreferencesManager.pendingCalendarMigrationTo] at run
+     * time, so a quick A→B→C change coalesces into a single move to C rather than two moves.
+     */
+    private val migrationMutex = Mutex()
+
     init {
         loadCalendars()
+        startMigration()
     }
 
     fun refreshCalendars() {
         loadCalendars()
+    }
+
+    private fun startMigration() {
+        viewModelScope.launch {
+            migrationMutex.withLock {
+                calendarUseCase.retryPendingMigration()
+            }
+        }
     }
 
     private fun loadCalendars() {
@@ -102,7 +120,9 @@ class SettingsViewModel(
     fun selectCalendar(calendarId: Long, calendarName: String) {
         preferencesManager.targetCalendarId = calendarId
         preferencesManager.targetCalendarName = calendarName
+        preferencesManager.pendingCalendarMigrationTo = calendarId
         _selectedCalendarId.value = calendarId
+        startMigration()
     }
 
     fun setFailureJsonDebugEnabled(enabled: Boolean) {
