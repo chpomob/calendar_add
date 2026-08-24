@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
@@ -71,6 +73,7 @@ fun CalendarSettingsScreen(
     val isAutoAddEnabled by viewModel.isAutoAddEnabled.collectAsState()
     val isHeavyAnalysisEnabled by viewModel.isHeavyAnalysisEnabled.collectAsState()
     val isFailureJsonDebugEnabled by viewModel.isFailureJsonDebugEnabled.collectAsState()
+    val defaultReminderMinutes by viewModel.defaultReminderMinutes.collectAsState()
     val selectedModelId by viewModel.selectedModelId.collectAsState()
     val selectedCalendarId by viewModel.selectedCalendarId.collectAsState()
     val updateState by viewModel.updateCheckState.collectAsState()
@@ -214,7 +217,36 @@ fun CalendarSettingsScreen(
                             )
                         }
                     )
-                    
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                    // Default reminder minutes
+                    ListItem(
+                        headlineContent = { Text("Default reminder") },
+                        supportingContent = {
+                            Text(
+                                "$defaultReminderMinutes minute${if (defaultReminderMinutes == 1) "" else "s"} before events"
+                            )
+                        },
+                        leadingContent = { Icon(Icons.Default.CalendarToday, contentDescription = null) },
+                        trailingContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { viewModel.setDefaultReminderMinutes(defaultReminderMinutes - 1) },
+                                    enabled = defaultReminderMinutes > 0
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Decrease reminder")
+                                }
+                                Text("$defaultReminderMinutes")
+                                IconButton(
+                                    onClick = { viewModel.setDefaultReminderMinutes(defaultReminderMinutes + 1) }
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Increase reminder")
+                                }
+                            }
+                        }
+                    )
+
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     
                     // Calendar selector

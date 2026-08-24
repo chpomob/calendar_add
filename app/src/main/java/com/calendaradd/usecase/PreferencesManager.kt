@@ -31,11 +31,13 @@ class PreferencesManager(context: Context) {
         private const val KEY_TARGET_CALENDAR_NAME = "target_calendar_name"
         private const val KEY_SELECTED_MODEL_ID = "selected_model_id"
         private const val KEY_HEAVY_ANALYSIS = "heavy_analysis"
+        private const val KEY_DEFAULT_REMINDER_MINUTES = "default_reminder_minutes"
         private const val KEY_DEBUG_FAILURE_JSON = "debug_failure_json"
         private const val KEY_PENDING_DEBUG_FAILURE_NONCE = "pending_debug_failure_nonce"
         private const val KEY_PENDING_DEBUG_FAILURE_NONCES = "pending_debug_failure_nonces"
         private const val KEY_ACTIVE_MODEL_DOWNLOAD_ID = "active_model_download_id"
         private const val KEY_ACTIVE_MODEL_DOWNLOAD_MODEL_ID = "active_model_download_model_id"
+        const val DEFAULT_REMINDER_MINUTES = 10
         private const val MAX_PENDING_DEBUG_FAILURE_NONCES = 8
         private const val DEBUG_FAILURE_NONCE_TTL_MS = 24 * 60 * 60 * 1000L
     }
@@ -64,6 +66,10 @@ class PreferencesManager(context: Context) {
     var isHeavyAnalysisEnabled: Boolean
         get() = prefs.getBoolean(KEY_HEAVY_ANALYSIS, false)
         set(value) = prefs.edit { putBoolean(KEY_HEAVY_ANALYSIS, value) }
+
+    var defaultReminderMinutes: Int
+        get() = prefs.getInt(KEY_DEFAULT_REMINDER_MINUTES, DEFAULT_REMINDER_MINUTES).coerceAtLeast(0)
+        set(value) = prefs.edit { putInt(KEY_DEFAULT_REMINDER_MINUTES, value.coerceAtLeast(0)) }
 
     var isFailureJsonDebugEnabled: Boolean
         get() = prefs.getBoolean(KEY_DEBUG_FAILURE_JSON, false)

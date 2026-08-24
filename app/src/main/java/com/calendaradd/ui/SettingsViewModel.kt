@@ -56,6 +56,9 @@ class SettingsViewModel(
     private val _isHeavyAnalysisEnabled = MutableStateFlow(preferencesManager.isHeavyAnalysisEnabled)
     val isHeavyAnalysisEnabled: StateFlow<Boolean> = _isHeavyAnalysisEnabled.asStateFlow()
 
+    private val _defaultReminderMinutes = MutableStateFlow(preferencesManager.defaultReminderMinutes)
+    val defaultReminderMinutes: StateFlow<Int> = _defaultReminderMinutes.asStateFlow()
+
     private val _isFailureJsonDebugEnabled = MutableStateFlow(preferencesManager.isFailureJsonDebugEnabled)
     val isFailureJsonDebugEnabled: StateFlow<Boolean> = _isFailureJsonDebugEnabled.asStateFlow()
 
@@ -110,6 +113,11 @@ class SettingsViewModel(
     fun setHeavyAnalysisEnabled(enabled: Boolean) {
         preferencesManager.isHeavyAnalysisEnabled = enabled
         _isHeavyAnalysisEnabled.value = enabled
+    }
+
+    fun setDefaultReminderMinutes(minutes: Int) {
+        preferencesManager.defaultReminderMinutes = minutes
+        _defaultReminderMinutes.value = preferencesManager.defaultReminderMinutes
     }
 
     fun checkForUpdates() {
