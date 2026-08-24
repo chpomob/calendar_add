@@ -388,8 +388,9 @@ class BackgroundAnalysisScheduler(
     }
 
     /**
-     * R1/R4: persist-then-enqueue is atomic under [coordinatorMutex]. If enqueue fails for any
-     * reason after the file was written, only the just-persisted input is rolled back.
+     * R1/R4: persist-then-enqueue is atomic under [coordinatorMutex]. If enqueue completes
+     * exceptionally after the file was written, only the just-persisted input is rolled back.
+     * R2: a timeout retains the input — the request may already be enqueued.
      */
     private suspend fun persistAndEnqueue(
         inputType: AnalysisInputType,
@@ -400,12 +401,13 @@ class BackgroundAnalysisScheduler(
         try {
             enqueueWorkAwaiting(inputType, inputFile, model)
         } catch (e: TimeoutCancellationException) {
-            // A3: the bounded enqueue observation timed out, so the operation's commit state is
-            // unknown. Roll back the just-persisted input like any other enqueue failure —
-            // TimeoutCancellationException is a CancellationException and would otherwise skip
-            // the rollback branch below and orphan the input.
-            AppLog.w(TAG, "Enqueue observation timed out; rolling back input ${inputFile.absolutePath}", e)
-            rollbackInput(inputFile)
+            // A3/R2: the bounded enqueue observation timed out, so the operation's commit state
+            // is unknown — the request may already be enqueued and the worker would find its
+            // input missing. Retain the file and rethrow; reconciliation classifies the state
+            // later (a genuinely never-enqueued input is swept once aged, or classified stale
+            // only when its WorkInfo exists without the file). Must rethrow rather than absorb,
+            // because callers await the request id.
+            AppLog.w(TAG, "Enqueue observation timed out; retaining input ${inputFile.absolutePath}", e)
             throw e
         } catch (e: CancellationException) {
             throw e

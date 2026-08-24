@@ -426,9 +426,11 @@ class BackgroundAnalysisSchedulerTest {
     }
 
     @Test
-    fun `enqueueText rolls back the input when the enqueue observation times out`() {
-        // A3: a bounded enqueue timeout is a TimeoutCancellationException (a CancellationException)
-        // and must still trigger the input rollback instead of orphaning the just-persisted file.
+    fun `enqueueText retains the input when the enqueue observation times out`() {
+        // A3/R2: a bounded enqueue timeout is a TimeoutCancellationException, and the request
+        // may already be enqueued — the worker must find its input file when it starts. The
+        // input is retained for reconciliation to classify (AC4); it still rethrows so the
+        // caller knows the request id was never returned.
         val preexisting = File(analysisInputDir(), "preexisting.txt").apply { writeText("keep me") }
         val neverCompletingOp = mockk<Operation>()
         every { neverCompletingOp.result } returns neverCompletingFuture()
@@ -445,8 +447,10 @@ class BackgroundAnalysisSchedulerTest {
             runBlocking { scheduler.enqueueText("Dinner tomorrow", LiteRtModelCatalog.find("gemma-4-e2b")) }
         }
 
-        assertFalse(analysisInputDir().listFiles().orEmpty().any { it.name.startsWith("text") })
+        // The just-persisted input survives so an enqueued worker can still process it.
+        assertTrue(analysisInputDir().listFiles().orEmpty().any { it.name.startsWith("text") })
         assertTrue(preexisting.exists())
+        verify(exactly = 0) { workManager.cancelWorkById(any()) }
     }
 
     @Test
