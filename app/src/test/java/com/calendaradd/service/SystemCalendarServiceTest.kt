@@ -3,9 +3,11 @@ package com.calendaradd.service
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
+import android.content.SharedPreferences
 import android.database.Cursor
 import android.net.Uri
 import android.provider.CalendarContract
+import com.calendaradd.usecase.PreferencesManager
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -379,12 +381,86 @@ class SystemCalendarServiceTest {
         verify(exactly = 0) { resolver.insert(remindersUri, any()) }
     }
 
+    // ---- R4b/AC8b-AC8c: positive reminder on every sync, 0 = explicit opt-out ----
+
+    @Test
+    fun `insertEvent with no explicit reminder writes the positive default`() = runBlocking {
+        everyDefaultReminderMinutes(PreferencesManager.DEFAULT_REMINDER_MINUTES)
+        val service = service()
+        val reminderValues = slot<ContentValues>()
+        every { insertedEventUri.lastPathSegment } returns "42"
+        every { resolver.insert(eventsUri, any()) } returns insertedEventUri
+        every { resolver.insert(remindersUri, capture(reminderValues)) } returns mockk()
+
+        service.insertEvent(
+            calendarId = 7L,
+            title = "Title",
+            description = "Description",
+            startTimeMillis = 1_000L,
+            endTimeMillis = 2_000L
+        )
+
+        // AC8b: the default sync still writes exactly one reminder, with positive minutes.
+        verify(exactly = 1) { resolver.insert(remindersUri, any()) }
+        verify { reminderValues.captured.put(CalendarContract.Reminders.MINUTES, PreferencesManager.DEFAULT_REMINDER_MINUTES) }
+        verify { reminderValues.captured.put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT) }
+    }
+
+    @Test
+    fun `insertEvent with reminder zero clears stale reminders and inserts none`() = runBlocking {
+        val service = service()
+        every { insertedEventUri.lastPathSegment } returns "42"
+        every { resolver.insert(eventsUri, any()) } returns insertedEventUri
+
+        val eventId = service.insertEvent(
+            calendarId = 7L,
+            title = "Title",
+            description = "Description",
+            startTimeMillis = 1_000L,
+            endTimeMillis = 2_000L,
+            reminderMinutes = 0
+        )
+
+        // AC8c: 0 is the explicit opt-out — no reminder row is written, but a stale row from
+        // an earlier sync is cleared rather than left behind.
+        assertEquals(42L, eventId)
+        verify(exactly = 1) { resolver.delete(remindersUri, any(), any()) }
+        verify(exactly = 0) { resolver.insert(remindersUri, any()) }
+    }
+
+    @Test
+    fun `updateEvent with reminder zero clears stale reminders and inserts none`() = runBlocking {
+        val service = service()
+        everyEventExists(doesExist = true)
+        every { resolver.update(eventUri, any(), null, null) } returns 1
+
+        val result = service.updateEvent(
+            systemEventId = 42L,
+            calendarId = 7L,
+            title = "Title",
+            description = "Description",
+            startTimeMillis = 1_000L,
+            endTimeMillis = 2_000L,
+            reminderMinutes = 0
+        )
+
+        assertEquals(SystemCalendarUpdateResult.UPDATED, result)
+        verify(exactly = 1) { resolver.delete(remindersUri, any(), any()) }
+        verify(exactly = 0) { resolver.insert(remindersUri, any()) }
+    }
+
     private fun everyMarkerCursorReturns(id: Long) {
         val cursor = mockk<Cursor>()
         every { cursor.moveToFirst() } returns true
         every { cursor.getLong(0) } returns id
         every { cursor.close() } just Runs
         every { resolver.query(eventsUri, any(), any(), any(), any()) } returns cursor
+    }
+
+    private fun everyDefaultReminderMinutes(minutes: Int) {
+        val prefs = mockk<SharedPreferences>()
+        every { prefs.getInt(any(), any()) } returns minutes
+        every { context.getSharedPreferences("calendar_add_prefs", Context.MODE_PRIVATE) } returns prefs
     }
 
     private fun everyEventExists(doesExist: Boolean) {

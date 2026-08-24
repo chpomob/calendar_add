@@ -278,7 +278,8 @@ class SystemCalendarService(
     /**
      * R4/R7: writes reminder and attendee child rows for a provider event. Both are idempotent
      * on re-sync: existing rows are deleted first, so AC8 (exactly one reminder) and AC12
-     * (N attendees → N rows) hold no matter how many times the event is synced.
+     * (N attendees → N rows) hold no matter how many times the event is synced. A reminder
+     * value of 0 (R4b/AC8c opt-out) still clears stale reminder rows but inserts none.
      *
      * Returns true only if every delete and insert succeeded. A failed clear aborts before any
      * insert (so a retry can't double reminder/attendee rows on top of rows that failed to
@@ -289,13 +290,14 @@ class SystemCalendarService(
         // R4: resolve the user-configured minutes here (not in CalendarUseCase) so the sync path
         // never reads the preference directly; a null caller value means "use the setting".
         val minutes = reminderMinutes ?: PreferencesManager(appContext).defaultReminderMinutes
+        // R4b/AC8b: the provider rejects MINUTES <= 0, so any non-positive value is the AC8c
+        // opt-out — but the clear still runs, or a reminder row from an earlier sync would
+        // outlive the opt-out. Abort on clear failure so the caller retries and re-runs it
+        // before any insert (a failed delete plus a fresh insert would double the rows).
+        if (!clearChildRows(remindersUri, CalendarContract.Reminders.EVENT_ID, eventId, "reminders")) {
+            return false
+        }
         if (minutes > 0) {
-            // AC8: clear must succeed before inserting, otherwise a failed delete plus a fresh
-            // insert leaves duplicate reminder rows. Abort on clear failure so the caller
-            // retries and re-runs the clear first.
-            if (!clearChildRows(remindersUri, CalendarContract.Reminders.EVENT_ID, eventId, "reminders")) {
-                return false
-            }
             val reminderValues = contentValuesFactory().apply {
                 put(CalendarContract.Reminders.EVENT_ID, eventId)
                 put(CalendarContract.Reminders.MINUTES, minutes)
