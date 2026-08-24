@@ -16,6 +16,15 @@ enum class SystemCalendarUpdateResult {
     ERROR
 }
 
+/** R3: tri-state result of a sync-marker lookup. Distinguishes a confirmed absence
+ * ([NotFound]) from an inconclusive query ([LookupError]) so callers never insert on top
+ * of an unverified provider state and risk a duplicate. */
+sealed interface SyncMarkerLookup {
+    data class Found(val systemEventId: Long) : SyncMarkerLookup
+    data object NotFound : SyncMarkerLookup
+    data object LookupError : SyncMarkerLookup
+}
+
 /**
  * Service for interacting with the Android System Calendar.
  */
@@ -30,6 +39,15 @@ class SystemCalendarService(
 ) {
     companion object {
         private const val TAG = "SystemCalendarService"
+
+        /**
+         * R3: sync marker appended to the provider DESCRIPTION on insert, embedding the local
+         * Room event id. After a crash between the provider insert and the Room link persist,
+         * [findEventBySyncMarker] uses it to adopt the orphaned provider row instead of
+         * inserting a duplicate. Trailing `]` keeps ids unambiguous (`[calendar-add:5]` is not
+         * a substring of `[calendar-add:55]`).
+         */
+        fun syncMarker(localEventId: Long): String = "\n[calendar-add:$localEventId]"
     }
 
     private val appContext = context.applicationContext
@@ -113,6 +131,44 @@ class SystemCalendarService(
             null
         }
     }
+
+    /**
+     * R3: finds a provider event previously inserted on behalf of local Room event
+     * [localEventId], by the [syncMarker] embedded in DESCRIPTION. [SyncMarkerLookup.NotFound]
+     * means the query succeeded and confirmed no marker row exists (normal first insert);
+     * anything that cannot confirm absence — provider error, null cursor, missing
+     * permission — returns [SyncMarkerLookup.LookupError], and callers must NOT insert
+     * (a transient failure could be hiding an orphan; inserting would duplicate it).
+     */
+    suspend fun findEventBySyncMarker(calendarId: Long, localEventId: Long): SyncMarkerLookup =
+        withContext(Dispatchers.IO) {
+            if (!hasCalendarPermissions()) {
+                AppLog.w(TAG, "Missing calendar permissions, cannot look up sync marker")
+                return@withContext SyncMarkerLookup.LookupError
+            }
+            val selection = "${CalendarContract.Events.CALENDAR_ID} = ? AND " +
+                "${CalendarContract.Events.DESCRIPTION} LIKE ?"
+            val selectionArgs = arrayOf(calendarId.toString(), "%${syncMarker(localEventId)}")
+            try {
+                val cursor = appContext.contentResolver.query(
+                    eventsUri,
+                    arrayOf(CalendarContract.Events._ID),
+                    selection,
+                    selectionArgs,
+                    null
+                ) ?: run {
+                    AppLog.e(TAG, "Null cursor looking up sync marker for local event id=$localEventId")
+                    return@withContext SyncMarkerLookup.LookupError
+                }
+                cursor.use {
+                    if (it.moveToFirst()) SyncMarkerLookup.Found(it.getLong(0))
+                    else SyncMarkerLookup.NotFound
+                }
+            } catch (e: Exception) {
+                AppLog.e(TAG, "Error looking up sync marker for local event id=$localEventId", e)
+                SyncMarkerLookup.LookupError
+            }
+        }
 
     suspend fun updateEvent(
         systemEventId: Long,

@@ -422,10 +422,37 @@ class CalendarUseCase(
             }
         }
 
+        // R3 crash-adopt: if a previous attempt already inserted a provider row for this local
+        // event but died before persisting the link, adopt that row instead of inserting a
+        // duplicate. Only keyed when a local id exists (persisted event) — that id is what the
+        // DESCRIPTION marker embeds.
+        if (event.id != 0L) {
+            when (val lookup = systemCalendarService.findEventBySyncMarker(calendarId = calendarId, localEventId = event.id)) {
+                is SyncMarkerLookup.Found -> {
+                    AppLog.i(TAG, "Adopting orphaned provider event id=${lookup.systemEventId} for local event id=${event.id}")
+                    eventDatabase.eventDao().update(event.copy(systemCalendarEventId = lookup.systemEventId))
+                    return lookup.systemEventId
+                }
+                SyncMarkerLookup.NotFound -> Unit // confirmed absence — safe to insert below
+                SyncMarkerLookup.LookupError -> {
+                    // R3: absence is unconfirmed; an orphan may exist. Inserting now could
+                    // duplicate it, so fail this sync and let the retry re-run the lookup.
+                    AppLog.w(TAG, "Sync marker lookup failed for local event id=${event.id}; skipping insert to avoid a duplicate")
+                    return null
+                }
+            }
+        }
+
+        val providerDescription = if (event.id != 0L) {
+            event.description + SystemCalendarService.syncMarker(event.id)
+        } else {
+            event.description
+        }
+
         val newSystemEventId = systemCalendarService.insertEvent(
             calendarId = calendarId,
             title = event.title,
-            description = event.description,
+            description = providerDescription,
             startTimeMillis = event.startTime,
             endTimeMillis = event.endTime,
             location = event.location

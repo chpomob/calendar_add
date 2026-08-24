@@ -7,6 +7,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.calendaradd.service.AnalysisDebugSnapshot
 import com.calendaradd.service.EventExtraction
 import com.calendaradd.service.SystemCalendarService
+import com.calendaradd.service.SyncMarkerLookup
 import com.calendaradd.service.SystemCalendarUpdateResult
 import com.calendaradd.service.TextAnalysisService
 import io.mockk.coEvery
@@ -77,6 +78,7 @@ class CalendarUseCaseTest {
         every { preferencesManager.targetCalendarId } returns -1L
         every { preferencesManager.isFailureJsonDebugEnabled } returns false
         every { textAnalysisService.consumeLastDebugSnapshot() } returns null
+        coEvery { systemCalendarService.findEventBySyncMarker(any(), any()) } returns SyncMarkerLookup.NotFound
 
         realDatabase = inMemoryDatabase()
         useCase = useCaseWith(realDatabase.eventDao())
@@ -316,7 +318,7 @@ class CalendarUseCaseTest {
             systemCalendarService.insertEvent(
                 calendarId = 4L,
                 title = "Auto synced",
-                description = "",
+                description = "\n[calendar-add:1]",
                 startTimeMillis = any(),
                 endTimeMillis = any(),
                 location = ""
@@ -336,6 +338,94 @@ class CalendarUseCaseTest {
         assertEquals(88L, result.event.systemCalendarEventId)
         assertEquals(1, realDatabase.eventDao().getAllEventsOnce().size)
         assertTrue(realDatabase.eventDao().getUnfinishedBatches().isEmpty())
+    }
+
+    // ---- R3/AC6: crash between provider insert and Room link persist is adopted on re-sync ----
+
+    @Test
+    fun `crash between provider insert and room link persist is adopted on re-sync`() = runBlocking {
+        val faultyDao = FaultInjectingEventDao(realDatabase.eventDao())
+        useCase = useCaseWith(faultyDao)
+        every { preferencesManager.isAutoAddEnabled } returns true
+        coEvery { systemCalendarService.hasCalendarPermissions() } returns true
+        coEvery { systemCalendarService.getAvailableCalendars() } returns listOf(
+            SystemCalendarService.CalendarInfo(id = 4L, name = "Main", accountName = "local", isPrimary = true)
+        )
+        coEvery { systemCalendarService.insertEvent(any(), any(), any(), any(), any(), any()) } returns 88L
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            extraction("Auto synced", "2026-04-20T12:00:00", endTime = "2026-04-20T13:00:00")
+        )
+
+        // First attempt: the provider insert succeeds, then the process "dies" before the
+        // Room link persist (the dao.update right after the insert inside syncEventToSystem).
+        faultyDao.failNextCall("update")
+        val context = InputContext(requestId = "job-crash-retry")
+        val first = useCase.createEventFromText("Auto synced lunch", context)
+        val dao = realDatabase.eventDao()
+        assertTrue(first is EventResult.Success)
+        assertEquals(1, dao.getAllEventsOnce().size)
+        assertNull(dao.getEventByIdOnce(1L)?.systemCalendarEventId)
+
+        // Re-sync of the same logical request: the orphaned provider row is adopted via its
+        // description marker instead of being duplicated.
+        coEvery { systemCalendarService.findEventBySyncMarker(calendarId = 4L, localEventId = 1L) } returns SyncMarkerLookup.Found(88L)
+        val second = useCase.createEventFromText("Auto synced lunch", context)
+
+        assertTrue(second is EventResult.Success)
+        second as EventResult.Success
+        assertEquals(88L, second.event.systemCalendarEventId)
+        assertEquals(1, dao.getAllEventsOnce().size)
+        assertEquals(88L, dao.getEventByIdOnce(1L)?.systemCalendarEventId)
+        coVerify(exactly = 1) { systemCalendarService.insertEvent(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `inconclusive sync marker lookup skips insert to avoid duplicate orphan`() = runBlocking {
+        every { preferencesManager.isAutoAddEnabled } returns true
+        coEvery { systemCalendarService.hasCalendarPermissions() } returns true
+        coEvery { systemCalendarService.getAvailableCalendars() } returns listOf(
+            SystemCalendarService.CalendarInfo(id = 4L, name = "Main", accountName = "local", isPrimary = true)
+        )
+        coEvery { systemCalendarService.findEventBySyncMarker(any(), any()) } returns SyncMarkerLookup.LookupError
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            extraction("Lookup down", "2026-04-20T12:00:00")
+        )
+
+        val result = useCase.createEventFromText("lunch", InputContext(requestId = "job-lookup-error"))
+
+        assertTrue(result is EventResult.Success)
+        // Absence was never confirmed, so no insert may happen — a hidden orphan must not
+        // get a duplicate on retry.
+        coVerify(exactly = 0) { systemCalendarService.insertEvent(any(), any(), any(), any(), any(), any()) }
+        assertNull(realDatabase.eventDao().getEventByIdOnce(1L)?.systemCalendarEventId)
+    }
+
+    // ---- R3/AC7: identical events with different local ids never merge ----
+
+    @Test
+    fun `two identical events with different room ids insert two provider events`() = runBlocking {
+        val insertedDescriptions = mutableListOf<String>()
+        every { preferencesManager.isAutoAddEnabled } returns true
+        coEvery { systemCalendarService.hasCalendarPermissions() } returns true
+        coEvery { systemCalendarService.getAvailableCalendars() } returns listOf(
+            SystemCalendarService.CalendarInfo(id = 4L, name = "Main", accountName = "local", isPrimary = true)
+        )
+        coEvery { systemCalendarService.insertEvent(any(), any(), capture(insertedDescriptions), any(), any(), any()) } returnsMany listOf(88L, 89L)
+        coEvery { textAnalysisService.analyzeText(any(), any()) } returns listOf(
+            extraction("Same lunch", "2026-04-20T12:00:00")
+        )
+
+        val first = useCase.createEventFromText("lunch", InputContext(requestId = "a"))
+        val second = useCase.createEventFromText("lunch", InputContext(requestId = "b"))
+
+        assertTrue(first is EventResult.Success)
+        assertTrue(second is EventResult.Success)
+        val saved = realDatabase.eventDao().getAllEventsOnce()
+        assertEquals(2, saved.size)
+        assertEquals(setOf(88L, 89L), saved.mapNotNull { it.systemCalendarEventId }.toSet())
+        // Each insert embeds its own local event id — distinct markers, so no adoption across ids.
+        assertEquals(listOf("\n[calendar-add:1]", "\n[calendar-add:2]"), insertedDescriptions)
+        coVerify(exactly = 2) { systemCalendarService.insertEvent(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -444,7 +534,7 @@ class CalendarUseCaseTest {
             systemCalendarService.insertEvent(
                 calendarId = 4L,
                 title = "Auto synced",
-                description = "",
+                description = "\n[calendar-add:1]",
                 startTimeMillis = any(),
                 endTimeMillis = any(),
                 location = "HQ"
@@ -689,7 +779,7 @@ class CalendarUseCaseTest {
             systemCalendarService.insertEvent(
                 calendarId = 4L,
                 title = "Planning",
-                description = "Quarterly planning",
+                description = "Quarterly planning\n[calendar-add:1]",
                 startTimeMillis = 1000L,
                 endTimeMillis = 2000L,
                 location = "HQ"
@@ -769,7 +859,7 @@ class CalendarUseCaseTest {
             systemCalendarService.insertEvent(
                 calendarId = 4L,
                 title = "Recovered planning",
-                description = "Quarterly planning",
+                description = "Quarterly planning\n[calendar-add:9]",
                 startTimeMillis = 1000L,
                 endTimeMillis = 2000L,
                 location = "HQ"
@@ -925,7 +1015,10 @@ private class FaultInjectingEventDao(private val real: EventDao) : EventDao {
     override suspend fun getEventByIdOnce(eventId: Long): Event? = real.getEventByIdOnce(eventId)
     override suspend fun insert(event: Event): Long = real.insert(event)
     override suspend fun deleteEvent(eventId: Long) = real.deleteEvent(eventId)
-    override suspend fun update(event: Event) = real.update(event)
+    override suspend fun update(event: Event) {
+        maybeFail("update")
+        real.update(event)
+    }
     override fun getUpcomingEvents(now: Long): Flow<List<Event>> = real.getUpcomingEvents(now)
     override suspend fun searchEvents(search: String): List<Event> = real.searchEvents(search)
     override suspend fun countEventsWithSourceAttachmentPath(path: String): Int =
