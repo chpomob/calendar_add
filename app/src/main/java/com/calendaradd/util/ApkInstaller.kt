@@ -9,7 +9,6 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.calendaradd.BuildConfig
-import com.calendaradd.MainActivity
 import java.io.File
 import java.io.FileInputStream
 import kotlinx.coroutines.Dispatchers
@@ -55,9 +54,7 @@ class ApkInstaller(private val context: Context) {
                         it.fsync(output)
                     }
                 }
-                val callbackIntent = Intent(context, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                }
+                val callbackIntent = Intent(context, InstallStatusReceiver::class.java)
                 val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     // On API 31+ PackageInstaller must be able to attach EXTRA_STATUS/EXTRA_INTENT
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
@@ -66,7 +63,7 @@ class ApkInstaller(private val context: Context) {
                 } else {
                     0
                 }
-                val pendingIntent = PendingIntent.getActivity(context, sessionId, callbackIntent, flags)
+                val pendingIntent = PendingIntent.getBroadcast(context, sessionId, callbackIntent, flags)
                 it.commit(pendingIntent.intentSender)
             }
             InstallResult.Started

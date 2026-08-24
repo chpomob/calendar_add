@@ -46,6 +46,10 @@
             android:foregroundServiceType="dataSync|mediaProcessing"
             tools:node="merge" />
 
+        <receiver
+            android:name=".util.InstallStatusReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
