@@ -36,7 +36,8 @@ class ApkInstaller(private val context: Context) {
     }
 
     private fun tryPackageInstaller(apkFile: File): InstallResult? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return null
+        // PackageInstaller exists on every supported API level (26+); it always drives the
+        // OS install confirmation dialog (user action is implicit pre-S, forced on S+).
         return try {
             val packageInstaller = context.packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
@@ -68,10 +69,10 @@ class ApkInstaller(private val context: Context) {
             }
             InstallResult.Started
         } catch (e: SecurityException) {
-            AppLog.w(TAG, "PackageInstaller blocked, falling back to ACTION_INSTALL_PACKAGE", e)
+            AppLog.w(TAG, "PackageInstaller unavailable, falling back to ACTION_INSTALL_PACKAGE", e)
             null
         } catch (e: Exception) {
-            AppLog.w(TAG, "PackageInstaller failed, falling back to ACTION_INSTALL_PACKAGE", e)
+            AppLog.w(TAG, "PackageInstaller unavailable, falling back to ACTION_INSTALL_PACKAGE", e)
             null
         }
     }
