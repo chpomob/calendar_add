@@ -10,14 +10,14 @@ import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 /**
  * Service for interacting with Gemma 4 via LiteRT-LM API.
@@ -37,7 +37,7 @@ open class GemmaLlmService(
 ) : EventJsonExtractor {
     companion object {
         private const val TAG = "GemmaLlmService"
-        private val processEngineGuard = Any()
+        private val processEngineGuard = Mutex()
         private var activeService = WeakReference<GemmaLlmService>(null)
         private val engineCloseExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
             Thread(runnable, "calendaradd-litert-engine-close").apply {
@@ -48,7 +48,7 @@ open class GemmaLlmService(
         private var pendingEngineCloseFuture: Future<*>? = null
     }
     private var engine: Engine? = null
-    private val mutex = ReentrantLock()
+    private val mutex = Mutex()
     private val activeRequestCancellationJob = AtomicReference<Job?>(null)
     @Volatile
     private var closeRequested = false
@@ -88,7 +88,7 @@ open class GemmaLlmService(
         enableImage: Boolean = modelConfig?.supportsImage != false,
         enableAudio: Boolean = modelConfig?.supportsAudio != false
     ) = withContext(Dispatchers.IO) {
-        synchronized(processEngineGuard) {
+        processEngineGuard.withLock {
             val requestedModelSignature = ActiveModelSignature(
                 modelPath = modelPath,
                 modelId = modelConfig?.id,
@@ -357,7 +357,7 @@ open class GemmaLlmService(
         }
     }
 
-    private fun closeEngineForProcessTransfer() {
+    private suspend fun closeEngineForProcessTransfer() {
         closeRequested = true
         activeRequestCancellationJob.getAndSet(null)?.cancel(
             CancellationException("LiteRT-LM service is transferring process ownership")
