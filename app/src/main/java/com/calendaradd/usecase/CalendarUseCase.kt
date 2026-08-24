@@ -304,7 +304,12 @@ class CalendarUseCase(
                 AppLog.w(TAG, "[${context.traceId}] Failed to record provider outcome for item id=${item.id} source=$sourceType", e)
             }
 
-            event.copy(systemCalendarEventId = systemCalendarEventId)
+            // B01: syncEventToSystem persists link changes before it returns (the adopt path
+            // saves the orphan link, then reconciles child rows; a failed reconcile reports
+            // null while the journal records PROVIDER_FAILED for the retry). Return the
+            // post-sync Room row rather than the pre-sync snapshot, so the caller always sees
+            // the durable link state.
+            dao.getEventByIdOnce(eventId) ?: event.copy(systemCalendarEventId = systemCalendarEventId)
         }
     }
 
@@ -459,7 +464,12 @@ class CalendarUseCase(
                         false
                     }
                     if (!reconciled) {
-                        AppLog.w(TAG, "Adopted event id=$adoptedId left unreconciled")
+                        // B01: the link is durable but the adopted row's child rows are not — the
+                        // orphan may have been inserted without them. Report the sync as failed
+                        // (journal records PROVIDER_FAILED) instead of masking it, so the retry
+                        // takes the normal update path above and reconciles attendees/reminders.
+                        AppLog.w(TAG, "Adopted event id=$adoptedId left unreconciled; reporting sync as failed")
+                        return null
                     }
                     return adoptedId
                 }

@@ -449,6 +449,63 @@ class SystemCalendarServiceTest {
         verify(exactly = 0) { resolver.insert(remindersUri, any()) }
     }
 
+    // ---- B01/AC17: adopted events get child rows; partial failure is not masked ----
+
+    @Test
+    fun `updateEvent with no explicit reminder writes exactly one default reminder row`() = runBlocking {
+        // The crash-adopt reconcile in CalendarUseCase calls updateEvent without an explicit
+        // reminder value, so this call shape is what populates an adopted event's reminders.
+        everyDefaultReminderMinutes(PreferencesManager.DEFAULT_REMINDER_MINUTES)
+        val service = service()
+        val reminderValues = slot<ContentValues>()
+        everyEventExists(doesExist = true)
+        every { resolver.update(eventUri, any(), null, null) } returns 1
+        every { resolver.insert(remindersUri, capture(reminderValues)) } returns mockk()
+
+        val result = service.updateEvent(
+            systemEventId = 42L,
+            calendarId = 7L,
+            title = "Title",
+            description = "Description",
+            startTimeMillis = 1_000L,
+            endTimeMillis = 2_000L,
+            attendees = listOf("Alice")
+        )
+
+        // AC17: the adopted event ends with exactly one reminder row (the configured default).
+        assertEquals(SystemCalendarUpdateResult.UPDATED, result)
+        verify(exactly = 1) { resolver.insert(remindersUri, any()) }
+        verify { reminderValues.captured.put(CalendarContract.Reminders.MINUTES, PreferencesManager.DEFAULT_REMINDER_MINUTES) }
+        // ...and its attendee row.
+        verify(exactly = 1) { resolver.insert(attendeesUri, any()) }
+    }
+
+    @Test
+    fun `updateEvent reports ERROR when an attendee insert fails after the reminder landed`() = runBlocking {
+        everyDefaultReminderMinutes(PreferencesManager.DEFAULT_REMINDER_MINUTES)
+        val service = service()
+        everyEventExists(doesExist = true)
+        every { resolver.update(eventUri, any(), null, null) } returns 1
+        every { resolver.insert(remindersUri, any()) } returns mockk()
+        every { resolver.insert(attendeesUri, any()) } throws RuntimeException("attendee write failed")
+
+        val result = service.updateEvent(
+            systemEventId = 42L,
+            calendarId = 7L,
+            title = "Title",
+            description = "Description",
+            startTimeMillis = 1_000L,
+            endTimeMillis = 2_000L,
+            attendees = listOf("Alice", "Bob")
+        )
+
+        // B01: the partial state (reminder written, attendee rejected) is reported as a
+        // failure — the caller retries and writeChildRows re-clears before re-inserting.
+        assertEquals(SystemCalendarUpdateResult.ERROR, result)
+        verify(exactly = 1) { resolver.insert(remindersUri, any()) }
+        verify(exactly = 1) { resolver.insert(attendeesUri, any()) }
+    }
+
     private fun everyMarkerCursorReturns(id: Long) {
         val cursor = mockk<Cursor>()
         every { cursor.moveToFirst() } returns true

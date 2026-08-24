@@ -14,6 +14,8 @@ import com.calendaradd.usecase.CalendarUseCase
 import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.ApkInstaller
 import com.calendaradd.util.InstallResult
+import com.calendaradd.util.InstallStatus
+import com.calendaradd.util.InstallStatusReceiver
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +71,9 @@ class SettingsViewModel(
 
     val currentVersion: String = "v${BuildConfig.VERSION_NAME}"
 
+    /** R10/AC18: terminal install outcome published by InstallStatusReceiver's broadcast. */
+    val installStatus: StateFlow<InstallStatus?> = InstallStatusReceiver.statusFlow
+
     /**
      * AC16b: serializes migration passes so rapid target changes never interleave two moves
      * of the same event, process-scoped so multiple ViewModel instances (e.g. backstack
@@ -87,6 +92,27 @@ class SettingsViewModel(
         loadCalendars()
         // AC16b: retry any migration left pending by a failure or process death.
         startMigration()
+        // R10/AC18: surface PackageInstaller outcomes (success/failure/aborted) in the UI.
+        observeInstallStatus()
+    }
+
+    private fun observeInstallStatus() {
+        // A2: the terminal broadcast may have landed while no Settings screen was alive — or
+        // in the process a successful self-update just replaced. Rehydrate the durable
+        // outcome so the collector below still surfaces it.
+        if (InstallStatusReceiver.statusFlow.value == null) {
+            apkInstaller.consumeLastInstallOutcome()?.let(InstallStatusReceiver::publish)
+        }
+        viewModelScope.launch {
+            InstallStatusReceiver.statusFlow.collect { status ->
+                if (status == null) return@collect
+                _updateCheckState.value = when (status) {
+                    InstallStatus.SUCCESS -> UpdateCheckState.Idle("Update installed.")
+                    InstallStatus.FAILURE -> UpdateCheckState.Error("The update failed to install. Start the update again.")
+                    InstallStatus.ABORTED -> UpdateCheckState.Idle("Update installation was cancelled.")
+                }
+            }
+        }
     }
 
     fun refreshCalendars() {
@@ -184,6 +210,9 @@ class SettingsViewModel(
 
         viewModelScope.launch {
             _updateCheckState.value = UpdateCheckState.Downloading(updateInfo, 0)
+            // Drop any stale terminal outcome from a previous install attempt (flow + durable copy).
+            InstallStatusReceiver.reset()
+            apkInstaller.clearLastInstallOutcome()
             val downloadResult = apkDownloadManager.downloadApkResult(updateInfo) { progress ->
                 _updateCheckState.value = UpdateCheckState.Downloading(updateInfo, progress)
             }
@@ -212,11 +241,16 @@ class SettingsViewModel(
             }
             when (installResult) {
                 InstallResult.Started -> {
-                    _updateCheckState.value = UpdateCheckState.Downloaded(
-                        updateInfo = updateInfo,
-                        apkFile = apkFile,
-                        message = "Installer opened."
-                    )
+                    // A3: the status broadcast is asynchronous and may already have delivered a
+                    // terminal outcome before install() resumed here — never overwrite it
+                    // with "Installer opened".
+                    if (InstallStatusReceiver.statusFlow.value == null) {
+                        _updateCheckState.value = UpdateCheckState.Downloaded(
+                            updateInfo = updateInfo,
+                            apkFile = apkFile,
+                            message = "Installer opened — confirm the install when Android asks."
+                        )
+                    }
                 }
                 is InstallResult.PermissionRequired -> {
                     _updateCheckState.value = UpdateCheckState.Downloaded(
