@@ -70,27 +70,46 @@ class SettingsViewModel(
     val currentVersion: String = "v${BuildConfig.VERSION_NAME}"
 
     /**
-     * AC16: serializes migration passes so rapid target changes never interleave two moves of
-     * the same event. Each pass reads [PreferencesManager.pendingCalendarMigrationTo] at run
-     * time, so a quick A→B→C change coalesces into a single move to C rather than two moves.
+     * AC16b: serializes migration passes so rapid target changes never interleave two moves
+     * of the same event, process-scoped so multiple ViewModel instances (e.g. backstack
+     * restoration) share one queue. Each pass reads
+     * [PreferencesManager.pendingCalendarMigrationTo] at run time, so a quick A→B→C change
+     * coalesces into a single move to C rather than two moves (new selection supersedes).
      */
-    private val migrationMutex = Mutex()
+    companion object {
+        private val migrationMutex = Mutex()
+    }
+
+    private val _migrationError = MutableStateFlow<String?>(null)
+    val migrationError: StateFlow<String?> = _migrationError.asStateFlow()
 
     init {
         loadCalendars()
+        // AC16b: retry any migration left pending by a failure or process death.
         startMigration()
     }
 
     fun refreshCalendars() {
+        // F08: a refresh follows a permission grant or ON_RESUME, either of which may be what
+        // unblocked a pending migration — queue a retry pass (serialized; no-op when nothing
+        // is pending).
+        startMigration()
         loadCalendars()
     }
 
     private fun startMigration() {
         viewModelScope.launch {
             migrationMutex.withLock {
-                calendarUseCase.retryPendingMigration()
+                // R6b: surface the failure; the pending flag survives so this retried pass
+                // resumes where the failed one stopped.
+                _migrationError.value = calendarUseCase.retryPendingMigration().error
             }
         }
+    }
+
+    /** R6b: explicit retry entry point after a surfaced migration failure. */
+    fun retryMigration() {
+        startMigration()
     }
 
     private fun loadCalendars() {

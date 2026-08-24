@@ -600,16 +600,31 @@ class CalendarUseCase(
     suspend fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
 
     /**
-     * R6: moves every synced local event (a row with a linked provider event) to
-     * [toCalendarId]. Returns true only when every move succeeded. A per-event failure is
-     * recorded by returning false while the event's existing link is left intact (AC11), so
-     * the migration stays retriable (AC16). [syncEventToSystem] does the actual move now that
-     * [SystemCalendarService.updateEvent] writes CALENDAR_ID.
+     * R6b/F08: outcome of one migration pass. [failedCount] > 0 or a non-null [error] means
+     * the pass is not complete — [PreferencesManager.pendingCalendarMigrationTo] stays set
+     * so the next launch/selection retries it.
      */
-    suspend fun migrateSyncedEvents(toCalendarId: Long): Boolean {
+    data class MigrationResult(
+        val movedCount: Int,
+        val failedCount: Int,
+        val error: String? = null
+    ) {
+        val allMoved: Boolean get() = failedCount == 0 && error == null
+    }
+
+    /**
+     * R6: moves every synced local event (a row with a linked provider event) to
+     * [toCalendarId]. Returns the per-pass failure counts so the caller can surface an error
+     * state and retry. A per-event failure is recorded by counting it in
+     * [MigrationResult.failedCount] while the event's existing link is left intact (AC10b),
+     * so the migration stays retriable (AC16b). [syncEventToSystem] does the actual move now
+     * that [SystemCalendarService.updateEvent] writes CALENDAR_ID.
+     */
+    suspend fun migrateSyncedEvents(toCalendarId: Long): MigrationResult {
         val dao = eventDatabase.eventDao()
         val synced = dao.getAllEventsOnce().filter { it.systemCalendarEventId != null }
-        var allMoved = true
+        var movedCount = 0
+        var failedCount = 0
         for (event in synced) {
             val moved = try {
                 syncEventToSystem(event, toCalendarId) != null
@@ -619,29 +634,39 @@ class CalendarUseCase(
                 AppLog.w(TAG, "Migration failed for local event id=${event.id}", e)
                 false
             }
-            if (!moved) allMoved = false
+            if (moved) movedCount++ else failedCount++
         }
-        return allMoved
+        return MigrationResult(movedCount, failedCount)
     }
 
     /**
-     * AC16: runs any migration still recorded in
+     * AC16b: runs any migration still recorded in
      * [PreferencesManager.pendingCalendarMigrationTo], clearing the flag only after a fully
-     * successful pass. Returns false (leaving the flag set) when permission is missing or any
-     * event failed to move, so the next launch or target change can retry.
+     * successful pass. Returns a failed result (leaving the flag set) when permission is
+     * missing or any event failed to move, so the next launch, permission grant, or target
+     * change can retry.
      */
-    suspend fun retryPendingMigration(): Boolean {
+    suspend fun retryPendingMigration(): MigrationResult {
         val target = preferencesManager.pendingCalendarMigrationTo
-        if (target == -1L) return true
-        if (!systemCalendarService.hasCalendarPermissions()) return false
-        val moved = migrateSyncedEvents(target)
-        // AC16: only clear the flag when the target is still the one we just migrated. A newer
+        if (target == -1L) return MigrationResult(0, 0)
+        if (!systemCalendarService.hasCalendarPermissions()) {
+            // F08: flag stays set so the pass resumes once permission is granted.
+            return MigrationResult(0, 0, error = "Calendar permission is required to finish moving events to the new calendar.")
+        }
+        val result = migrateSyncedEvents(target)
+        // AC16b: only clear the flag when the target is still the one we just migrated. A newer
         // target written while this pass was suspending must survive so the queued pass migrates
         // to it instead of leaving events stranded in the old calendar.
-        if (moved && preferencesManager.pendingCalendarMigrationTo == target) {
+        if (result.allMoved && preferencesManager.pendingCalendarMigrationTo == target) {
             preferencesManager.pendingCalendarMigrationTo = -1L
         }
-        return moved
+        return if (result.allMoved) {
+            result
+        } else {
+            result.copy(
+                error = "${result.failedCount} event(s) could not be fully moved; they may still be in the previous calendar and will be retried."
+            )
+        }
     }
 }
 
