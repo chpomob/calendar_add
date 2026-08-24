@@ -4,6 +4,27 @@ import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 
 /**
+ * P1: process-scoped holder for the one share-consent token store. Tokens must survive
+ * ShareImportActivity's destruction (noHistory, config changes) but never process death —
+ * exactly the lifetime in-memory consent can vouch for. ShareImportActivity mints here and
+ * MainActivity consumes here, so both ends of the handoff see the same single-use state.
+ */
+object ShareHandoffTokens {
+    /** Intent extra carrying the one-shot handoff token from ShareImportActivity to MainActivity. */
+    const val EXTRA_HANDOFF_TOKEN = "com.calendaradd.extra.SHARE_HANDOFF_TOKEN"
+
+    val tokenStore: ShareImportTokenStore = ShareImportTokenStore()
+
+    /**
+     * P1/R1: the ACTION_SEND gate in MainActivity. True exactly once per (token, content) pair:
+     * false for a missing token, an unknown or replayed token, or a token minted for different
+     * content (R3). Callers treat false as an unverified share and re-route it to consent.
+     */
+    fun consumeHandoff(token: String?, contentKey: String?): Boolean =
+        token != null && contentKey != null && tokenStore.consume(token, contentKey)
+}
+
+/**
  * P9/R2: one-shot capability tokens gating the share-import consent flow. A token is minted for
  * one specific piece of content (identified by an opaque [contentKey]) and authorizes exactly one
  * [consume] call for that exact content. Every consume attempt burns the token immediately,

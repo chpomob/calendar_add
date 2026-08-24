@@ -36,6 +36,8 @@ import com.calendaradd.util.ApkInstaller
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.ModelImageLoader
 import com.calendaradd.util.SharedAudioContent
+import com.calendaradd.util.ShareContentKeys
+import com.calendaradd.util.ShareHandoffTokens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -215,41 +217,80 @@ class MainActivity : ComponentActivity() {
         } else if (!debugBody.isNullOrBlank()) {
             AppLog.w(TAG, "Rejected debug failure payload without enabled debug setting or valid nonce")
         }
-        if (intent?.action == Intent.ACTION_SEND) {
-            resetSharedContent()
-            when {
-                intent.type?.startsWith("text/") == true -> {
-                    intent.getStringExtra(Intent.EXTRA_TEXT)?.let {
-                        AppLog.i(TAG, "Received shared text chars=${it.length}")
-                        sharedText.value = it
-                    }
+        if (intent == null || intent.action != Intent.ACTION_SEND) return
+
+        // P1/R1: MainActivity is exported, so any app can address an ACTION_SEND straight at it
+        // and try to skip ShareImportActivity's consent screen. Only a one-shot handoff token
+        // minted by ShareImportActivity for exactly this content (R3) unlocks the import;
+        // anything else is re-routed through the consent flow instead of being processed.
+        if (!consumeShareHandoff(intent)) {
+            AppLog.w(TAG, "ACTION_SEND without a valid handoff token; routing to ShareImportActivity")
+            startActivity(consentIntent(intent))
+            return
+        }
+
+        resetSharedContent()
+        when {
+            intent.type?.startsWith("text/") == true -> {
+                intent.getStringExtra(Intent.EXTRA_TEXT)?.let {
+                    AppLog.i(TAG, "Received shared text chars=${it.length}")
+                    sharedText.value = it
                 }
-                intent.type?.startsWith("image/") == true -> {
-                    intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
-                        AppLog.i(TAG, "Received shared image uri=$uri")
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            val bitmap = uriToBitmap(uri)
-                            withContext(Dispatchers.Main) {
-                                sharedImage.value = bitmap
-                            }
+            }
+            intent.type?.startsWith("image/") == true -> {
+                intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
+                    AppLog.i(TAG, "Received shared image uri=$uri")
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val bitmap = uriToBitmap(uri)
+                        withContext(Dispatchers.Main) {
+                            sharedImage.value = bitmap
                         }
                     }
                 }
-                intent.type?.startsWith("audio/") == true -> {
-                    intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
-                        AppLog.i(TAG, "Received shared audio uri=$uri")
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            val bytes = uriToBytes(uri)
-                            val mimeType = intent.type ?: contentResolver.getType(uri)
-                            withContext(Dispatchers.Main) {
-                                sharedAudio.value = bytes?.let { SharedAudioContent(it, mimeType) }
-                            }
+            }
+            intent.type?.startsWith("audio/") == true -> {
+                intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
+                    AppLog.i(TAG, "Received shared audio uri=$uri")
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val bytes = uriToBytes(uri)
+                        val mimeType = intent.type ?: contentResolver.getType(uri)
+                        withContext(Dispatchers.Main) {
+                            sharedAudio.value = bytes?.let { SharedAudioContent(it, mimeType) }
                         }
                     }
                 }
             }
         }
     }
+
+    /**
+     * P1/R1: the ACTION_SEND gate. Computes the content key from the very payload about to be
+     * imported (R3: SHA-256 for text, URI for media) and consumes the handoff token against it
+     * in one shot. False for a missing/unknown/replayed token or any key mismatch.
+     */
+    private fun consumeShareHandoff(intent: Intent): Boolean {
+        val contentKey = when {
+            intent.type?.startsWith("text/") == true ->
+                ShareContentKeys.previewableTextOrNull(intent.getStringExtra(Intent.EXTRA_TEXT))
+                    ?.let(ShareContentKeys::forText)
+            intent.type?.startsWith("image/") == true ->
+                intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let(ShareContentKeys::forImage)
+            intent.type?.startsWith("audio/") == true ->
+                intent.parcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let(ShareContentKeys::forAudio)
+            else -> null
+        }
+        return ShareHandoffTokens.consumeHandoff(
+            intent.getStringExtra(ShareHandoffTokens.EXTRA_HANDOFF_TOKEN),
+            contentKey
+        )
+    }
+
+    /** P1/R1: sends an unverified share through the consent screen, keeping its URI grants. */
+    private fun consentIntent(source: Intent): Intent =
+        Intent(source).apply {
+            setClass(this@MainActivity, ShareImportActivity::class.java)
+            removeExtra(ShareHandoffTokens.EXTRA_HANDOFF_TOKEN)
+        }
 
     private fun uriToBitmap(uri: Uri): Bitmap? {
         return try {

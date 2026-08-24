@@ -49,8 +49,8 @@ import com.calendaradd.usecase.PreferencesManager
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.FileImportHandler
 import com.calendaradd.util.ModelImageLoader
-import com.calendaradd.util.ShareImportTokenStore
-import java.security.MessageDigest
+import com.calendaradd.util.ShareContentKeys
+import com.calendaradd.util.ShareHandoffTokens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,15 +62,18 @@ import kotlinx.coroutines.withContext
  * (R2). If the model isn't downloaded it never forces a download (R3); it hands off to
  * MainActivity, which prefills the shared content and surfaces the normal P2/P4 download-consent
  * flow instead.
+ *
+ * P1: the handoff to MainActivity is itself gated — the forwarded intent carries a fresh
+ * one-shot token minted at consent and bound to the exact shared content (R3), which
+ * MainActivity must consume before importing. Content that cannot be previewed at all
+ * terminates here (R2): never forwarded, never analyzed.
  */
 class ShareImportActivity : ComponentActivity() {
     companion object {
         private const val TAG = "ShareImportActivity"
         private const val TEXT_PREVIEW_CHAR_LIMIT = 280
-
-        // R2: process-scoped so a token's lifetime is tied to the consent it guards, not to this
-        // activity instance (which is noHistory and may be recreated between preview and confirm).
-        private val tokenStore = ShareImportTokenStore()
+        // The token store lives in ShareHandoffTokens (P1: process-scoped) so MainActivity and
+        // this activity share one single-use state across the consent/handoff boundary.
     }
 
     private lateinit var preferencesManager: PreferencesManager
@@ -109,7 +112,7 @@ class ShareImportActivity : ComponentActivity() {
         setIntent(intent)
         // R2: a fresh delivery gets its own preview and token; drop any unconsumed token from a
         // prior delivery so it can never later be replayed against this new content.
-        pendingToken?.let(tokenStore::invalidate)
+        pendingToken?.let(ShareHandoffTokens.tokenStore::invalidate)
         pendingToken = null
         loadPreview(intent)
     }
@@ -131,12 +134,16 @@ class ShareImportActivity : ComponentActivity() {
             }
 
             if (preview == null) {
-                AppLog.i(TAG, "No previewable content in shared intent; falling back to MainActivity")
-                forwardToMainActivity(intent)
+                // P1/R2: content that cannot be previewed terminates here — 0 forwards.
+                // Forwarding would hand MainActivity a payload the user never saw or consented
+                // to (and MainActivity now bounces tokenless shares back anyway).
+                AppLog.i(TAG, "No previewable content in shared intent; terminating locally")
+                Toast.makeText(this@ShareImportActivity, "Unsupported share content.", Toast.LENGTH_SHORT).show()
+                finish()
                 return@launch
             }
 
-            val token = tokenStore.issue(preview.contentKey)
+            val token = ShareHandoffTokens.tokenStore.issue(preview.contentKey)
             pendingToken = token
             screenState.value = ShareImportUiState.ReadyForConsent(preview, generation, token)
         }
@@ -153,10 +160,10 @@ class ShareImportActivity : ComponentActivity() {
     }
 
     private fun buildTextPreview(intent: Intent): SharePreview? {
-        val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() } ?: return null
+        val text = ShareContentKeys.previewableTextOrNull(intent.getStringExtra(Intent.EXTRA_TEXT)) ?: return null
         return SharePreview(
             type = ShareContentType.TEXT,
-            contentKey = "text:" + sha256Hex(text),
+            contentKey = ShareContentKeys.forText(text),
             sizeBytes = text.toByteArray(Charsets.UTF_8).size.toLong(),
             textPreview = text.take(TEXT_PREVIEW_CHAR_LIMIT),
             textTruncated = text.length > TEXT_PREVIEW_CHAR_LIMIT,
@@ -182,7 +189,7 @@ class ShareImportActivity : ComponentActivity() {
             }
             SharePreview(
                 type = ShareContentType.IMAGE,
-                contentKey = "image:$uri",
+                contentKey = ShareContentKeys.forImage(uri),
                 sizeBytes = sizeBytes,
                 displayName = displayName,
                 thumbnail = thumbnail,
@@ -198,7 +205,7 @@ class ShareImportActivity : ComponentActivity() {
             val (displayName, sizeBytes) = queryMetadata(uri)
             SharePreview(
                 type = ShareContentType.AUDIO,
-                contentKey = "audio:$uri",
+                contentKey = ShareContentKeys.forAudio(uri),
                 sizeBytes = sizeBytes,
                 displayName = displayName,
                 sourceUri = uri,
@@ -236,7 +243,7 @@ class ShareImportActivity : ComponentActivity() {
         if (state.token != token) return
         val preview = state.preview
         val generation = state.generation
-        if (!tokenStore.consume(token, preview.contentKey)) {
+        if (!ShareHandoffTokens.tokenStore.consume(token, preview.contentKey)) {
             AppLog.w(TAG, "Rejected stale or replayed share-import token")
             return
         }
@@ -264,7 +271,7 @@ class ShareImportActivity : ComponentActivity() {
                 // model is ready. Uses the intent this preview was actually built from, not the
                 // activity's possibly-newer intent, so the forwarded content always matches what
                 // the user approved.
-                forwardToMainActivity(preview.sourceIntent)
+                forwardToMainActivity(preview.sourceIntent, preview.contentKey)
                 return@launch
             }
 
@@ -336,17 +343,20 @@ class ShareImportActivity : ComponentActivity() {
 
     /** R1: denial or dismissal leaves no side effects; the token is burned so it can't be reused. */
     private fun dismiss() {
-        pendingToken?.let(tokenStore::invalidate)
+        pendingToken?.let(ShareHandoffTokens.tokenStore::invalidate)
         pendingToken = null
         finish()
     }
 
-    private fun forwardToMainActivity(sourceIntent: Intent?) {
-        startActivity(createMainActivityIntent(sourceIntent))
+    private fun forwardToMainActivity(sourceIntent: Intent?, contentKey: String) {
+        // P1/R1: the handoff is authorized by a fresh one-shot token minted at consent time and
+        // bound to this exact content; MainActivity refuses ACTION_SEND without a valid one.
+        val handoffToken = ShareHandoffTokens.tokenStore.issue(contentKey)
+        startActivity(createMainActivityIntent(sourceIntent, handoffToken))
         finish()
     }
 
-    private fun createMainActivityIntent(intent: Intent?): Intent {
+    private fun createMainActivityIntent(intent: Intent?, handoffToken: String): Intent {
         val permissionFlags = intent?.flags?.and(
             Intent.FLAG_GRANT_READ_URI_PERMISSION or
                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
@@ -360,14 +370,11 @@ class ShareImportActivity : ComponentActivity() {
             if (intent?.extras != null) {
                 putExtras(intent.extras!!)
             }
+            // After putExtras so this minted token always wins over any stale copied extra.
+            putExtra(ShareHandoffTokens.EXTRA_HANDOFF_TOKEN, handoffToken)
             clipData = intent?.clipData
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or permissionFlags)
         }
-    }
-
-    private fun sha256Hex(input: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
     }
 
     private inline fun <reified T : Parcelable> Intent.parcelableExtra(name: String): T? {
