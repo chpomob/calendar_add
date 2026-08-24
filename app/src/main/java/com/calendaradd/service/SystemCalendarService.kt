@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.CalendarContract
 import com.calendaradd.util.AppLog
 import com.calendaradd.util.hasCalendarPermissions
+import com.calendaradd.usecase.PreferencesManager
 import java.util.TimeZone
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -35,6 +36,8 @@ class SystemCalendarService(
     private val eventUriForId: (Long) -> Uri = { eventId ->
         Uri.withAppendedPath(CalendarContract.Events.CONTENT_URI, eventId.toString())
     },
+    private val remindersUri: Uri = CalendarContract.Reminders.CONTENT_URI,
+    private val attendeesUri: Uri = CalendarContract.Attendees.CONTENT_URI,
     private val contentValuesFactory: () -> ContentValues = { ContentValues() }
 ) {
     companion object {
@@ -102,7 +105,9 @@ class SystemCalendarService(
         description: String,
         startTimeMillis: Long,
         endTimeMillis: Long,
-        location: String = ""
+        location: String = "",
+        attendees: List<String> = emptyList(),
+        reminderMinutes: Int? = null
     ): Long? = withContext(Dispatchers.IO) {
         if (!hasCalendarPermissions()) {
             AppLog.e(TAG, "Missing calendar permissions")
@@ -125,6 +130,13 @@ class SystemCalendarService(
                 AppLog.e(TAG, "Failed to insert event: uri is null")
             }
             val eventId = uri?.lastPathSegment?.toLongOrNull()
+            if (eventId != null && !writeChildRows(eventId, attendees, reminderMinutes)) {
+                // A2: the provider event landed but its child rows did not. Report failure so the
+                // caller retries (re-adopting via the sync marker and reconciling) instead of
+                // returning an id whose reminders/attendees are missing or partial.
+                AppLog.e(TAG, "Child row write failed for event id=$eventId; reporting insert as failed")
+                return@withContext null
+            }
             eventId
         } catch (e: Exception) {
             AppLog.e(TAG, "Error inserting calendar event", e)
@@ -177,7 +189,9 @@ class SystemCalendarService(
         description: String,
         startTimeMillis: Long,
         endTimeMillis: Long,
-        location: String = ""
+        location: String = "",
+        attendees: List<String> = emptyList(),
+        reminderMinutes: Int? = null
     ): SystemCalendarUpdateResult = withContext(Dispatchers.IO) {
         if (!hasCalendarPermissions()) {
             AppLog.e(TAG, "Missing calendar permissions")
@@ -206,8 +220,13 @@ class SystemCalendarService(
             val updatedRows = appContext.contentResolver.update(uri, values, null, null)
             if (updatedRows <= 0) {
                 AppLog.w(TAG, "No system calendar event updated for id=$systemEventId")
+                return@withContext SystemCalendarUpdateResult.ERROR
             }
-            if (updatedRows > 0) SystemCalendarUpdateResult.UPDATED else SystemCalendarUpdateResult.ERROR
+            if (!writeChildRows(systemEventId, attendees, reminderMinutes)) {
+                AppLog.e(TAG, "Child row write failed for event id=$systemEventId")
+                return@withContext SystemCalendarUpdateResult.ERROR
+            }
+            SystemCalendarUpdateResult.UPDATED
         } catch (e: Exception) {
             AppLog.e(TAG, "Error updating calendar event", e)
             SystemCalendarUpdateResult.ERROR
@@ -247,6 +266,92 @@ class SystemCalendarService(
             deleted > 0
         } catch (e: Exception) {
             AppLog.e(TAG, "Error deleting system calendar event id=$systemEventId", e)
+            false
+        }
+    }
+
+    /**
+     * R4/R7: writes reminder and attendee child rows for a provider event. Both are idempotent
+     * on re-sync: existing rows are deleted first, so AC8 (exactly one reminder) and AC12
+     * (N attendees → N rows) hold no matter how many times the event is synced.
+     *
+     * Returns true only if every delete and insert succeeded. A failed clear aborts before any
+     * insert (so a retry can't double reminder/attendee rows on top of rows that failed to
+     * clear), and a rejected insert returns false so the caller reports the sync as failed and
+     * retries rather than silently leaving AC8/AC12 violated.
+     */
+    private fun writeChildRows(eventId: Long, attendees: List<String>, reminderMinutes: Int?): Boolean {
+        // R4: resolve the user-configured minutes here (not in CalendarUseCase) so the sync path
+        // never reads the preference directly; a null caller value means "use the setting".
+        val minutes = reminderMinutes ?: PreferencesManager(appContext).defaultReminderMinutes
+        if (minutes > 0) {
+            // AC8: clear must succeed before inserting, otherwise a failed delete plus a fresh
+            // insert leaves duplicate reminder rows. Abort on clear failure so the caller
+            // retries and re-runs the clear first.
+            if (!clearChildRows(remindersUri, CalendarContract.Reminders.EVENT_ID, eventId, "reminders")) {
+                return false
+            }
+            val reminderValues = contentValuesFactory().apply {
+                put(CalendarContract.Reminders.EVENT_ID, eventId)
+                put(CalendarContract.Reminders.MINUTES, minutes)
+                put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+            }
+            if (!insertChildRow(remindersUri, reminderValues, eventId, "reminder")) {
+                return false
+            }
+        }
+
+        // Always reconcile attendee rows, including the N→0 case: stale rows are cleared first
+        // so the provider never keeps attendees a parsed event no longer has.
+        if (!clearChildRows(attendeesUri, CalendarContract.Attendees.EVENT_ID, eventId, "attendees")) {
+            return false
+        }
+        for (attendee in attendees) {
+            val attendeeValues = contentValuesFactory().apply {
+                put(CalendarContract.Attendees.EVENT_ID, eventId)
+                put(CalendarContract.Attendees.ATTENDEE_NAME, attendee)
+                // A1: CalendarContract.Attendees requires EMAIL, TYPE and STATUS on insert.
+                // Parsed attendees carry only a name, so populate the required fields with
+                // neutral values rather than leaving them absent (which conforming providers
+                // reject).
+                put(CalendarContract.Attendees.ATTENDEE_EMAIL, "")
+                put(
+                    CalendarContract.Attendees.ATTENDEE_RELATIONSHIP,
+                    CalendarContract.Attendees.RELATIONSHIP_ATTENDEE
+                )
+                put(CalendarContract.Attendees.ATTENDEE_TYPE, CalendarContract.Attendees.TYPE_NONE)
+                put(CalendarContract.Attendees.ATTENDEE_STATUS, CalendarContract.Attendees.ATTENDEE_STATUS_NONE)
+            }
+            if (!insertChildRow(attendeesUri, attendeeValues, eventId, "attendee")) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun clearChildRows(uri: Uri, eventIdColumn: String, eventId: Long, label: String): Boolean {
+        return try {
+            appContext.contentResolver.delete(uri, "$eventIdColumn = ?", arrayOf(eventId.toString()))
+            true
+        } catch (e: Exception) {
+            AppLog.w(TAG, "Failed to clear $label for event id=$eventId", e)
+            false
+        }
+    }
+
+    private fun insertChildRow(uri: Uri, values: ContentValues, eventId: Long, label: String): Boolean {
+        return try {
+            // ContentResolver.insert returns null when the provider rejects the row rather than
+            // throwing. A null uri must be treated as a failure, or a rejected reminder/attendee
+            // insert would silently violate AC8/AC12 while the sync still reports success.
+            if (appContext.contentResolver.insert(uri, values) == null) {
+                AppLog.w(TAG, "Provider rejected $label insert for event id=$eventId (null uri)")
+                false
+            } else {
+                true
+            }
+        } catch (e: Exception) {
+            AppLog.w(TAG, "Failed to insert $label for event id=$eventId", e)
             false
         }
     }

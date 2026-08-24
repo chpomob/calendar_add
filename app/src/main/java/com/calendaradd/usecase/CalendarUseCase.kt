@@ -398,6 +398,7 @@ class CalendarUseCase(
     }
 
     suspend fun syncEventToSystem(event: Event, calendarId: Long): Long? {
+        val attendees = parseAttendees(event.attendees)
         event.systemCalendarEventId?.let { existingSystemEventId ->
             val updateResult = systemCalendarService.updateEvent(
                 systemEventId = existingSystemEventId,
@@ -406,7 +407,8 @@ class CalendarUseCase(
                 description = event.description,
                 startTimeMillis = event.startTime,
                 endTimeMillis = event.endTime,
-                location = event.location
+                location = event.location,
+                attendees = attendees
             )
             when (updateResult) {
                 SystemCalendarUpdateResult.UPDATED -> return existingSystemEventId
@@ -429,9 +431,37 @@ class CalendarUseCase(
         if (event.id != 0L) {
             when (val lookup = systemCalendarService.findEventBySyncMarker(calendarId = calendarId, localEventId = event.id)) {
                 is SyncMarkerLookup.Found -> {
-                    AppLog.i(TAG, "Adopting orphaned provider event id=${lookup.systemEventId} for local event id=${event.id}")
-                    eventDatabase.eventDao().update(event.copy(systemCalendarEventId = lookup.systemEventId))
-                    return lookup.systemEventId
+                    val adoptedId = lookup.systemEventId
+                    AppLog.i(TAG, "Adopting orphaned provider event id=$adoptedId for local event id=${event.id}")
+                    // Persist the adopted link first, then reconcile child rows below. If a crash
+                    // hits between the two, the id is already durable so the next sync takes the
+                    // normal update path and reconciles there.
+                    eventDatabase.eventDao().update(event.copy(systemCalendarEventId = adoptedId))
+                    // A3: the orphan may have been inserted without its child rows (crash between
+                    // insertEvent and writeChildRows). Reconcile them now so AC8/AC12 hold on the
+                    // retry. Best-effort: the adopted id is already correct, so a failed reconcile
+                    // is logged and the next edit re-runs the normal update path.
+                    val reconciled = try {
+                        systemCalendarService.updateEvent(
+                            systemEventId = adoptedId,
+                            calendarId = calendarId,
+                            title = event.title,
+                            description = event.description,
+                            startTimeMillis = event.startTime,
+                            endTimeMillis = event.endTime,
+                            location = event.location,
+                            attendees = attendees
+                        ) == SystemCalendarUpdateResult.UPDATED
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        AppLog.w(TAG, "Reconcile of adopted event id=$adoptedId failed; next update will retry", e)
+                        false
+                    }
+                    if (!reconciled) {
+                        AppLog.w(TAG, "Adopted event id=$adoptedId left unreconciled")
+                    }
+                    return adoptedId
                 }
                 SyncMarkerLookup.NotFound -> Unit // confirmed absence — safe to insert below
                 SyncMarkerLookup.LookupError -> {
@@ -455,7 +485,8 @@ class CalendarUseCase(
             description = providerDescription,
             startTimeMillis = event.startTime,
             endTimeMillis = event.endTime,
-            location = event.location
+            location = event.location,
+            attendees = attendees
         ) ?: return null
 
         if (event.id != 0L && event.systemCalendarEventId != newSystemEventId) {
@@ -568,6 +599,18 @@ class CalendarUseCase(
 
     suspend fun getAvailableCalendars() = systemCalendarService.getAvailableCalendars()
 }
+
+/**
+ * R7: splits the stored attendee string back into individual names. The extraction path joins
+ * its distinct attendee list with ", ", and manual edits reuse the same comma-separated field;
+ * newlines are also accepted so multi-line "People" input survives. Empty and duplicate entries
+ * are dropped so N parsed attendees become exactly N provider rows.
+ */
+private fun parseAttendees(raw: String): List<String> =
+    raw.split(',', '\n', ';')
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
 
 private fun EventExtraction.toEventOrNull(
     sourceType: String,
