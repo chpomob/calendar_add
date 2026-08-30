@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId = "com.calendaradd"
-        minSdk = 26
+        minSdk = 31
         targetSdk = 35
         versionCode = 13
         versionName = "0.4.1"
