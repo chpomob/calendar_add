@@ -1,3 +1,7 @@
+<!-- Approved specification of phase A (29/10/2026), kept for provenance only.
+     The implementation shipped as 0.5.0, so the versionCode/versionName clause of AC1
+     and the "unchanged" assertions below are historical and no longer hold.
+     The requirements themselves are left as approved. -->
 ---
 name: "phase-a-build-catalogue"
 version: "1.0"

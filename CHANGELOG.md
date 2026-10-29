@@ -19,7 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- System calendar ownership verification via ExtendedProperties marker (CVE-2025-XXXX mitigation)
 - Cooperative close for GemmaLlmService — cancels in-flight inference instead of blocking
 - Tests for WAV audio duration fallback and GemmaLlmService close behavior
 
