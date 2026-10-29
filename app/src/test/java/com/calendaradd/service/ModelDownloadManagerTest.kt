@@ -36,6 +36,11 @@ import org.junit.Test
 
 class ModelDownloadManagerTest {
 
+    private companion object {
+        const val GEMMA_3N_E2B = "gemma-3n-E2B-it-int4.litertlm"
+        const val GEMMA_3N_E4B = "gemma-3n-E4B-it-int4.litertlm"
+    }
+
     private lateinit var context: Context
     private lateinit var preferencesManager: PreferencesManager
     private lateinit var downloadManager: DownloadManager
@@ -121,31 +126,76 @@ class ModelDownloadManagerTest {
     fun `cleanupUnusedModelFiles deletes leftover Gemma 3n files and keeps the selected model`() {
         val selectedModel = LiteRtModelCatalog.find(LiteRtModelCatalog.DEFAULT_MODEL_ID)
         val selectedFile = File(modelDir, selectedModel.fileName).apply { writeText("selected") }
-        val gemma3nE2b = File(modelDir, "gemma-3n-E2B-it-int4.litertlm").apply { writeText("stale") }
-        val gemma3nE4b = File(modelDir, "gemma-3n-E4B-it-int4.litertlm").apply { writeText("stale") }
+        val gemma3nE2b = File(modelDir, GEMMA_3N_E2B).apply { writeText("stale") }
+        val gemma3nE4b = File(modelDir, GEMMA_3N_E4B).apply { writeText("stale") }
+        val emptyCursor = activeCursor(emptyList())
+        val managerWithCursor = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { emptyCursor })
 
-        manager.cleanupUnusedModelFiles()
+        managerWithCursor.cleanupUnusedModelFiles()
 
         assertFalse(gemma3nE2b.exists())
         assertFalse(gemma3nE4b.exists())
         assertTrue(selectedFile.exists())
+        verify(exactly = 1) { emptyCursor.close() }
     }
 
     @Test
     fun `cleanupUnusedModelFiles keeps a Gemma 3n file targeted by an active download`() {
-        val activeFile = File(modelDir, "gemma-3n-E4B-it-int4.litertlm").apply { writeText("downloading") }
+        val selectedModel = LiteRtModelCatalog.find(LiteRtModelCatalog.DEFAULT_MODEL_ID)
+        // The injected cursor stands in for the status-filtered query (pending|running|paused);
+        // run one cleanup per active status so each is exercised through the same seam.
+        listOf(
+            DownloadManager.STATUS_PENDING,
+            DownloadManager.STATUS_RUNNING,
+            DownloadManager.STATUS_PAUSED
+        ).forEach { status ->
+            val selectedFile = File(modelDir, selectedModel.fileName).apply { writeText("selected") }
+            val activeFile = File(modelDir, GEMMA_3N_E4B).apply { writeText("downloading") }
+            val inactiveFile = File(modelDir, GEMMA_3N_E2B).apply { writeText("stale") }
+            val cursor = activeCursor(listOf(ActiveCursorRow(777L, "file://${activeFile.absolutePath}", status)))
+            val managerWithCursor = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { cursor })
 
-        val cursor = mockk<Cursor>(relaxed = true)
-        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID) } returns 0
-        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI) } returns 1
-        every { cursor.moveToNext() } returnsMany listOf(true, false)
-        every { cursor.getLong(0) } returns 777L
-        every { cursor.getString(1) } returns "file://${activeFile.absolutePath}"
+            managerWithCursor.cleanupUnusedModelFiles()
+
+            assertTrue("active legacy target kept for status $status", activeFile.exists())
+            assertTrue("selected model kept for status $status", selectedFile.exists())
+            assertFalse("inactive legacy file removed for status $status", inactiveFile.exists())
+            verify(exactly = 1) { cursor.close() }
+        }
+    }
+
+    @Test
+    fun `cleanupUnusedModelFiles ignores outside-root malformed and null download URIs`() {
+        val selectedModel = LiteRtModelCatalog.find(LiteRtModelCatalog.DEFAULT_MODEL_ID)
+        val selectedFile = File(modelDir, selectedModel.fileName).apply { writeText("selected") }
+        val rootE2b = File(modelDir, GEMMA_3N_E2B).apply { writeText("stale") }
+        val rootE4b = File(modelDir, GEMMA_3N_E4B).apply { writeText("stale") }
+        val unrelatedFile = File(modelDir, "notes.txt").apply { writeText("keep") }
+        val outsideDir = File("build/tmp/model-download-manager-outside-root").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val outsideE2b = File(outsideDir, GEMMA_3N_E2B).apply { writeText("someone else's") }
+
+        val cursor = activeCursor(
+            listOf(
+                // Same legacy file name, but outside the resolved root: must not protect rootE2b.
+                ActiveCursorRow(1L, "file://${outsideE2b.absolutePath}", DownloadManager.STATUS_RUNNING),
+                // Malformed escape naming the root E4B file: unparsable, so it protects nothing.
+                ActiveCursorRow(2L, "file://${rootE4b.absolutePath}%zz", DownloadManager.STATUS_PENDING),
+                ActiveCursorRow(3L, null, DownloadManager.STATUS_PAUSED)
+            )
+        )
         val managerWithCursor = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { cursor })
 
         managerWithCursor.cleanupUnusedModelFiles()
 
-        assertTrue(activeFile.exists())
+        assertFalse(rootE2b.exists())
+        assertFalse(rootE4b.exists())
+        assertTrue(selectedFile.exists())
+        assertTrue(unrelatedFile.exists())
+        assertTrue(outsideE2b.exists()) // cleanup never reaches outside the resolved root
+        verify(exactly = 1) { cursor.close() }
     }
 
     // ----- AC1: verified readiness is cached across launches, zero enqueues -----
@@ -558,6 +608,22 @@ class ModelDownloadManagerTest {
         val statuses = runBlocking { localManager.trackProgress(downloadId, model, NetworkPolicy.CONSERVATIVE).toList() }
         val failed = statuses.last() as DownloadStatus.Failed
         assertTrue(failed.error.contains("policy"))
+    }
+
+    private data class ActiveCursorRow(val id: Long, val localUri: String?, val status: Int)
+
+    /** Relaxed DownloadManager cursor serving [rows] through the id/local-uri/status columns. */
+    private fun activeCursor(rows: List<ActiveCursorRow>): Cursor {
+        val cursor = mockk<Cursor>(relaxed = true)
+        var position = -1
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID) } returns 0
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI) } returns 1
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS) } returns 2
+        every { cursor.moveToNext() } answers { ++position < rows.size }
+        every { cursor.getLong(0) } answers { rows[position].id }
+        every { cursor.getString(1) } answers { rows[position].localUri }
+        every { cursor.getInt(2) } answers { rows[position].status }
+        return cursor
     }
 
     private fun testModel(id: String, content: ByteArray): LiteRtModelConfig {
