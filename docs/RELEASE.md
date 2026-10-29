@@ -6,8 +6,8 @@ Last updated: 2026-05-10
 
 - `compileSdk = 35`
 - `targetSdk = 35`
-- `versionCode = 13`
-- `versionName = "0.4.1"`
+- `versionCode = 14`
+- `versionName = "0.5.0"`
 - Release minify and shrink are enabled
 - Release minification runs without the previous Kotlin metadata warning after upgrading AGP/R8 to 8.13.2
 - Release Android App Bundle builds successfully

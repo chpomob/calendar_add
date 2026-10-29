@@ -10,7 +10,7 @@ The app is local-first after model download: AI extraction runs on-device with L
 
 For non-technical Android testers, use the signed APK from GitHub Releases:
 
-https://github.com/chpomob/calendar_add/releases/download/v0.4.1/app-release.apk
+https://github.com/chpomob/calendar_add/releases/download/v0.5.0/app-release.apk
 
 Install steps:
 
@@ -128,7 +128,7 @@ Current Android configuration in [app/build.gradle.kts](app/build.gradle.kts):
 - `compileSdk = 35`
 - `targetSdk = 35`
 - `minSdk = 26`
-- `versionName = "0.4.1"`
+- `versionName = "0.5.0"`
 
 ## Signed Releases
 

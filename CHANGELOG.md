@@ -5,6 +5,17 @@ All notable changes to Calendar Add AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-29
+
+### Changed
+- The app now targets Android API 36 (compileSdk and targetSdk 36).
+- The published release APK now ships for arm64-v8a only. 32-bit ABIs, for which no on-device inference engine exists, are no longer included, which shrinks the APK from about 60 MB to about 31.8 MB. Debug builds keep arm64-v8a + x86_64, and `-PemulatorX86_64=true` produces an x86_64-only APK for emulators.
+- Gemma 4 E4B is now the default model in the catalogue. On first launch the app picks E4B on devices reporting at least 12 GB of RAM and E2B otherwise, saves that choice once, never overrides a valid model you already selected, and keeps an existing E2B install without re-downloading it.
+- Documentation (README, docs/MODEL_INTEGRATION.md) now describes the four-entry model catalogue.
+
+### Removed
+- The Gemma 3n E2B and E4B catalogue entries. They were obsolete and their download URLs required Hugging Face authentication. Leftover Gemma 3n files are still cleaned up, and any download of them still in progress stays protected.
+
 ## [Unreleased]
 
 ### Added
