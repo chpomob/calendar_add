@@ -1,6 +1,6 @@
 # Calendar Add - LiteRT-LM Model Integration
 
-Last updated: 2026-04-27
+Last updated: 2026-10-29
 
 ## Overview
 
@@ -24,14 +24,23 @@ Relevant code:
 
 ## Available Models
 
-| Model | File Type | Inputs | Execution Profile |
-|------|-----------|--------|-------------------|
-| Gemma 4 E2B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
-| Gemma 4 E2B Compact | `.litertlm` | Text, Image | Conservative CPU-only Gemma, reduced tokens |
-| Gemma 4 E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
-| Gemma 3n E2B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
-| Gemma 3n E4B | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
-| Qwen 3.5 0.8B LiteRT | `.litertlm` | Text, Image | CPU-only multimodal, experimental, capped tokens |
+| Model | ID | File Type | Inputs | Execution Profile |
+|------|----|-----------|--------|-------------------|
+| Gemma 4 E2B | `gemma-4-e2b` | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
+| Gemma 4 E2B Compact | `gemma-4-e2b-compact` | `.litertlm` | Text, Image | Conservative CPU-only Gemma, reduced tokens |
+| Gemma 4 E4B (catalogue default) | `gemma-4-e4b` | `.litertlm` | Text, Image, Audio | Accelerated Gemma |
+| Qwen 3.5 0.8B LiteRT | `qwen-3_5-0_8b` | `.litertlm` | Text, Image | CPU-only multimodal, experimental, capped tokens |
+
+`LiteRtModelCatalog.DEFAULT_MODEL_ID` is Gemma 4 E4B.
+
+## First Model Selection
+
+`LiteRtModelCatalog.resolveSelectedModelId` decides which model is active:
+
+- a stored model id that names a catalogue entry is used unchanged, so an explicit user choice in Settings always wins
+- with no stored choice, an install that already has the Gemma 4 E2B model file keeps Gemma 4 E2B (an upgrading install that implicitly used the old E2B default), instead of downloading E4B
+- otherwise (no stored choice, or a stored id that is no longer in the catalogue) `initialModelId` picks Gemma 4 E4B when the device reports 12 GB of memory or more (>= 12 GB), and Gemma 4 E2B when it reports less or when the reported memory is unknown; that choice is then persisted
+- Gemma 4 E2B Compact and Qwen 3.5 0.8B are never selected automatically; they are only used when chosen in Settings
 
 ## Constrained-Device Notes
 
@@ -44,7 +53,7 @@ The app exposes a Gemma 4 E2B Compact profile for constrained devices. It reuses
 - no audio support
 - 5 GB reported-memory guard
 
-This is a conservative Gemma-only fallback for devices where the default E2B profile fails. It should still be treated as a test profile until verified on the target device set.
+This is a conservative Gemma-only fallback for devices where the regular E2B profile fails. It should still be treated as a test profile until verified on the target device set.
 
 Practical RAM guidance from current testing:
 
@@ -78,7 +87,6 @@ After the selected model initializes successfully, the app removes older app-man
 - `ACCELERATED_GEMMA`
   - Gemma 4 E2B text: GPU, then CPU
   - Gemma 4 E4B text: CPU, then GPU
-  - Gemma 3n text: CPU, then GPU
   - vision: GPU, then CPU
   - audio: CPU only for audio jobs when the model supports audio
 - `CPU_ONLY_MULTIMODAL`
@@ -86,7 +94,7 @@ After the selected model initializes successfully, the app removes older app-man
   - vision: CPU
   - audio: disabled
 
-The Gemma profile follows Google AI Edge Gallery's allowlist where it has proven stable in this app instead of using one hard-coded order for every Gemma model. Gemma 4 E2B keeps Gallery's `gpu,cpu` text order, GPU vision, and 4000 max tokens. Gemma 4 E4B keeps Gallery's 4000-token window and 12 GB memory guard, but uses CPU-first text because Pixel release testing showed GPU generation failing after conversation creation with an OpenCL runtime error. Gemma 3n lists `cpu,gpu`, uses GPU for vision, CPU for audio, and 4096 max tokens. Like Gallery's Ask Image and Ask Audio tasks, the app initializes only the modality required by the queued job, so image jobs do not load the audio executor and audio jobs do not load the vision executor. The app applies Gallery's device RAM guards before initialization: 8 GB for E2B models and 12 GB for E4B models.
+The Gemma profile follows Google AI Edge Gallery's allowlist where it has proven stable in this app instead of using one hard-coded order for every Gemma model. Gemma 4 E2B keeps Gallery's `gpu,cpu` text order, GPU vision, and 4000 max tokens. Gemma 4 E4B keeps Gallery's 4000-token window and 12 GB memory guard, but uses CPU-first text because Pixel release testing showed GPU generation failing after conversation creation with an OpenCL runtime error. Like Gallery's Ask Image and Ask Audio tasks, the app initializes only the modality required by the queued job, so image jobs do not load the audio executor and audio jobs do not load the vision executor. The app applies Gallery's device RAM guards before initialization: 8 GB for E2B models and 12 GB for E4B models.
 
 Release builds keep `com.google.ai.edge.litertlm.**` from R8 renaming because LiteRT-LM native code looks up Java classes and accessors by JNI name. Without that keep rule, release builds can initialize the engine and then abort while creating a conversation.
 

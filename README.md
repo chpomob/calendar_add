@@ -57,19 +57,24 @@ Known limitations:
 
 The app exposes these LiteRT-LM models in [LiteRtModelCatalog.kt](app/src/main/java/com/calendaradd/service/LiteRtModelCatalog.kt):
 
-| Model | Inputs | Notes |
-|------|--------|-------|
-| Gemma 4 E2B | Text, Image, Audio | Default model |
-| Gemma 4 E2B Compact | Text, Image | Conservative CPU-only profile for constrained devices; reuses the Gemma 4 E2B file |
-| Gemma 4 E4B | Text, Image, Audio | Larger Gemma 4 variant |
-| Gemma 3n E2B | Text, Image, Audio | Strong multimodal candidate |
-| Gemma 3n E4B | Text, Image, Audio | Larger Gemma 3n variant |
-| Qwen 3.5 0.8B LiteRT | Text, Image | Experimental, CPU-only, no audio |
+| Model | ID | Inputs | Notes |
+|------|----|--------|-------|
+| Gemma 4 E2B | `gemma-4-e2b` | Text, Image, Audio | Balanced option for 8 GB devices; first selection when memory is below 12 GB or unknown |
+| Gemma 4 E2B Compact | `gemma-4-e2b-compact` | Text, Image | Conservative CPU-only profile for constrained devices; reuses the Gemma 4 E2B file |
+| Gemma 4 E4B | `gemma-4-e4b` | Text, Image, Audio | Catalogue default; larger Gemma 4 variant, first selection on devices reporting 12 GB or more |
+| Qwen 3.5 0.8B LiteRT | `qwen-3_5-0_8b` | Text, Image | Experimental, CPU-only, no audio |
+
+First model selection:
+
+- On a fresh install with no stored choice, the app picks Gemma 4 E4B when the device reports 12 GB of memory or more (>= 12 GB), and Gemma 4 E2B otherwise or when the reported memory is unknown. That choice is then persisted.
+- An explicit model choice made in Settings always wins and is never replaced automatically.
+- An upgrading install that already has the Gemma 4 E2B model file and no stored choice keeps Gemma 4 E2B instead of downloading E4B.
+- Gemma 4 E2B Compact and Qwen 3.5 0.8B are never selected automatically; they are only used when chosen in Settings.
 
 Practical recommendation:
 
 - Use Gemma models for normal testing.
-- Try Gemma 4 E2B Compact on constrained devices where the default Gemma 4 E2B profile fails. It supports text/image only.
+- Try Gemma 4 E2B Compact on constrained devices where the regular Gemma 4 E2B profile fails. It supports text/image only.
 - Treat Qwen as experimental in this app.
 - Prefer smaller Gemma variants on memory-constrained devices.
 - Treat 12 GB RAM as the safer floor for Gemma multimodal/audio reliability; 8 GB devices may still fail depending on available runtime memory.
@@ -105,6 +110,18 @@ Quick local smoke check:
 ```bash
 ./scripts/test_build.sh
 ```
+
+### Supported ABIs And Emulator Builds
+
+The published release APK is arm64-only (`arm64-v8a`). LiteRT-LM ships no inference engine (`liblitertlm_jni.so`, `libLiteRt.so`) for 32-bit ABIs, so a 32-bit device could install the app but never run inference.
+
+Regular debug builds package `arm64-v8a` and `x86_64`. To build a debug APK for an x86_64 emulator only:
+
+```bash
+./gradlew --offline -PemulatorX86_64=true :app:assembleDebug
+```
+
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The `emulatorX86_64` property only affects the debug build; it does not affect release packaging, which stays arm64-only.
 
 Current Android configuration in [app/build.gradle.kts](app/build.gradle.kts):
 
@@ -168,7 +185,6 @@ Current runtime choices:
 
 - Gemma 4 E2B follows Gallery's `gpu,cpu` main backend order, GPU vision, and 4000 max tokens.
 - Gemma 4 E4B keeps Gallery's 4000-token window and 12 GB memory guard, but uses CPU-first text in this app because Pixel release testing showed GPU generation failing after conversation creation with an OpenCL runtime error.
-- Gemma 3n follows Gallery's `cpu,gpu` main backend order and uses GPU vision.
 - Gemma audio uses CPU backend, matching Gallery's direct LiteRT-LM path.
 - Image, audio, and text jobs initialize only the required modality backends.
 - Gemma downloads are pinned to Gallery's Hugging Face commits and exact file sizes.
