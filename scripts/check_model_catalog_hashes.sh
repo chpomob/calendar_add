@@ -11,9 +11,10 @@
 # unpinned/moving URLs, unparseable entries, or any entry that could not be
 # verified. No silent skips. The exact model/path that failed is reported.
 #
-# Auth: gated repos (e.g. google/gemma-3n-*) hide lfs.oid as "****" without an
-# access token, which fails-closed here (masked oid never matches a real
-# digest). Provide HF_TOKEN / HUGGING_FACE_HUB_TOKEN; otherwise the standard
+# Auth: the current catalogue is anonymous-accessible, so no token is needed.
+# A token only matters for gated repos, which hide lfs.oid as "****" without
+# one; that fails-closed here (masked oid never matches a real digest). If
+# HF_TOKEN / HUGGING_FACE_HUB_TOKEN is set it is used; otherwise the standard
 # huggingface-cli cache token (~/.cache/huggingface/token) is used as a
 # fallback so the checker runs locally as well as in CI.
 set -euo pipefail

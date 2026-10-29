@@ -28,6 +28,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Folded scalar: one space-separated list, without the legacy 'tools' package.
+          packages: >-
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -43,10 +49,8 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          if [ -z "$HF_TOKEN" ]; then
-            echo "::error::HF_TOKEN secret is not configured in this repository. Add a HuggingFace access token with read access to the gated google/gemma-3n-* repos (the token is used to fetch real LFS digests; without it the verifier fails closed)."
-            exit 1
-          fi
+          # Every catalogue URL is anonymous-accessible, so the verifier runs
+          # without a token and only uses HF_TOKEN when the secret is configured.
           bash scripts/check_model_catalog_hashes.sh
 
       - name: Build with Gradle
@@ -157,6 +161,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Folded scalar: one space-separated list, without the legacy 'tools' package.
+          packages: >-
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
 
       - name: Run lint
         run: ./gradlew lint
