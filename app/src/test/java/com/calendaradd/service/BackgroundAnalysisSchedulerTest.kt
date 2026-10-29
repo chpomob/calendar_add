@@ -380,6 +380,83 @@ class BackgroundAnalysisSchedulerTest {
     }
 
     @Test
+    fun `a queued job tagged with a removed Gemma 3n id is skipped without a legacy download`() {
+        // R6/AC21: Gemma 3n left the catalogue, but a job enqueued before the upgrade still
+        // carries its persisted model tag. getPendingModels and reconciliation must complete
+        // normally, never re-enqueue (or download) the removed id, and still rescue the
+        // retained-model survivor that a stale-node cancel cascades through.
+        val removedInput = File(analysisInputDir(), "text-removed.txt").apply { writeText("removed") }
+        val survivorInput = File(analysisInputDir(), "text-survivor.txt").apply { writeText("survivor") }
+        val removedInfo = mockWorkInfo(
+            state = WorkInfo.State.ENQUEUED,
+            tags = setOf(workTag(), "calendaradd-model:gemma-3n-e2b", inputTag(removedInput))
+        )
+        val survivorInfo = mockWorkInfo(
+            state = WorkInfo.State.ENQUEUED,
+            tags = setOf(workTag(), modelTag(), inputTag(survivorInput))
+        )
+        val staleInfo = mockWorkInfo(
+            state = WorkInfo.State.ENQUEUED,
+            tags = setOf(workTag(), modelTag(), inputTag(File(analysisInputDir(), "gone.txt")))
+        )
+        val removedId = removedInfo.id
+        val survivorId = survivorInfo.id
+        val staleId = staleInfo.id
+        every {
+            workManager.getWorkInfosForUniqueWork(BackgroundAnalysisScheduler.UNIQUE_WORK_NAME)
+        } returns immediateFuture(listOf(removedInfo, staleInfo, survivorInfo))
+        val enqueued = mutableListOf<OneTimeWorkRequest>()
+        every {
+            workManager.enqueueUniqueWork(
+                BackgroundAnalysisScheduler.UNIQUE_WORK_NAME,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                capture(enqueued)
+            )
+        } returns immediateSuccessOperation()
+        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val requestedUrls = mutableListOf<String>()
+        // Real download manager: any network fetch it attempted would be recorded here.
+        val modelDownloadManager = ModelDownloadManager(
+            context = context,
+            preferencesManager = com.calendaradd.usecase.PreferencesManager(context),
+            connectionFactory = { url ->
+                requestedUrls += url
+                throw AssertionError("Unexpected model download: $url")
+            }
+        )
+
+        val scheduler = BackgroundAnalysisScheduler(context, workManager, modelDownloadManager)
+        val pendingModels = runBlocking { scheduler.getPendingModels() }
+        val status = runBlocking { scheduler.reconcilePendingWork() }
+
+        // The removed id resolves to nothing pending; only the retained model is kept.
+        assertEquals(setOf("gemma-4-e2b"), pendingModels.map { it.id }.toSet())
+        assertTrue(status.reconcileSucceeded)
+        assertTrue(status.hasPendingWork)
+        assertTrue(status.clearedStaleWork)
+        verify(exactly = 1) { workManager.cancelWorkById(staleId) }
+        // reEnqueueSurvivor ran for both valid items: the survivor was cancelled and
+        // re-appended, the removed-id job was skipped before any cancel or enqueue.
+        verify(exactly = 1) { workManager.cancelWorkById(survivorId) }
+        verify(exactly = 0) { workManager.cancelWorkById(removedId) }
+        assertEquals(1, enqueued.size)
+        val reEnqueued = enqueued.single()
+        assertEquals("gemma-4-e2b", reEnqueued.workSpec.input.getString(BackgroundAnalysisScheduler.KEY_MODEL_ID))
+        assertEquals(survivorInput.absolutePath, reEnqueued.workSpec.input.getString(BackgroundAnalysisScheduler.KEY_INPUT_PATH))
+        assertTrue(reEnqueued.tags.contains(modelTag()))
+        assertTrue(reEnqueued.tags.none { it.contains("gemma-3n") })
+        // Neither input is deleted: the survivor is reused, the removed-id job is left to its
+        // worker's documented missing-model outcome.
+        assertTrue(survivorInput.exists())
+        assertTrue(removedInput.exists())
+        // No legacy (or any) model download was requested.
+        verify(exactly = 0) { downloadManager.enqueue(any()) }
+        assertTrue(requestedUrls.none { it.substringAfterLast('/').startsWith("gemma-3n") })
+        assertTrue(requestedUrls.isEmpty())
+        verify(exactly = 0) { workManager.cancelUniqueWork(any()) }
+    }
+
+    @Test
     fun `getPendingModels keeps all managed models when the WorkInfo query fails`() {
         // A2: a transient queue-query failure must not let cleanup delete a model a pending job
         // needs. The conservative result is "keep everything", not "keep nothing".
