@@ -485,20 +485,18 @@ class ModelDownloadManagerTest {
     fun `AC1 startup keep-set preserves selected queued and active-download and removes only unused`() {
         val selectedModel = LiteRtModelCatalog.find("gemma-4-e2b")
         val queuedModel = LiteRtModelCatalog.find("gemma-4-e4b")
-        val activeModel = testModel("active-download", "downloading".toByteArray())
         val unusedModel = LiteRtModelCatalog.find("qwen-3_5-0_8b")
 
         val selectedFile = File(modelDir, selectedModel.fileName).apply { writeText("selected") }
         val queuedFile = File(modelDir, queuedModel.fileName).apply { writeText("queued") }
-        val activeFile = File(modelDir, activeModel.fileName).apply { writeText("downloading") }
+        // A managed legacy name (not in the catalogue, distinct from selected/queued/unused), so
+        // cleanup would delete it unless the active-download row protects it.
+        val activeFile = File(modelDir, GEMMA_3N_E4B).apply { writeText("downloading") }
         val unusedFile = File(modelDir, unusedModel.fileName).apply { writeText("unused") }
 
-        val cursor = mockk<Cursor>(relaxed = true)
-        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID) } returns 0
-        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI) } returns 1
-        every { cursor.moveToNext() } returnsMany listOf(true, false)
-        every { cursor.getLong(0) } returns 555L
-        every { cursor.getString(1) } returns "file://${activeFile.absolutePath}"
+        val cursor = activeCursor(
+            listOf(ActiveCursorRow(555L, "file://${activeFile.absolutePath}", DownloadManager.STATUS_RUNNING))
+        )
         val managerWithCursor = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { cursor })
 
         // Startup keep-set = selected + queued. The active-download target is additionally
@@ -509,6 +507,19 @@ class ModelDownloadManagerTest {
         assertTrue(queuedFile.exists())
         assertTrue(activeFile.exists())
         assertFalse(unusedFile.exists())
+        verify(exactly = 1) { cursor.close() }
+
+        // Control pass: same directory and keep-set, but no active download row. The legacy file
+        // is now deleted, proving the assertion above depends on active-download protection.
+        val emptyCursor = activeCursor(emptyList())
+        val managerWithoutActive = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { emptyCursor })
+
+        managerWithoutActive.cleanupUnusedModelFiles(listOf(selectedModel, queuedModel))
+
+        assertFalse(activeFile.exists())
+        assertTrue(selectedFile.exists())
+        assertTrue(queuedFile.exists())
+        verify(exactly = 1) { emptyCursor.close() }
     }
 
     // ----- A3: internal streaming aborts a response larger than the expected model size -----
