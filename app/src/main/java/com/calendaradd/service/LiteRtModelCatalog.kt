@@ -63,14 +63,14 @@ data class LiteRtModelConfig(
 }
 
 object LiteRtModelCatalog {
-    const val DEFAULT_MODEL_ID = "gemma-4-e2b"
+    const val DEFAULT_MODEL_ID = "gemma-4-e4b"
 
     val models: List<LiteRtModelConfig> = listOf(
         LiteRtModelConfig(
             id = "gemma-4-e2b",
             displayName = "Gemma 4 E2B",
             shortName = "Gemma 4 E2B",
-            description = "Balanced default. Official LiteRT-LM release with text, image, and audio input.",
+            description = "Balanced option for 8 GB devices. Official LiteRT-LM release with text, image, and audio input.",
             source = "LiteRT Community / Google",
             downloadUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/7fa1d78473894f7e736a21d920c3aa80f950c0db/gemma-4-E2B-it.litertlm?download=true",
             fileName = "gemma-4-E2B-it.litertlm",
@@ -118,40 +118,6 @@ object LiteRtModelCatalog {
             minimumDeviceMemoryGb = 12
         ),
         LiteRtModelConfig(
-            id = "gemma-3n-e2b",
-            displayName = "Gemma 3n E2B",
-            shortName = "Gemma 3n E2B",
-            description = "Gemma 3n is the best all-around multimodal candidate here: text, image, and audio.",
-            source = "Google / LiteRT-LM",
-            downloadUrl = "https://huggingface.co/google/gemma-3n-E2B-it-litert-lm/resolve/ba9ca88da013b537b6ed38108be609b8db1c3a16/gemma-3n-E2B-it-int4.litertlm?download=true",
-            fileName = "gemma-3n-E2B-it-int4.litertlm",
-            sizeBytes = 3_655_827_456L,
-            sha256 = "2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6",
-            capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
-            executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 4096,
-            mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
-            visionBackend = ModelBackendKind.GPU,
-            minimumDeviceMemoryGb = 8
-        ),
-        LiteRtModelConfig(
-            id = "gemma-3n-e4b",
-            displayName = "Gemma 3n E4B",
-            shortName = "Gemma 3n E4B",
-            description = "Larger Gemma 3n variant for better quality across text, image, and audio.",
-            source = "Google / LiteRT-LM",
-            downloadUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-lm/resolve/297ed75955702dec3503e00c2c2ecbbf475300bc/gemma-3n-E4B-it-int4.litertlm?download=true",
-            fileName = "gemma-3n-E4B-it-int4.litertlm",
-            sizeBytes = 4_919_541_760L,
-            sha256 = "2e67a6cd51dfe0f793431e6bd4ed8d029c88e10f52ca0469ad38445e3cd3c1f4",
-            capabilities = setOf(ModelCapability.TEXT, ModelCapability.IMAGE, ModelCapability.AUDIO),
-            executionProfile = ModelExecutionProfile.ACCELERATED_GEMMA,
-            maxNumTokens = 4096,
-            mainBackendOrder = listOf(ModelBackendKind.CPU, ModelBackendKind.GPU),
-            visionBackend = ModelBackendKind.GPU,
-            minimumDeviceMemoryGb = 12
-        ),
-        LiteRtModelConfig(
             id = "qwen-3_5-0_8b",
             displayName = "Qwen 3.5 0.8B LiteRT",
             shortName = "Qwen 3.5 0.8B",
@@ -172,6 +138,40 @@ object LiteRtModelCatalog {
     fun find(modelId: String?): LiteRtModelConfig {
         return models.firstOrNull { it.id == modelId } ?: models.first { it.id == DEFAULT_MODEL_ID }
     }
+
+    /**
+     * First model to select for a device reporting [deviceMemoryGb] of RAM.
+     * Only ever returns Gemma 4 E4B or Gemma 4 E2B; unknown memory falls back to E2B.
+     */
+    fun initialModelId(deviceMemoryGb: Double?): String {
+        return if (deviceMemoryGb != null && deviceMemoryGb >= E4B_MINIMUM_MEMORY_GB) {
+            "gemma-4-e4b"
+        } else {
+            "gemma-4-e2b"
+        }
+    }
+
+    /**
+     * Resolves the model selection given the raw [storedId] from preferences.
+     * - A stored id naming a catalogue entry is returned unchanged (R5).
+     * - With nothing stored, an existing Gemma 4 E2B file means an upgrading install that
+     *   implicitly used the old E2B default: keep it rather than re-download E4B (R5).
+     * - Otherwise (nothing stored, or a removed id such as a Gemma 3n one) fall back to the
+     *   memory-aware [initialModelId] (R4).
+     */
+    fun resolveSelectedModelId(
+        storedId: String?,
+        deviceMemoryGb: () -> Double?,
+        e2bFilePresent: () -> Boolean
+    ): String {
+        if (storedId != null && models.any { it.id == storedId }) return storedId
+        if (storedId == null && e2bFilePresent()) return E2B_MODEL_ID
+        return initialModelId(deviceMemoryGb())
+    }
+
+    const val E2B_MODEL_ID = "gemma-4-e2b"
+
+    private const val E4B_MINIMUM_MEMORY_GB = 12.0
 }
 
 private const val DOWNLOAD_BUFFER_BYTES = 500_000_000L

@@ -281,7 +281,7 @@ class GemmaLlmServiceTest {
     }
 
     @Test
-    fun `initialize should use Gallery backend order for Gemma 3n`() = runBlocking {
+    fun `initialize should use CPU-first text and GPU vision backends for multimodal Gemma 4 E4B`() = runBlocking {
         var capturedConfig: EngineConfig? = null
         service = object : GemmaLlmService(context, gpuBackendAvailableOverride = true) {
             override fun createEngine(config: EngineConfig): Engine {
@@ -292,8 +292,8 @@ class GemmaLlmServiceTest {
         servicesToClose += service
 
         service.initialize(
-            modelPath = "/tmp/fake-gemma3n-model.litertlm",
-            modelConfig = LiteRtModelCatalog.find("gemma-3n-e2b")
+            modelPath = "/tmp/fake-gemma4-e4b-model.litertlm",
+            modelConfig = LiteRtModelCatalog.find("gemma-4-e4b")
         )
 
         val config = requireNotNull(capturedConfig)

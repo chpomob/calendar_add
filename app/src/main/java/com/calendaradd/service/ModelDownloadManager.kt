@@ -71,7 +71,10 @@ class ModelDownloadManager(
         private val LEGACY_MODEL_FILE_NAMES = setOf(
             "qwen3.5-0.8b-model_multimodal.litertlm",
             "qwen3.5-4b-model_multimodal.litertlm",
-            "qwen35_mm_q8_ekv4096.litertlm"
+            "qwen35_mm_q8_ekv4096.litertlm",
+            // Gemma 3n entries removed from the catalogue; leftover files stay eligible for cleanup.
+            "gemma-3n-E2B-it-int4.litertlm",
+            "gemma-3n-E4B-it-int4.litertlm"
         )
     }
 
@@ -165,8 +168,11 @@ class ModelDownloadManager(
         preferencesManager.modelSelectionLock.withLock {
             val keepFileNames = (keepModels + getSelectedModel()).mapTo(mutableSetOf()) { it.fileName }
             // R5: never delete the destination of a pending/running DownloadManager job, even if it
-            // is no longer in keepModels (e.g. the user switched model mid-download).
-            val activeTargetNames = activeDownloads().mapTo(mutableSetOf()) { it.targetFile.name }
+            // is no longer in keepModels (e.g. the user switched model mid-download). Matched on raw
+            // rows rather than activeDownloads() so legacy (non-catalogue) targets are protected too.
+            val activeTargetNames = activeRows().mapNotNullTo(mutableSetOf()) { row ->
+                uriToPath(row.localUri)?.let { File(it) }?.takeIf { it.parentFile?.absolutePath == dir.absolutePath }?.name
+            }
 
             val managedFileNames = LiteRtModelCatalog.models.mapTo(mutableSetOf<String>()) { it.fileName }.apply {
                 addAll(LEGACY_MODEL_FILE_NAMES)

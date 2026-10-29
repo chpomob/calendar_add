@@ -102,7 +102,7 @@ class ModelDownloadManagerTest {
     fun `cleanupUnusedModelFiles should keep every queued model file`() {
         val currentModel = LiteRtModelCatalog.find("gemma-4-e2b")
         val queuedModel = LiteRtModelCatalog.find("gemma-4-e4b")
-        val otherModel = LiteRtModelCatalog.find("gemma-3n-e2b")
+        val otherModel = LiteRtModelCatalog.find("qwen-3_5-0_8b")
 
         val currentFile = File(modelDir, currentModel.fileName).apply { writeText("keep") }
         val queuedFile = File(modelDir, queuedModel.fileName).apply { writeText("keep") }
@@ -113,6 +113,39 @@ class ModelDownloadManagerTest {
         assertTrue(currentFile.exists())
         assertTrue(queuedFile.exists())
         assertFalse(otherFile.exists())
+    }
+
+    // ----- R6: leftover Gemma 3n files from the removed catalogue entries -----
+
+    @Test
+    fun `cleanupUnusedModelFiles deletes leftover Gemma 3n files and keeps the selected model`() {
+        val selectedModel = LiteRtModelCatalog.find(LiteRtModelCatalog.DEFAULT_MODEL_ID)
+        val selectedFile = File(modelDir, selectedModel.fileName).apply { writeText("selected") }
+        val gemma3nE2b = File(modelDir, "gemma-3n-E2B-it-int4.litertlm").apply { writeText("stale") }
+        val gemma3nE4b = File(modelDir, "gemma-3n-E4B-it-int4.litertlm").apply { writeText("stale") }
+
+        manager.cleanupUnusedModelFiles()
+
+        assertFalse(gemma3nE2b.exists())
+        assertFalse(gemma3nE4b.exists())
+        assertTrue(selectedFile.exists())
+    }
+
+    @Test
+    fun `cleanupUnusedModelFiles keeps a Gemma 3n file targeted by an active download`() {
+        val activeFile = File(modelDir, "gemma-3n-E4B-it-int4.litertlm").apply { writeText("downloading") }
+
+        val cursor = mockk<Cursor>(relaxed = true)
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID) } returns 0
+        every { cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI) } returns 1
+        every { cursor.moveToNext() } returnsMany listOf(true, false)
+        every { cursor.getLong(0) } returns 777L
+        every { cursor.getString(1) } returns "file://${activeFile.absolutePath}"
+        val managerWithCursor = ModelDownloadManager(context, preferencesManager, activeStatusQueryOverride = { cursor })
+
+        managerWithCursor.cleanupUnusedModelFiles()
+
+        assertTrue(activeFile.exists())
     }
 
     // ----- AC1: verified readiness is cached across launches, zero enqueues -----
@@ -335,7 +368,7 @@ class ModelDownloadManagerTest {
         every { preferencesManager.selectedModelId } returns LiteRtModelCatalog.DEFAULT_MODEL_ID
 
         // An unused file that cleanup will delete once it is past the activeDownloads query.
-        val unusedModel = LiteRtModelCatalog.find("gemma-4-e4b")
+        val unusedModel = LiteRtModelCatalog.find("gemma-4-e2b")
         val unusedFile = File(modelDir, unusedModel.fileName).apply { writeText("unused") }
 
         // Gate the activeDownloads query so cleanup pauses mid-critical-section, holding the lock.
@@ -402,7 +435,7 @@ class ModelDownloadManagerTest {
     fun `AC1 startup keep-set preserves selected queued and active-download and removes only unused`() {
         val selectedModel = LiteRtModelCatalog.find("gemma-4-e2b")
         val queuedModel = LiteRtModelCatalog.find("gemma-4-e4b")
-        val activeModel = LiteRtModelCatalog.find("gemma-3n-e2b")
+        val activeModel = testModel("active-download", "downloading".toByteArray())
         val unusedModel = LiteRtModelCatalog.find("qwen-3_5-0_8b")
 
         val selectedFile = File(modelDir, selectedModel.fileName).apply { writeText("selected") }

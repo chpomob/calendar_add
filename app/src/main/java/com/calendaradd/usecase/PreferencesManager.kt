@@ -2,8 +2,11 @@ package com.calendaradd.usecase
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Environment
 import androidx.core.content.edit
 import com.calendaradd.service.LiteRtModelCatalog
+import com.calendaradd.service.deviceMemoryGb
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -11,7 +14,14 @@ import kotlin.concurrent.withLock
 /**
  * Manages user preferences persistence.
  */
-class PreferencesManager(context: Context) {
+class PreferencesManager(
+    context: Context,
+    private val deviceMemoryGbProvider: () -> Double? = { context.deviceMemoryGb() },
+    /** Must match ModelDownloadManager's storage root so an existing E2B file is detected. */
+    private val modelStorageRootProvider: () -> File = {
+        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+    }
+) {
     private val prefs: SharedPreferences = context.getSharedPreferences("calendar_add_prefs", Context.MODE_PRIVATE)
 
     /**
@@ -55,9 +65,32 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_TARGET_CALENDAR_NAME, null)
         set(value) = prefs.edit { putString(KEY_TARGET_CALENDAR_NAME, value) }
 
+    /**
+     * The selected model id. When no valid choice is stored (first launch, or a removed
+     * catalogue id), resolves one via [LiteRtModelCatalog.resolveSelectedModelId] — memory-aware
+     * first selection, or Gemma 4 E2B when its file is already on disk — and persists it once so
+     * later reads are stable.
+     */
     var selectedModelId: String
-        get() = prefs.getString(KEY_SELECTED_MODEL_ID, LiteRtModelCatalog.DEFAULT_MODEL_ID)
-            ?: LiteRtModelCatalog.DEFAULT_MODEL_ID
+        get() {
+            val stored = prefs.getString(KEY_SELECTED_MODEL_ID, null)
+            if (stored != null && LiteRtModelCatalog.models.any { it.id == stored }) return stored
+            return modelSelectionLock.withLock {
+                val current = prefs.getString(KEY_SELECTED_MODEL_ID, null)
+                val resolved = LiteRtModelCatalog.resolveSelectedModelId(
+                    storedId = current,
+                    deviceMemoryGb = deviceMemoryGbProvider,
+                    e2bFilePresent = {
+                        val e2b = LiteRtModelCatalog.find(LiteRtModelCatalog.E2B_MODEL_ID)
+                        runCatching { File(modelStorageRootProvider(), e2b.fileName).isFile }.getOrDefault(false)
+                    }
+                )
+                if (resolved != current) {
+                    prefs.edit { putString(KEY_SELECTED_MODEL_ID, resolved) }
+                }
+                resolved
+            }
+        }
         set(value) {
             modelSelectionLock.withLock {
                 prefs.edit { putString(KEY_SELECTED_MODEL_ID, value) }

@@ -8,24 +8,70 @@ import org.junit.Test
 class LiteRtModelCatalogTest {
 
     @Test
-    fun `default model is Gemma 4 E2B`() {
-        assertEquals("gemma-4-e2b", LiteRtModelCatalog.DEFAULT_MODEL_ID)
-        assertEquals("Gemma 4 E2B", LiteRtModelCatalog.find(null).displayName)
+    fun `default model is Gemma 4 E4B`() {
+        assertEquals("gemma-4-e4b", LiteRtModelCatalog.DEFAULT_MODEL_ID)
+        assertEquals("Gemma 4 E4B", LiteRtModelCatalog.find(null).displayName)
     }
 
     @Test
-    fun `Gemma 3n supports text image and audio`() {
-        val e2b = LiteRtModelCatalog.find("gemma-3n-e2b")
-        val model = LiteRtModelCatalog.find("gemma-3n-e4b")
+    fun `find falls back to Gemma 4 E4B for null and unknown ids`() {
+        assertEquals("gemma-4-e4b", LiteRtModelCatalog.find(null).id)
+        assertEquals("gemma-4-e4b", LiteRtModelCatalog.find("unknown").id)
+    }
+
+    @Test
+    fun `catalog lists exactly four models in order`() {
+        assertEquals(
+            listOf("gemma-4-e2b", "gemma-4-e2b-compact", "gemma-4-e4b", "qwen-3_5-0_8b"),
+            LiteRtModelCatalog.models.map { it.id }
+        )
+    }
+
+    @Test
+    fun `catalog contains no Gemma 3n entry`() {
+        LiteRtModelCatalog.models.forEach { model ->
+            assertFalse("${model.id} id", model.id.contains("gemma-3n"))
+            assertFalse("${model.id} url", model.downloadUrl.contains("huggingface.co/google/gemma-3n"))
+        }
+    }
+
+    @Test
+    fun `E2B description no longer claims to be the default`() {
+        assertFalse(LiteRtModelCatalog.find("gemma-4-e2b").description.contains("default", ignoreCase = true))
+    }
+
+    @Test
+    fun `initialModelId picks E4B from 12 GB and E2B below or when unknown`() {
+        assertEquals("gemma-4-e4b", LiteRtModelCatalog.initialModelId(12.0))
+        assertEquals("gemma-4-e4b", LiteRtModelCatalog.initialModelId(16.0))
+        assertEquals("gemma-4-e2b", LiteRtModelCatalog.initialModelId(11.99))
+        assertEquals("gemma-4-e2b", LiteRtModelCatalog.initialModelId(8.0))
+        assertEquals("gemma-4-e2b", LiteRtModelCatalog.initialModelId(6.0))
+        assertEquals("gemma-4-e2b", LiteRtModelCatalog.initialModelId(4.0))
+        assertEquals("gemma-4-e2b", LiteRtModelCatalog.initialModelId(null))
+    }
+
+    @Test
+    fun `initialModelId never selects Compact or Qwen`() {
+        listOf(null, 0.0, 4.0, 5.0, 6.0, 8.0, 11.99, 12.0, 16.0, 64.0).forEach { memoryGb ->
+            val id = LiteRtModelCatalog.initialModelId(memoryGb)
+            assertTrue("$memoryGb -> $id", id == "gemma-4-e2b" || id == "gemma-4-e4b")
+        }
+    }
+
+    @Test
+    fun `Gemma 4 E2B and E4B support text image and audio`() {
+        val e2b = LiteRtModelCatalog.find("gemma-4-e2b")
+        val e4b = LiteRtModelCatalog.find("gemma-4-e4b")
 
         assertTrue(e2b.supportsText)
         assertTrue(e2b.supportsImage)
         assertTrue(e2b.supportsAudio)
-        assertEquals("Gemma 3n E2B", e2b.displayName)
-        assertTrue(model.supportsText)
-        assertTrue(model.supportsImage)
-        assertTrue(model.supportsAudio)
-        assertEquals("Gemma 3n E4B", model.displayName)
+        assertEquals("Gemma 4 E2B", e2b.displayName)
+        assertTrue(e4b.supportsText)
+        assertTrue(e4b.supportsImage)
+        assertTrue(e4b.supportsAudio)
+        assertEquals("Gemma 4 E4B", e4b.displayName)
     }
 
     @Test
@@ -76,16 +122,14 @@ class LiteRtModelCatalogTest {
         assertEquals(4000, LiteRtModelCatalog.find("gemma-4-e2b").maxNumTokens)
         assertEquals(1024, LiteRtModelCatalog.find("gemma-4-e2b-compact").maxNumTokens)
         assertEquals(4000, LiteRtModelCatalog.find("gemma-4-e4b").maxNumTokens)
-        assertEquals(4096, LiteRtModelCatalog.find("gemma-3n-e2b").maxNumTokens)
-        assertEquals(4096, LiteRtModelCatalog.find("gemma-3n-e4b").maxNumTokens)
     }
 
     @Test
     fun `Gemma models use AI Edge Gallery backend orders and memory minimums`() {
         val gemma4E2b = LiteRtModelCatalog.find("gemma-4-e2b")
         val gemma4E4b = LiteRtModelCatalog.find("gemma-4-e4b")
-        val gemma3nE2b = LiteRtModelCatalog.find("gemma-3n-e2b")
-        val gemma3nE4b = LiteRtModelCatalog.find("gemma-3n-e4b")
+        val compact = LiteRtModelCatalog.find("gemma-4-e2b-compact")
+        val qwen = LiteRtModelCatalog.find("qwen-3_5-0_8b")
 
         assertEquals(listOf(ModelBackendKind.GPU, ModelBackendKind.CPU), gemma4E2b.mainBackendOrder)
         assertEquals(ModelBackendKind.GPU, gemma4E2b.visionBackend)
@@ -98,14 +142,13 @@ class LiteRtModelCatalogTest {
         assertEquals(3_654_467_584L, gemma4E4b.sizeBytes)
         assertTrue(gemma4E4b.downloadUrl.contains("/resolve/9695417f248178c63a9f318c6e0c56cb917cb837/"))
 
-        assertEquals(listOf(ModelBackendKind.CPU, ModelBackendKind.GPU), gemma3nE2b.mainBackendOrder)
-        assertEquals(ModelBackendKind.GPU, gemma3nE2b.visionBackend)
-        assertEquals(8, gemma3nE2b.minimumDeviceMemoryGb)
-        assertEquals(3_655_827_456L, gemma3nE2b.sizeBytes)
-        assertEquals(listOf(ModelBackendKind.CPU, ModelBackendKind.GPU), gemma3nE4b.mainBackendOrder)
-        assertEquals(ModelBackendKind.GPU, gemma3nE4b.visionBackend)
-        assertEquals(12, gemma3nE4b.minimumDeviceMemoryGb)
-        assertEquals(4_919_541_760L, gemma3nE4b.sizeBytes)
+        assertEquals(listOf(ModelBackendKind.CPU), compact.mainBackendOrder)
+        assertEquals(ModelBackendKind.CPU, compact.visionBackend)
+        assertEquals(5, compact.minimumDeviceMemoryGb)
+        assertEquals(listOf(ModelBackendKind.CPU), qwen.mainBackendOrder)
+        assertEquals(ModelBackendKind.CPU, qwen.visionBackend)
+        assertEquals(null, qwen.minimumDeviceMemoryGb)
+        assertEquals(ModelExecutionProfile.CPU_ONLY_MULTIMODAL, qwen.executionProfile)
     }
 
     @Test
@@ -136,20 +179,6 @@ class LiteRtModelCatalogTest {
                 3_654_467_584L,
                 "f335f2bfd1b758dc6476db16c0f41854bd6237e2658d604cbe566bcefd00a7bc"
             ),
-            "gemma-3n-e2b" to Asset(
-                "google/gemma-3n-E2B-it-litert-lm",
-                "ba9ca88da013b537b6ed38108be609b8db1c3a16",
-                "gemma-3n-E2B-it-int4.litertlm",
-                3_655_827_456L,
-                "2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6"
-            ),
-            "gemma-3n-e4b" to Asset(
-                "google/gemma-3n-E4B-it-litert-lm",
-                "297ed75955702dec3503e00c2c2ecbbf475300bc",
-                "gemma-3n-E4B-it-int4.litertlm",
-                4_919_541_760L,
-                "2e67a6cd51dfe0f793431e6bd4ed8d029c88e10f52ca0469ad38445e3cd3c1f4"
-            ),
             "qwen-3_5-0_8b" to Asset(
                 "GabrieleConte/Qwen3.5-0.8B-LiteRT",
                 "766ec4afaaeeda64da162c458bac1efc0d27cf9e",
@@ -175,6 +204,12 @@ class LiteRtModelCatalogTest {
             assertEquals("${model.id} sizeBytes", asset.sizeBytes, model.sizeBytes)
             assertEquals("${model.id} sha256", asset.sha256, model.sha256)
         }
+
+        val e2b = LiteRtModelCatalog.find("gemma-4-e2b")
+        val compact = LiteRtModelCatalog.find("gemma-4-e2b-compact")
+        assertEquals(e2b.downloadUrl, compact.downloadUrl)
+        assertEquals(e2b.fileName, compact.fileName)
+        assertEquals(e2b.sha256, compact.sha256)
     }
 
     private data class Asset(
