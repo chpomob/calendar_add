@@ -1,6 +1,7 @@
 package com.calendaradd.util
 
 import android.app.PendingIntent
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
@@ -38,6 +39,7 @@ class ApkInstaller(
         private const val TAG = "ApkInstaller"
     }
 
+    @SuppressLint("NewApi")
     suspend fun install(apkFile: File): InstallResult = withContext(Dispatchers.IO) {
         if (!apkFile.exists() || apkFile.length() == 0L) {
             return@withContext InstallResult.Failed("Downloaded APK is missing.")

@@ -82,3 +82,6 @@ external/
 BRIEF.md
 *.brief
 .adversarial-loop/
+
+# Campaign review artifacts (never published)
+docs/runs/
