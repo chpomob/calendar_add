@@ -16,14 +16,19 @@ if (hasReleaseKeystore) {
     keystorePropertiesFile.inputStream().use(keystoreProperties::load)
 }
 
+// -PemulatorX86_64=true restricts the DEBUG build to x86_64 (emulator). It never affects release.
+val emulatorX86_64Only = providers.gradleProperty("emulatorX86_64")
+    .map { it.toBoolean() }
+    .getOrElse(false)
+
 android {
     namespace = "com.calendaradd"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.calendaradd"
         minSdk = 31
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 13
         versionName = "0.4.1"
 
@@ -52,8 +57,25 @@ android {
         }
     }
 
+    // ABI filters are declared per build type only: a defaultConfig filter would be unioned
+    // with these and defeat the x86_64-only debug build.
     buildTypes {
+        debug {
+            ndk {
+                if (emulatorX86_64Only) {
+                    abiFilters += "x86_64"
+                } else {
+                    abiFilters += listOf("arm64-v8a", "x86_64")
+                }
+            }
+        }
         release {
+            // The release artifact must stay arm64-only: LiteRT-LM ships no inference engine
+            // (liblitertlm_jni.so, libLiteRt.so) for 32-bit ABIs, so a 32-bit device could install
+            // the app but never run inference.
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             signingConfig = signingConfigs.findByName("release")
