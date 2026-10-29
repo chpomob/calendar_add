@@ -7,6 +7,7 @@ import io.mockk.mockk
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -98,8 +99,92 @@ class PreferencesManagerTest {
         assertEquals("gemma-4-e2b-compact", manager.selectedModelId)
     }
 
+    @Test
+    fun `first read performs exactly one write and later reads perform none`() {
+        val first = manager(16.0)
+        assertEquals("gemma-4-e4b", first.selectedModelId)
+        assertEquals(1, prefs.applyCount)
+
+        assertEquals("gemma-4-e4b", first.selectedModelId)
+        assertEquals(1, prefs.applyCount)
+
+        assertEquals("gemma-4-e4b", manager(16.0).selectedModelId)
+        assertEquals(1, prefs.applyCount)
+    }
+
+    @Test
+    fun `reading a stored valid selection calls neither the memory nor the storage-root provider`() {
+        var memoryCalls = 0
+        var rootCalls = 0
+        fun countingManager() = PreferencesManager(
+            context,
+            deviceMemoryGbProvider = { memoryCalls++; 16.0 },
+            modelStorageRootProvider = { rootCalls++; modelDir }
+        )
+
+        val first = countingManager()
+        assertEquals("gemma-4-e4b", first.selectedModelId)
+        memoryCalls = 0
+        rootCalls = 0
+
+        assertEquals("gemma-4-e4b", first.selectedModelId)
+        assertEquals("gemma-4-e4b", countingManager().selectedModelId)
+        assertEquals(0, memoryCalls)
+        assertEquals(0, rootCalls)
+
+        first.selectedModelId = "gemma-4-e2b-compact"
+        assertEquals("gemma-4-e2b-compact", countingManager().selectedModelId)
+        assertEquals(0, memoryCalls)
+        assertEquals(0, rootCalls)
+    }
+
+    @Test
+    fun `upgrade preservation keeps E2B for both the external Downloads and the internal fallback root`() {
+        val externalDownloads = File(modelDir, "external/files/Download").apply { mkdirs() }
+        val internalFiles = File(modelDir, "internal/files").apply { mkdirs() }
+        val roots = listOf<Pair<String, () -> File>>(
+            "external Downloads" to { externalDownloads },
+            // Mirrors the production fallback when getExternalFilesDir returns null.
+            "internal fallback" to { (null as File?) ?: internalFiles }
+        )
+        for ((label, root) in roots) {
+            prefs.values.clear()
+            File(modelDir, "external").deleteRecursively()
+            File(modelDir, "internal").deleteRecursively()
+            val rootDir = root().apply { mkdirs() }
+            File(rootDir, "gemma-4-E2B-it.litertlm").writeText("existing")
+
+            val manager = PreferencesManager(
+                context,
+                deviceMemoryGbProvider = { 16.0 },
+                modelStorageRootProvider = root
+            )
+            assertEquals(label, "gemma-4-e2b", manager.selectedModelId)
+            assertEquals(label, "gemma-4-e2b", prefs.values["selected_model_id"])
+        }
+    }
+
+    @Test
+    fun `a directory named like the E2B model file is not treated as an installed model`() {
+        File(modelDir, "gemma-4-E2B-it.litertlm").mkdirs()
+
+        assertEquals("gemma-4-e4b", manager(16.0).selectedModelId)
+        assertEquals("gemma-4-e4b", prefs.values["selected_model_id"])
+    }
+
+    @Test
+    fun `limitation - a part-only E2B download is not detected as an install so 16 GB resolves to E4B`() {
+        val part = File(modelDir, "gemma-4-E2B-it.litertlm.part").apply { writeText("partial") }
+
+        assertEquals("gemma-4-e4b", manager(16.0).selectedModelId)
+        assertEquals("gemma-4-e4b", prefs.values["selected_model_id"])
+        assertTrue(part.isFile)
+        assertEquals("partial", part.readText())
+    }
+
     private class FakeSharedPreferences : SharedPreferences {
         val values = mutableMapOf<String, Any?>()
+        var applyCount = 0
 
         override fun getAll(): MutableMap<String, *> = values
         override fun getString(key: String, defValue: String?): String? =
@@ -126,7 +211,9 @@ class PreferencesManagerTest {
             override fun remove(key: String) = apply { values.remove(key) }
             override fun clear() = apply { values.clear() }
             override fun commit(): Boolean = true
-            override fun apply() = Unit
+            override fun apply() {
+                applyCount++
+            }
         }
     }
 }
