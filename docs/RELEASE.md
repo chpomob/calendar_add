@@ -1,11 +1,11 @@
 # Release Notes
 
-Last updated: 2026-05-10
+Last updated: 2026-10-29
 
 ## Current Release Build Status
 
-- `compileSdk = 35`
-- `targetSdk = 35`
+- `compileSdk = 36`
+- `targetSdk = 36`
 - `versionCode = 14`
 - `versionName = "0.5.0"`
 - Release minify and shrink are enabled

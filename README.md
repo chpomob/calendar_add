@@ -84,7 +84,7 @@ Models are downloaded through Android `DownloadManager` into app-specific storag
 
 Requirements:
 
-- Android 8.0+ device or emulator for runtime testing
+- Android 12+ device or emulator for runtime testing (minSdk 31)
 - Android SDK configured in `local.properties`
 - JDK 21
 - Enough free storage for the selected model
@@ -123,9 +123,9 @@ The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The `emulator
 
 Current Android configuration in [app/build.gradle.kts](app/build.gradle.kts):
 
-- `compileSdk = 35`
-- `targetSdk = 35`
-- `minSdk = 26`
+- `compileSdk = 36`
+- `targetSdk = 36`
+- `minSdk = 31`
 - `versionName = "0.5.0"`
 
 ## Signed Releases

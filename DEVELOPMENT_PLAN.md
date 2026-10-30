@@ -1,6 +1,6 @@
 # Calendar Add Development Plan
 
-Last updated: 2026-05-10
+Last updated: 2026-10-29
 
 This file is the current roadmap. Older prototype assumptions about bundled TensorFlow/GGUF assets, llama.cpp, and a manual model download flow are obsolete.
 
@@ -24,11 +24,11 @@ Current implementation:
 
 Current Gradle release identity:
 
-- `compileSdk = 35`
-- `targetSdk = 35`
-- `minSdk = 26`
-- `versionCode = 5`
-- `versionName = "0.3.0-alpha.0"`
+- `compileSdk = 36`
+- `targetSdk = 36`
+- `minSdk = 31`
+- `versionCode = 14`
+- `versionName = "0.5.0"`
 - JDK 21
 
 ## Quality Baseline
